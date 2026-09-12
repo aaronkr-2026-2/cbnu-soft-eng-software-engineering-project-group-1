@@ -1,3 +1,11 @@
+# MedConnect API
+
+Booking-platform API foundation for clinics. Routes are versioned under `/api/v1`, allowing clinic tenancy and booking models to be added without breaking clients.
+
+Copy `.env.example` to `.env` and set `MONGO_URI` to your MongoDB Atlas string. `MONGO_DEV` and `MONGO_PROD` are also supported for backward compatibility. Production requires `mongodb+srv://`.
+
+Endpoints: `GET /api/v1`, `GET /api/v1/health/live`, and `GET /api/v1/health/ready`. The readiness endpoint returns 503 until MongoDB has connected and never exposes credentials or driver details.
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
