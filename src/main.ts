@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 
 function loadEnvironment(): void {
@@ -24,7 +25,18 @@ async function bootstrap() {
   loadEnvironment();
   validateConfiguration();
   const { AppModule } = await import('./app.module.js');
-  const app = await NestFactory.create(AppModule);
+  const { FileLogger } = await import('./logging/file-logger.service.js');
+  const { LoggingInterceptor } = await import('./logging/logging.interceptor.js');
+  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const logger = app.get(FileLogger);
+  app.useLogger(logger);
+  app.useGlobalInterceptors(new LoggingInterceptor(logger));
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    exceptionFactory: () => new BadRequestException('Invalid request data'),
+  }));
   app.getHttpAdapter().getInstance().disable('x-powered-by');
   app.setGlobalPrefix('api/v1');
 
@@ -45,6 +57,9 @@ async function bootstrap() {
     response.setHeader('Referrer-Policy', 'no-referrer');
     next();
   });
-  await app.listen(Number(process.env.PORT_API ?? process.env.PORT ?? 3000));
+  const port = Number(process.env.PORT_API ?? process.env.PORT ?? 3000);
+  await app.listen(port);
+  logger.log(`API available at http://localhost:${port}/api/v1`, 'Bootstrap');
+  logger.log(`Health checks: http://localhost:${port}/api/v1/health/live and /ready`, 'Bootstrap');
 }
 void bootstrap();

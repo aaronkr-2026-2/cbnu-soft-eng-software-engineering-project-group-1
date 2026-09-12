@@ -6,6 +6,8 @@ Copy `.env.example` to `.env` and set `MONGO_URI` to your MongoDB Atlas string. 
 
 Endpoints: `GET /api/v1`, `GET /api/v1/health/live`, and `GET /api/v1/health/ready`. The readiness endpoint returns 503 until MongoDB has connected and never exposes credentials or driver details.
 
+Application, request, and error logs are written as JSON lines to `logs/medconnect.log`. Set `LOG_FILE` to choose another location. Request bodies, responses, authorization headers, cookies, and query strings are intentionally excluded.
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
