@@ -11,6 +11,10 @@ function loadEnvironment(): void {
 }
 
 function validateConfiguration(): void {
+  const jwtSecret = process.env.JWT_ACCESS_SECRET;
+  if (!jwtSecret || Buffer.byteLength(jwtSecret) < 32) {
+    throw new Error('JWT_ACCESS_SECRET must contain at least 32 bytes');
+  }
   const mongoUri = process.env.MONGO_URI ??
     (process.env.NODE_ENV === 'production' ? process.env.MONGO_PROD : process.env.MONGO_DEV);
   if (!mongoUri) {

@@ -1,12 +1,12 @@
 import { Schema } from 'mongoose';
-import { MEMBER_MODEL_NAME } from './member.model.js';
+import { MEMBER } from './member.model.js';
 
 export const DOCTOR_AVAILABILITY_MODEL_NAME = 'DoctorAvailability';
 
 const DoctorAvailabilitySchema = new Schema(
   {
-    doctorId: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME, required: true },
-    clinicId: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME, required: true },
+    doctorId: { type: Schema.Types.ObjectId, ref: MEMBER, required: true },
+    clinicId: { type: Schema.Types.ObjectId, ref: MEMBER, required: true },
     // 0 (Sunday) through 6 (Saturday), based on the clinic's timezone.
     weekday: { type: Number, required: true, min: 0, max: 6 },
     // Minutes since local midnight. Schedules may contain multiple intervals a day.

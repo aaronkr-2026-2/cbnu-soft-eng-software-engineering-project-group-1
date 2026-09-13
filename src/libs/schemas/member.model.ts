@@ -7,7 +7,7 @@ import {
   MemberType,
 } from '../enum/member.enum.js';
 
-export const MEMBER_MODEL_NAME = 'Member';
+export const MEMBER = 'Member';
 
 const MemberSchema = new Schema({
   memberType: {
@@ -112,7 +112,7 @@ const MemberSchema = new Schema({
   // Doctors cannot exist independently: every doctor applies to one clinic.
   clinicId: {
     type: Schema.Types.ObjectId,
-    ref: MEMBER_MODEL_NAME,
+    ref: MEMBER,
     required: function (this: { memberType?: MemberType }) {
       return this.memberType === MemberType.DOCTOR;
     },

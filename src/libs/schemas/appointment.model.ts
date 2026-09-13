@@ -6,7 +6,7 @@ import {
   DoctorChangeRequestStatus,
   DoctorChangeRequestType,
 } from '../enum/appointment.enum.js';
-import { MEMBER_MODEL_NAME } from './member.model.js';
+import { MEMBER } from './member.model.js';
 
 export const APPOINTMENT_MODEL_NAME = 'Appointment';
 
@@ -23,7 +23,7 @@ const DoctorChangeRequestSchema = new Schema(
     reason: { type: String, trim: true, maxlength: 500 },
     requestedAt: { type: Date, default: Date.now },
     reviewedAt: Date,
-    reviewedBy: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME },
+    reviewedBy: { type: Schema.Types.ObjectId, ref: MEMBER },
   },
   { _id: false },
 );
@@ -44,15 +44,15 @@ const AppointmentSchema = new Schema(
       enum: Object.values(AppointmentStatus),
       default: AppointmentStatus.PENDING,
     },
-    doctorId: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME, required: true },
-    clinicId: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME, required: true },
-    patientId: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME, required: true },
+    doctorId: { type: Schema.Types.ObjectId, ref: MEMBER, required: true },
+    clinicId: { type: Schema.Types.ObjectId, ref: MEMBER, required: true },
+    patientId: { type: Schema.Types.ObjectId, ref: MEMBER, required: true },
     // Only a clinic may approve/reject this request. The appointment remains
     // unchanged until an approved request is applied by the service.
     doctorChangeRequest: DoctorChangeRequestSchema,
-    lastChangedBy: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME },
+    lastChangedBy: { type: Schema.Types.ObjectId, ref: MEMBER },
     canceledAt: Date,
-    canceledBy: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME },
+    canceledBy: { type: Schema.Types.ObjectId, ref: MEMBER },
   },
   { timestamps: true, collection: 'appointments' },
 );

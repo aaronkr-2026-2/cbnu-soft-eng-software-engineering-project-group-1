@@ -1,13 +1,13 @@
 import { Schema } from 'mongoose';
 import { AvailabilityOverrideType } from '../enum/appointment.enum.js';
-import { MEMBER_MODEL_NAME } from './member.model.js';
+import { MEMBER } from './member.model.js';
 
 export const DOCTOR_AVAILABILITY_OVERRIDE_MODEL_NAME = 'DoctorAvailabilityOverride';
 
 const DoctorAvailabilityOverrideSchema = new Schema(
   {
-    doctorId: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME, required: true },
-    clinicId: { type: Schema.Types.ObjectId, ref: MEMBER_MODEL_NAME, required: true },
+    doctorId: { type: Schema.Types.ObjectId, ref: MEMBER, required: true },
+    clinicId: { type: Schema.Types.ObjectId, ref: MEMBER, required: true },
     // Calendar date in the clinic timezone, for example 2026-09-13.
     date: { type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ },
     type: { type: String, enum: Object.values(AvailabilityOverrideType), required: true },

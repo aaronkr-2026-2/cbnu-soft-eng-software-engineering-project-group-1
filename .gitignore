@@ -3,6 +3,10 @@
 /node_modules
 /build
 
+# Local session context
+/AGENTS.md
+/SESSION_LOG.md
+
 # Logs
 logs
 *.log

@@ -122,3 +122,44 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+
+## Member authentication (REST)
+
+Set `JWT_ACCESS_SECRET` to a cryptographically random secret of at least 32 bytes
+in `.env` (for example, generate one with `openssl rand -hex 48`). Keep it private
+and stable across restarts. Startup rejects missing or short secrets.
+
+- `POST /api/v1/member/signup` returns 201. Required fields: `memberEmail`,
+  `memberPassword` (12–128 characters), `memberPhone` (international format such
+  as `+821012345678`), and `memberNick` (2–40 characters). `memberFullName` is optional.
+- `memberType` defaults to `USER`. `CLINIC` additionally requires `clinicName`;
+  `clinicTimezone` defaults to `Asia/Seoul`. `DOCTOR` requires `clinicId` of an
+  active clinic, a nonempty `doctorSpecializations` enum array, and
+  `professionalLicenseNumber`. Doctors start with `PENDING` clinic affiliation.
+  Public signup cannot create `ADMIN` accounts or set approval/status fields.
+- `POST /api/v1/member/login` accepts `memberEmail` and `memberPassword`, returning
+  200. Unknown accounts, wrong passwords, non-email accounts, and suspended or
+  deleted accounts return the same 401 response. Email is trimmed and lowercased;
+  passwords are preserved exactly.
+- Both return `{ member, accessToken, refreshToken }`. Member fields are explicitly
+  allowlisted; password hashes, provider IDs, phone numbers, and license numbers
+  are excluded. Passwords use salted scrypt (`N=32768, r=8, p=3`).
+- Access tokens are HS256 JWTs valid for 15 minutes, with issuer `medconnect`,
+  audience `medconnect-api`, subject equal to the member ID, and `tokenType=access`.
+  Future protected routes must verify these claims and current member status;
+  issuing a token does not itself protect booking or other routes.
+- `POST /api/v1/member/refresh` accepts `{ "refreshToken": "..." }` and returns
+  a new token pair and member data. Refresh tokens are opaque random values;
+  only SHA-256 hashes are stored in `member_sessions`. Each session lasts seven
+  days from login/signup. Refresh rotates the token atomically without extending
+  that deadline; reuse and expired sessions return 401. MongoDB TTL cleanup is
+  supplemented by an explicit expiry check.
+- Invalid/extra fields return 400; duplicate email, phone, nickname, or license
+  returns 409. Authentication responses have `Cache-Control: no-store`.
+- Authentication routes share a limit of 20 requests per minute per client IP
+  per API process (429 on excess). For multiple instances, use a shared rate-limit
+  store; configure trusted proxies explicitly for your deployment.
+
+HTTP tests use Mongoose document validation with an in-memory persistence substitute;
+they do not connect to Atlas. Clinic verification, affiliation approval endpoints,
+email verification, logout/revocation, and protected booking routes are separate work.
