@@ -1,5 +1,5 @@
 import { Schema } from 'mongoose';
-import { AvailabilityOverrideType } from '../enum/appointment.enum.js';
+import { AvailabilityOverrideType } from '../libs/enum/appointment.enum.js';
 import { MEMBER } from './member.model.js';
 
 export const DOCTOR_AVAILABILITY_OVERRIDE_MODEL_NAME = 'DoctorAvailabilityOverride';

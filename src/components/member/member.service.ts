@@ -16,18 +16,19 @@ import {
   MemberStatus,
   MemberType,
 } from '../../libs/enum/member.enum.js';
-import { MEMBER } from '../../libs/schemas/member.model.js';
+import { MEMBER } from '../../schemas/member.model.js';
 import {
   MEMBER_SESSION,
   type MemberSessionEntity,
-} from '../../libs/schemas/member-session.model.js';
+} from '../../schemas/member-session.model.js';
 import type {
   MemberAuthResponse,
   MemberDocument,
   MemberEntity,
+  MemberPrincipal,
 } from '../../libs/types/member.types.js';
-import type { LoginDto, SignupDto } from './dto/member-auth.dto.js';
-import { hashPassword, verifyPassword } from './member-password.js';
+import type { LoginDto, SignupDto } from '../../libs/dto/member/member-auth.dto.js';
+import { hashPassword, verifyPassword } from '../auth/member-password.js';
 
 const REFRESH_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const tokenHash = (token: string) =>
@@ -49,6 +50,44 @@ export class MemberService {
     if (!this.members || !this.sessions)
       throw new ServiceUnavailableException('Authentication is unavailable');
     return { members: this.members, sessions: this.sessions };
+  }
+
+  async authenticateAccessToken(token: string): Promise<MemberPrincipal> {
+    let subject: string;
+    try {
+      const claims = await this.jwt.verifyAsync<Record<string, unknown>>(
+        token,
+        {
+          algorithms: ['HS256'],
+          issuer: 'medconnect',
+          audience: 'medconnect-api',
+        },
+      );
+      if (
+        claims.tokenType !== 'access' ||
+        typeof claims.sub !== 'string' ||
+        !/^[a-f\d]{24}$/i.test(claims.sub) ||
+        typeof claims.exp !== 'number' ||
+        claims.exp <= Date.now() / 1000
+      )
+        throw new Error('Invalid claims');
+      subject = claims.sub;
+    } catch {
+      throw new UnauthorizedException('Invalid access token');
+    }
+    if (!this.members)
+      throw new ServiceUnavailableException('Authentication is unavailable');
+    const member = await this.members
+      .findOne({
+        _id: new Types.ObjectId(subject),
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select({ _id: 1, memberType: 1 })
+      .lean()
+      .exec();
+    if (!member) throw new UnauthorizedException('Invalid access token');
+    return { _id: member._id, memberType: member.memberType };
   }
 
   async signup(input: SignupDto): Promise<MemberAuthResponse> {

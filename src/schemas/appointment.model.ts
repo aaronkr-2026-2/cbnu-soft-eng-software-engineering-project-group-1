@@ -5,7 +5,7 @@ import {
   AppointmentStatus,
   DoctorChangeRequestStatus,
   DoctorChangeRequestType,
-} from '../enum/appointment.enum.js';
+} from '../libs/enum/appointment.enum.js';
 import { MEMBER } from './member.model.js';
 
 export const APPOINTMENT_MODEL_NAME = 'Appointment';

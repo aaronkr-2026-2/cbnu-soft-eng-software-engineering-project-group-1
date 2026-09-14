@@ -1,7 +1,7 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Observable, catchError, tap, throwError } from 'rxjs';
-import { FileLogger } from './file-logger.service.js';
+import { FileLogger } from '../logger/file-logger.service.js';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {

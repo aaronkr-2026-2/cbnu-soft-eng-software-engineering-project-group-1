@@ -146,7 +146,7 @@ and stable across restarts. Startup rejects missing or short secrets.
   are excluded. Passwords use salted scrypt (`N=32768, r=8, p=3`).
 - Access tokens are HS256 JWTs valid for 15 minutes, with issuer `medconnect`,
   audience `medconnect-api`, subject equal to the member ID, and `tokenType=access`.
-  Future protected routes must verify these claims and current member status;
+  The appointment endpoint verifies these claims and current member status;
   issuing a token does not itself protect booking or other routes.
 - `POST /api/v1/member/refresh` accepts `{ "refreshToken": "..." }` and returns
   a new token pair and member data. Refresh tokens are opaque random values;
@@ -163,3 +163,69 @@ and stable across restarts. Startup rejects missing or short secrets.
 HTTP tests use Mongoose document validation with an in-memory persistence substitute;
 they do not connect to Atlas. Clinic verification, affiliation approval endpoints,
 email verification, logout/revocation, and protected booking routes are separate work.
+
+
+## Get an appointment
+
+```http
+GET /api/v1/appointment/<appointment-id>
+Authorization: Bearer <accessToken>
+```
+
+No request body is needed. The ID must be a 24-character MongoDB ObjectId.
+The endpoint returns the appointment object directly, with UTC ISO date strings,
+participant IDs, status, duration, change-request/cancellation details, and timestamps.
+It does not populate member records or expose their credentials; responses use
+`Cache-Control: no-store`.
+
+Access is based on the authenticated member's current database role:
+
+- `USER`: the appointment's `patientId` must match the member ID.
+- `CLINIC`: the appointment's `clinicId` must match the member ID.
+- `DOCTOR`: the appointment's `doctorId` must match the member ID. Another doctor
+  in the same clinic cannot view it.
+
+This route grants no ADMIN override. Missing appointments and appointments outside
+these access rules both return 404. Malformed appointment IDs return 400 for
+an authenticated caller. Missing/invalid/expired access tokens, missing accounts,
+and suspended/deleted members return 401. Refresh tokens cannot authorize this route.
+Current account status and role are checked on every request, including after a
+previously valid token was issued. Existing appointments in any status can be read
+by their matching participants; this endpoint does not create appointments.
+
+
+## Folder structure
+
+This single-app API follows the relevant conventions of the `medi-bridge` API:
+
+```text
+src/
+  components/
+    components.module.ts
+    appointment/          # controller, service, module
+    auth/
+      guards/             # access guard
+      member-password.ts
+      member-rate-limit.ts
+    health/               # controller, module
+    member/               # controller, service, module, resolver placeholder
+  database/
+  libs/
+    dto/
+      appointment/
+      member/
+    enum/
+    interceptor/
+    logger/
+    types/
+  schemas/                # Mongoose models
+  app.module.ts
+  main.ts
+```
+
+Feature filenames use the singular feature name (for example,
+`appointment.service.ts`). `AppModule` imports `ComponentsModule`, which registers
+feature modules. DTOs stay under `libs/dto/<feature>`. Auth helpers and guards are
+located under `components/auth`; their current provider wiring stays in
+`MemberModule`. The reference project's multi-app, GraphQL, and Redis setup is
+not required for this REST API.

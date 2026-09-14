@@ -3,15 +3,16 @@ import {
   type MiddlewareConsumer,
   type NestModule,
 } from '@nestjs/common';
-import { memberRateLimit } from './member-rate-limit.js';
+import { memberRateLimit } from '../auth/member-rate-limit.js';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
-import MemberSchema, { MEMBER } from '../../libs/schemas/member.model.js';
+import MemberSchema, { MEMBER } from '../../schemas/member.model.js';
 import {
   MEMBER_SESSION,
   MemberSessionSchema,
-} from '../../libs/schemas/member-session.model.js';
+} from '../../schemas/member-session.model.js';
 import { MemberController } from './member.controller.js';
+import { MemberAccessGuard } from '../auth/guards/member-access.guard.js';
 import { MemberService } from './member.service.js';
 
 const mongoUri =
@@ -54,8 +55,8 @@ const mongoUri =
     }),
   ],
   controllers: [MemberController],
-  providers: [MemberService],
-  exports: [MemberService],
+  providers: [MemberService, MemberAccessGuard],
+  exports: [MemberService, MemberAccessGuard],
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

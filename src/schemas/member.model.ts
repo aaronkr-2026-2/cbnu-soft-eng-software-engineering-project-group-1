@@ -5,7 +5,7 @@ import {
   DoctorSpecialization,
   MemberStatus,
   MemberType,
-} from '../enum/member.enum.js';
+} from '../libs/enum/member.enum.js';
 
 export const MEMBER = 'Member';
 

@@ -18,7 +18,7 @@ import {
 import {
   DoctorSpecialization,
   MemberType,
-} from '../../../libs/enum/member.enum.js';
+} from '../../enum/member.enum.js';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;

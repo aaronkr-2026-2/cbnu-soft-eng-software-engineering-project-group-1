@@ -11,10 +11,10 @@ import type { Server } from 'node:http';
 import { model } from 'mongoose';
 import request from 'supertest';
 import { MemberController } from '../src/components/member/member.controller.js';
-import { memberRateLimit } from '../src/components/member/member-rate-limit.js';
+import { memberRateLimit } from '../src/components/auth/member-rate-limit.js';
 import { MemberService } from '../src/components/member/member.service.js';
-import MemberSchema, { MEMBER } from '../src/libs/schemas/member.model.js';
-import { MEMBER_SESSION } from '../src/libs/schemas/member-session.model.js';
+import MemberSchema, { MEMBER } from '../src/schemas/member.model.js';
+import { MEMBER_SESSION } from '../src/schemas/member-session.model.js';
 import type { MemberDocument } from '../src/libs/types/member.types.js';
 import { MemberStatus } from '../src/libs/enum/member.enum.js';
 

@@ -29,8 +29,8 @@ async function bootstrap() {
   loadEnvironment();
   validateConfiguration();
   const { AppModule } = await import('./app.module.js');
-  const { FileLogger } = await import('./logging/file-logger.service.js');
-  const { LoggingInterceptor } = await import('./logging/logging.interceptor.js');
+  const { FileLogger } = await import('./libs/logger/file-logger.service.js');
+  const { LoggingInterceptor } = await import('./libs/interceptor/logging.interceptor.js');
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const logger = app.get(FileLogger);
   app.useLogger(logger);

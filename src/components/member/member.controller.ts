@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Post,
 } from '@nestjs/common';
-import { LoginDto, RefreshDto, SignupDto } from './dto/member-auth.dto.js';
+import { LoginDto, RefreshDto, SignupDto } from '../../libs/dto/member/member-auth.dto.js';
 import { MemberService } from './member.service.js';
 import type { MemberAuthResponse } from '../../libs/types/member.types.js';
 
