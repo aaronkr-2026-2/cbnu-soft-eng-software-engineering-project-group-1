@@ -1,3 +1,5 @@
+import { AppointmentResolver } from './appointment.resolver.js';
+import MemberSchema, { MEMBER } from '../../schemas/member.model.js';
 import { MemberModule } from '../member/member.module.js';
 import { AppointmentController } from './appointment.controller.js';
 import { AppointmentService } from './appointment.service.js';
@@ -28,6 +30,7 @@ const mongoUri =
     ...(mongoUri
       ? [
           MongooseModule.forFeature([
+            { name: MEMBER, schema: MemberSchema },
             { name: APPOINTMENT_MODEL_NAME, schema: AppointmentSchema },
             {
               name: DOCTOR_AVAILABILITY_MODEL_NAME,
@@ -42,6 +45,6 @@ const mongoUri =
       : []),
   ],
   controllers: [AppointmentController],
-  providers: [AppointmentService],
+  providers: [AppointmentService, AppointmentResolver],
 })
 export class AppointmentModule {}

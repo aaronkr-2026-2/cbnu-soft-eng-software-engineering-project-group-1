@@ -227,5 +227,122 @@ Feature filenames use the singular feature name (for example,
 `appointment.service.ts`). `AppModule` imports `ComponentsModule`, which registers
 feature modules. DTOs stay under `libs/dto/<feature>`. Auth helpers and guards are
 located under `components/auth`; their current provider wiring stays in
-`MemberModule`. The reference project's multi-app, GraphQL, and Redis setup is
-not required for this REST API.
+`MemberModule`. The reference project's multi-app and Redis setup is not required here.
+Appointment GraphQL operations share the existing service with REST routes.
+
+## Book an appointment
+
+```http
+POST /api/v1/appointment/bookAppointment
+Authorization: Bearer <USER-accessToken>
+Content-Type: application/json
+```
+
+```json
+{
+  "doctorId": "<doctor-member-id>",
+  "clinicId": "<clinic-member-id>",
+  "startsAt": "2030-01-07T10:00:00+09:00"
+}
+```
+
+The caller must be an active USER. The patient ID comes from authentication;
+request fields such as `patientId`, `status`, `endsAt`, and `durationMinutes` are
+rejected. The start must be a future ISO timestamp with an explicit timezone
+(`Z` or an offset), aligned to a 30-minute boundary in the clinic timezone.
+The server computes the end as exactly 30 elapsed minutes later and creates a
+PENDING appointment, returning the appointment object with HTTP 201.
+
+Before booking, the doctor must be active, belong to the selected active clinic,
+and have APPROVED affiliation. Working hours must already exist in
+`doctor_availability` or `doctor_availability_overrides` for that doctor and clinic.
+There are no approval/availability-management APIs yet; new doctors start PENDING
+and cannot be booked until these prerequisites are configured.
+
+Weekly hours use the clinic-local weekday. Date-specific CUSTOM_HOURS replace
+weekly hours for that local date. UNAVAILABLE overrides block overlapping time
+intervals, or the full day when no interval is provided. The complete slot must
+fit within an available interval. No schedule means unavailable.
+
+PENDING and CONFIRMED appointments reserve the doctor's slot. An overlap check
+handles existing bookings, and MongoDB's unique active-slot index resolves
+simultaneous attempts at the same start time. Model initialization is awaited
+before booking; the existing unique index must remain enabled in the database.
+Canceled slots can be reused. This endpoint does not prevent a patient from
+booking different doctors at the same time.
+
+Errors: 400 for invalid input, past/misaligned starts, or invalid clinic/doctor
+relationships; 401 for invalid authentication; 403 for a non-USER caller;
+409 for unavailable or occupied slots. Responses use `Cache-Control: no-store`.
+Tests simulate persistence and duplicate-key races; actual Atlas index enforcement
+has not been integration-tested.
+
+
+## GraphQL appointments
+
+Appointments now support GraphQL at `POST /graphql` (outside the REST `/api/v1`
+prefix). Signup, login, and refresh remain REST endpoints. Existing appointment
+REST routes remain available and call the same service.
+
+In Postman, use GraphQL body mode with `http://localhost:3003/graphql` (or your
+configured API port). Add `Authorization: Bearer <accessToken>` and send:
+
+```graphql
+mutation BookAppointment($input: BookAppointmentInput!) {
+  bookAppointment(input: $input) {
+    _id
+    patientId
+    doctorId
+    clinicId
+    startsAt
+    endsAt
+    durationMinutes
+    status
+  }
+}
+```
+
+Variables:
+
+```json
+{
+  "input": {
+    "doctorId": "<doctor-member-id>",
+    "clinicId": "<clinic-member-id>",
+    "startsAt": "2030-01-07T10:00:00+09:00"
+  }
+}
+```
+
+Fetch one appointment:
+
+```graphql
+query GetAppointment($id: ID!) {
+  getAppointment(id: $id) {
+    _id
+    startsAt
+    endsAt
+    status
+    doctorId
+    clinicId
+    patientId
+    doctorChangeRequest { type status reason }
+  }
+}
+```
+
+Variables: `{ "id": "<appointment-id>" }`.
+
+All existing booking prerequisites, current-account checks, and ownership rules
+apply. `patientId` comes from authentication; it is not an input field. ID values
+are strings; output dates are UTC ISO timestamps. Member relations are not
+populated by these operations.
+
+Inspect GraphQL's `errors` array even for HTTP 200 responses. Application errors
+use codes such as `UNAUTHENTICATED`, `FORBIDDEN`, `BAD_USER_INPUT`, `NOT_FOUND`, and
+`CONFLICT`. Internal error details and stack traces are not returned; response
+caching is disabled. GraphiQL is available at `/graphql` outside production.
+
+The schema is generated from DTO decorators in memory. `AppointmentResolver`
+handles GraphQL arguments/context and delegates to `AppointmentService`.
+Setup follows the [Nest GraphQL guide](https://docs.nestjs.com/graphql/quick-start).

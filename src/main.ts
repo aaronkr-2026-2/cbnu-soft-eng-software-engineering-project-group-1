@@ -64,6 +64,7 @@ async function bootstrap() {
   const port = Number(process.env.PORT_API ?? process.env.PORT ?? 3000);
   await app.listen(port);
   logger.log(`API available at http://localhost:${port}/api/v1`, 'Bootstrap');
+  logger.log(`GraphQL available at http://localhost:${port}/graphql`, 'Bootstrap');
   logger.log(`Health checks: http://localhost:${port}/api/v1/health/live and /ready`, 'Bootstrap');
 }
 void bootstrap();

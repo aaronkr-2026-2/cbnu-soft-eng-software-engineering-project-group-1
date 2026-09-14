@@ -1,3 +1,6 @@
+import { GraphQLModule } from '@nestjs/graphql';
+import { graphqlConfig } from '../src/libs/graphql/graphql.config.js';
+import { AppointmentResolver } from '../src/components/appointment/appointment.resolver.js';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
@@ -66,6 +69,7 @@ describe('GET appointment by ID', () => {
   beforeAll(async () => {
     const fixture = await Test.createTestingModule({
       imports: [
+        GraphQLModule.forRoot({ ...graphqlConfig, graphiql: false }),
         JwtModule.register({
           secret,
           signOptions: {
@@ -79,6 +83,7 @@ describe('GET appointment by ID', () => {
       controllers: [AppointmentController],
       providers: [
         AppointmentService,
+        AppointmentResolver,
         MemberService,
         MemberAccessGuard,
         {
@@ -245,5 +250,44 @@ describe('GET appointment by ID', () => {
     await get(token, 'invalid-id').expect(400);
     expect(appointmentQueries).toBe(0);
     await get(token, String(new Types.ObjectId())).expect(404);
+  });
+  const gqlGet = (token: string, id = String(appointmentId)) =>
+    request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        query: `query Get($id: ID!) { getAppointment(id: $id) { _id startsAt status patientId } }`,
+        variables: { id },
+      });
+
+  it.each([patientId, doctorId, clinicId])(
+    'allows a GraphQL query by participant %s',
+    async (id) => {
+      const result = await gqlGet(await tokenFor(id)).expect(200);
+      expect(result.body.errors).toBeUndefined();
+      expect(result.body.data.getAppointment._id).toBe(String(appointmentId));
+    },
+  );
+
+  it('checks GraphQL JWTs, current account status, ownership, and ID validation', async () => {
+    const valid = await tokenFor(patientId);
+    expect((await gqlGet('invalid')).body.errors[0].extensions.code).toBe(
+      'UNAUTHENTICATED',
+    );
+    expect(
+      (await gqlGet(valid, 'invalid-id')).body.errors[0].extensions.code,
+    ).toBe('BAD_USER_INPUT');
+    expect(
+      (await gqlGet(valid, String(new Types.ObjectId()))).body.errors[0]
+        .extensions.code,
+    ).toBe('NOT_FOUND');
+    members.get(String(patientId))!.memberType = MemberType.CLINIC;
+    expect((await gqlGet(valid)).body.errors[0].extensions.code).toBe(
+      'NOT_FOUND',
+    );
+    members.get(String(patientId))!.memberStatus = MemberStatus.SUSPENDED;
+    const blocked = await gqlGet(valid);
+    expect(blocked.body.errors[0].extensions.code).toBe('UNAUTHENTICATED');
+    expect(blocked.body.errors[0].extensions).not.toHaveProperty('stacktrace');
   });
 });

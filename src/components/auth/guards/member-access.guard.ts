@@ -1,3 +1,4 @@
+import { GqlExecutionContext, type GqlContextType } from '@nestjs/graphql';
 import {
   Injectable,
   UnauthorizedException,
@@ -15,7 +16,12 @@ export class MemberAccessGuard implements CanActivate {
   constructor(private readonly memberService: MemberService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const request =
+      context.getType<GqlContextType>() === 'graphql'
+        ? GqlExecutionContext.create(context).getContext<{
+            req: AuthenticatedRequest;
+          }>().req
+        : context.switchToHttp().getRequest<AuthenticatedRequest>();
     const match = /^Bearer ([^\s]+)$/i.exec(
       request.headers.authorization ?? '',
     );
