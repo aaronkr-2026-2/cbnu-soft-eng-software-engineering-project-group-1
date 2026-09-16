@@ -7,6 +7,10 @@
 /AGENTS.md
 /SESSION_LOG.md
 
+#Deployment
+/docker.compose.yml
+/deploy.sh
+
 # Logs
 logs
 *.log
