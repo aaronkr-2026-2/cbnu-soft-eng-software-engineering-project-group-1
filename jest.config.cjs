@@ -1,6 +1,5 @@
-import type { Config } from 'jest';
-import { pathsToModuleNameMapper } from 'ts-jest';
-import ts from 'typescript';
+const { pathsToModuleNameMapper } = require('ts-jest');
+const ts = require('typescript');
 
 // Path aliases (e.g. the ones added by `nest g library`) live in tsconfig.json,
 // so they are read from there instead of being duplicated here.
@@ -10,13 +9,13 @@ const { config: tsconfig } = ts.readConfigFile(
 );
 const paths = tsconfig?.compilerOptions?.paths ?? {};
 
-const config: Config = {
+/** @type {import('jest').Config} */
+const config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
-  extensionsToTreatAsEsm: ['.ts'],
   testRegex: '.*\\.spec\\.ts$',
   transform: {
-    '^.+\\.(t|j)s$': ['ts-jest', { useESM: true }],
+    '^.+\\.(t|j)s$': 'ts-jest',
   },
   moduleNameMapper: {
     '^(.+\\/.*)\\.js$': '$1',
@@ -31,4 +30,4 @@ const config: Config = {
   testEnvironment: 'node',
 };
 
-export default config;
+module.exports = config;

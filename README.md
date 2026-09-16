@@ -2,6 +2,8 @@
 
 Booking-platform API foundation for clinics. Routes are versioned under `/api/v1`, allowing clinic tenancy and booking models to be added without breaking clients.
 
+The application builds as CommonJS (`"type": "commonjs"`). TypeScript keeps `module` and `moduleResolution` set to `nodenext` for Node package resolution; source `import` statements compile to `require()`. Startup retains dynamic imports so `.env` loads before application modules. Jest also compiles tests as CommonJS, but its scripts retain `--experimental-vm-modules` to load the installed NestJS 12 ESM dependencies. The deployment Compose file uses Node 24.12.0.
+
 Copy `.env.example` to `.env` and set `MONGO_URI` to your MongoDB Atlas string. `MONGO_DEV` and `MONGO_PROD` are also supported for backward compatibility. Production requires `mongodb+srv://`.
 
 Endpoints: `GET /api/v1`, `GET /api/v1/health/live`, and `GET /api/v1/health/ready`. The readiness endpoint returns 503 until MongoDB has connected and never exposes credentials or driver details.
