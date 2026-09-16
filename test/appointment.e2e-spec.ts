@@ -121,7 +121,6 @@ describe('GET appointment by ID', () => {
       ],
     }).compile();
     app = fixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -154,7 +153,7 @@ describe('GET appointment by ID', () => {
     jwt.signAsync({ sub: String(id), tokenType: 'access' });
   const get = (token: string, id = String(appointmentId)) =>
     request(app.getHttpServer())
-      .get(`/api/v1/appointment/${id}`)
+      .get(`/appointment/${id}`)
       .set('Authorization', `Bearer ${token}`);
 
   it.each([
@@ -214,7 +213,7 @@ describe('GET appointment by ID', () => {
 
   it('rejects missing and invalid authorization before reading appointments', async () => {
     await request(app.getHttpServer())
-      .get(`/api/v1/appointment/${appointmentId}`)
+      .get(`/appointment/${appointmentId}`)
       .expect(401);
     const tokens = [
       'not-a-jwt',

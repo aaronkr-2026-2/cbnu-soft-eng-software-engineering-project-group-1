@@ -42,7 +42,6 @@ async function bootstrap() {
     exceptionFactory: () => new BadRequestException('Invalid request data'),
   }));
   app.getHttpAdapter().getInstance().disable('x-powered-by');
-  app.setGlobalPrefix('api/v1');
 
   const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:3000,http://localhost:5173')
     .split(',')
@@ -63,8 +62,8 @@ async function bootstrap() {
   });
   const port = Number(process.env.PORT_API ?? process.env.PORT ?? 3000);
   await app.listen(port);
-  logger.log(`API available at http://localhost:${port}/api/v1`, 'Bootstrap');
+  logger.log(`API available at http://localhost:${port}`, 'Bootstrap');
   logger.log(`GraphQL available at http://localhost:${port}/graphql`, 'Bootstrap');
-  logger.log(`Health checks: http://localhost:${port}/api/v1/health/live and /ready`, 'Bootstrap');
+  logger.log(`Health checks: http://localhost:${port}/health/live and /ready`, 'Bootstrap');
 }
 void bootstrap();

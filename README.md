@@ -1,12 +1,12 @@
 # MedConnect API
 
-Booking-platform API foundation for clinics. Routes are versioned under `/api/v1`, allowing clinic tenancy and booking models to be added without breaking clients.
+Booking-platform API foundation for clinics. REST routes start at `/` with no global prefix.
 
 The application builds as CommonJS (`"type": "commonjs"`). TypeScript keeps `module` and `moduleResolution` set to `nodenext` for Node package resolution; source `import` statements compile to `require()`. Startup retains dynamic imports so `.env` loads before application modules. Jest also compiles tests as CommonJS, but its scripts retain `--experimental-vm-modules` to load the installed NestJS 12 ESM dependencies. The deployment Compose file uses Node 24.12.0.
 
 Copy `.env.example` to `.env` and set `MONGO_URI` to your MongoDB Atlas string. `MONGO_DEV` and `MONGO_PROD` are also supported for backward compatibility. Production requires `mongodb+srv://`.
 
-Endpoints: `GET /api/v1`, `GET /api/v1/health/live`, and `GET /api/v1/health/ready`. The readiness endpoint returns 503 until MongoDB has connected and never exposes credentials or driver details.
+Endpoints: `GET /`, `GET /health/live`, and `GET /health/ready`. The readiness endpoint returns 503 until MongoDB has connected and never exposes credentials or driver details.
 
 Application, request, and error logs are written as JSON lines to `logs/medconnect.log`. Set `LOG_FILE` to choose another location. Request bodies, responses, authorization headers, cookies, and query strings are intentionally excluded.
 
@@ -131,7 +131,7 @@ Set `JWT_ACCESS_SECRET` to a cryptographically random secret of at least 32 byte
 in `.env` (for example, generate one with `openssl rand -hex 48`). Keep it private
 and stable across restarts. Startup rejects missing or short secrets.
 
-- `POST /api/v1/member/signup` returns 201. Required fields: `memberEmail`,
+- `POST /member/signup` returns 201. Required fields: `memberEmail`,
   `memberPassword` (12–128 characters), `memberPhone` (international format such
   as `+821012345678`), and `memberNick` (2–40 characters). `memberFullName` is optional.
 - `memberType` defaults to `USER`. `CLINIC` additionally requires `clinicName`;
@@ -139,8 +139,7 @@ and stable across restarts. Startup rejects missing or short secrets.
   active clinic, a nonempty `doctorSpecializations` enum array, and
   `professionalLicenseNumber`. Doctors start with `PENDING` clinic affiliation.
   Public signup cannot create `ADMIN` accounts or set approval/status fields.
-- `POST /api/v1/member/login` accepts `memberEmail` and `memberPassword`, returning
-  200. Unknown accounts, wrong passwords, non-email accounts, and suspended or
+- `POST /member/login` accepts `memberEmail` and `memberPassword`, returning 200. Unknown accounts, wrong passwords, non-email accounts, and suspended or
   deleted accounts return the same 401 response. Email is trimmed and lowercased;
   passwords are preserved exactly.
 - Both return `{ member, accessToken, refreshToken }`. Member fields are explicitly
@@ -150,7 +149,7 @@ and stable across restarts. Startup rejects missing or short secrets.
   audience `medconnect-api`, subject equal to the member ID, and `tokenType=access`.
   The appointment endpoint verifies these claims and current member status;
   issuing a token does not itself protect booking or other routes.
-- `POST /api/v1/member/refresh` accepts `{ "refreshToken": "..." }` and returns
+- `POST /member/refresh` accepts `{ "refreshToken": "..." }` and returns
   a new token pair and member data. Refresh tokens are opaque random values;
   only SHA-256 hashes are stored in `member_sessions`. Each session lasts seven
   days from login/signup. Refresh rotates the token atomically without extending
@@ -166,11 +165,10 @@ HTTP tests use Mongoose document validation with an in-memory persistence substi
 they do not connect to Atlas. Clinic verification, affiliation approval endpoints,
 email verification, logout/revocation, and protected booking routes are separate work.
 
-
 ## Get an appointment
 
 ```http
-GET /api/v1/appointment/<appointment-id>
+GET /appointment/<appointment-id>
 Authorization: Bearer <accessToken>
 ```
 
@@ -194,7 +192,6 @@ and suspended/deleted members return 401. Refresh tokens cannot authorize this r
 Current account status and role are checked on every request, including after a
 previously valid token was issued. Existing appointments in any status can be read
 by their matching participants; this endpoint does not create appointments.
-
 
 ## Folder structure
 
@@ -235,7 +232,7 @@ Appointment GraphQL operations share the existing service with REST routes.
 ## Book an appointment
 
 ```http
-POST /api/v1/appointment/bookAppointment
+POST /appointment/bookAppointment
 Authorization: Bearer <USER-accessToken>
 Content-Type: application/json
 ```
@@ -279,11 +276,9 @@ relationships; 401 for invalid authentication; 403 for a non-USER caller;
 Tests simulate persistence and duplicate-key races; actual Atlas index enforcement
 has not been integration-tested.
 
-
 ## GraphQL appointments
 
-Appointments now support GraphQL at `POST /graphql` (outside the REST `/api/v1`
-prefix). Signup, login, and refresh remain REST endpoints. Existing appointment
+Appointments support GraphQL at `POST /graphql`. Signup, login, and refresh remain REST endpoints. Existing appointment
 REST routes remain available and call the same service.
 
 In Postman, use GraphQL body mode with `http://localhost:3003/graphql` (or your
@@ -328,7 +323,11 @@ query GetAppointment($id: ID!) {
     doctorId
     clinicId
     patientId
-    doctorChangeRequest { type status reason }
+    doctorChangeRequest {
+      type
+      status
+      reason
+    }
   }
 }
 ```

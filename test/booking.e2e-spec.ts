@@ -134,7 +134,6 @@ describe('POST /appointment/bookAppointment', () => {
       ],
     }).compile();
     app = fixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
       new ValidationPipe({
         transform: true,
@@ -172,7 +171,7 @@ describe('POST /appointment/bookAppointment', () => {
   });
   const book = (changes: Row = {}) =>
     request(app.getHttpServer())
-      .post('/api/v1/appointment/bookAppointment')
+      .post('/appointment/bookAppointment')
       .set('Authorization', 'Bearer test-token')
       .send({ ...input, ...changes });
 
@@ -190,7 +189,7 @@ describe('POST /appointment/bookAppointment', () => {
   });
   it('requires authentication', async () => {
     await request(app.getHttpServer())
-      .post('/api/v1/appointment/bookAppointment')
+      .post('/appointment/bookAppointment')
       .send(input)
       .expect(401);
   });

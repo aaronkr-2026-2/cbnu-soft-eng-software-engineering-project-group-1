@@ -133,7 +133,6 @@ describe('Member REST authentication', () => {
       ],
     }).compile();
     app = fixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -169,7 +168,7 @@ describe('Member REST authentication', () => {
 
   it('signs up, hashes passwords, allowlists response fields, and signs expiring access tokens', async () => {
     const result = await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send({ ...signup, memberEmail: ' ALICE@EXAMPLE.COM ' })
       .expect(201);
     expect(result.headers['cache-control']).toBe('no-store');
@@ -196,27 +195,27 @@ describe('Member REST authentication', () => {
 
   it('logs in using normalized email and rejects wrong, missing, and suspended accounts identically', async () => {
     await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send(signup)
       .expect(201);
     await request(app.getHttpServer())
-      .post('/api/v1/member/login')
+      .post('/member/login')
       .send({
         memberEmail: 'ALICE@EXAMPLE.COM',
         memberPassword: signup.memberPassword,
       })
       .expect(200);
     const bad = await request(app.getHttpServer())
-      .post('/api/v1/member/login')
+      .post('/member/login')
       .send({ memberEmail: signup.memberEmail, memberPassword: 'wrong' })
       .expect(401);
     const absent = await request(app.getHttpServer())
-      .post('/api/v1/member/login')
+      .post('/member/login')
       .send({ memberEmail: 'absent@example.com', memberPassword: 'wrong' })
       .expect(401);
     members[0].memberStatus = MemberStatus.SUSPENDED;
     const blocked = await request(app.getHttpServer())
-      .post('/api/v1/member/login')
+      .post('/member/login')
       .send({
         memberEmail: signup.memberEmail,
         memberPassword: signup.memberPassword,
@@ -228,11 +227,11 @@ describe('Member REST authentication', () => {
 
   it('rejects duplicate accounts with 409', async () => {
     await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send(signup)
       .expect(201);
     await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send(signup)
       .expect(409);
     expect(members).toHaveLength(1);
@@ -251,7 +250,7 @@ describe('Member REST authentication', () => {
     { memberType: 'CLINIC', clinicName: 'Clinic', clinicTimezone: 'Not/AZone' },
   ])('rejects invalid or privileged signup input: %j', async (overrides) => {
     await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send({ ...signup, ...overrides })
       .expect(400);
     expect(members).toHaveLength(0);
@@ -259,7 +258,7 @@ describe('Member REST authentication', () => {
 
   it('registers clinics and doctors with a pending affiliation to an active clinic', async () => {
     const clinic = await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send({
         ...signup,
         memberType: 'CLINIC',
@@ -278,28 +277,28 @@ describe('Member REST authentication', () => {
       professionalLicenseNumber: 'TEST-LICENSE',
     };
     const result = await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send(doctor)
       .expect(201);
     expect(result.body.member.doctorClinicStatus).toBe('PENDING');
     expect(result.body.member.clinicId).toBe(clinic.body.member._id);
     members[0].memberStatus = MemberStatus.SUSPENDED;
     await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send(doctor)
       .expect(400);
   });
 
   it('rotates refresh tokens atomically, rejects reuse and expiry, and blocks suspended members', async () => {
     const created = await request(app.getHttpServer())
-      .post('/api/v1/member/signup')
+      .post('/member/signup')
       .send(signup)
       .expect(201);
     const refreshToken = created.body.refreshToken;
     const results = await Promise.all(
       [0, 1].map(() =>
         request(app.getHttpServer())
-          .post('/api/v1/member/refresh')
+          .post('/member/refresh')
           .send({ refreshToken }),
       ),
     );
@@ -310,13 +309,13 @@ describe('Member REST authentication', () => {
     const key = createHash('sha256').update(nextToken).digest('hex');
     sessions.get(key)!.expiresAt = new Date(0);
     await request(app.getHttpServer())
-      .post('/api/v1/member/refresh')
+      .post('/member/refresh')
       .send({ refreshToken: nextToken })
       .expect(401);
     sessions.get(key)!.expiresAt = new Date(Date.now() + 60_000);
     members[0].memberStatus = MemberStatus.SUSPENDED;
     await request(app.getHttpServer())
-      .post('/api/v1/member/refresh')
+      .post('/member/refresh')
       .send({ refreshToken: nextToken })
       .expect(401);
     expect(sessions.size).toBe(0);
