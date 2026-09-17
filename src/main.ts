@@ -64,6 +64,7 @@ async function bootstrap() {
   await app.listen(port);
   logger.log(`API available at http://localhost:${port}`, 'Bootstrap');
   logger.log(`GraphQL available at http://localhost:${port}/graphql`, 'Bootstrap');
+  logger.log(`Service status at http://localhost:${port}/status`, 'Bootstrap');
   logger.log(`Health checks: http://localhost:${port}/health/live and /ready`, 'Bootstrap');
 }
 void bootstrap();

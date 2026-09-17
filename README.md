@@ -1,5 +1,9 @@
 # MedConnect API
 
+Open `/status` for a visual dashboard of API information, liveness, and database readiness. It checks the existing JSON endpoints from your browser, supports manual refresh, and refreshes every 30 seconds while visible. It is a public status page with no patient data or administrative controls. The root `/` continues to return API information as JSON.
+
+Edit the status page in `src/components/health/views/status.html`, `status.css`, and `status.js`. Nest serves the page at `/status` and its assets under `/status/assets/`. Nest CLI copies these files into `dist` on build and watches them during development; no template engine is needed. Rebuild and restart the deployed container after changing these files.
+
 Booking-platform API foundation for clinics. REST routes start at `/` with no global prefix.
 
 The application builds as CommonJS (`"type": "commonjs"`). TypeScript keeps `module` and `moduleResolution` set to `nodenext` for Node package resolution; source `import` statements compile to `require()`. Startup retains dynamic imports so `.env` loads before application modules. Jest also compiles tests as CommonJS, but its scripts retain `--experimental-vm-modules` to load the installed NestJS 12 ESM dependencies. The deployment Compose file uses Node 24.12.0.
