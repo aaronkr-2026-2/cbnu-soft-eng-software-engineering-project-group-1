@@ -1,0 +1,12 @@
+schema: "classroom50/repo-config/v1"
+classroom: "cbnu-soft-eng"
+assignment: "software-engineering-project"
+owner:
+  username: "killashaw8"
+  id: 95836954
+  accepted_at: "2026-09-17T06:28:16Z"
+source:
+  owner: "aaronkr-2026-2"
+  owner_id: 314234319
+  repo: "software-project"
+  branch: "main"
