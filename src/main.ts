@@ -1,4 +1,9 @@
+import { setDefaultResultOrder, setServers } from 'dns';
+setServers(['8.8.8.8', '1.1.1.1']);
+setDefaultResultOrder('ipv4first');
+
 import { NestFactory } from '@nestjs/core';
+
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 

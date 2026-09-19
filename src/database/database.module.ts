@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DatabaseService } from './database.service.js';
 
-const mongoUri = process.env.MONGO_URI ??
+const mongoUri = process.env.MONGO_DEV ??
   (process.env.NODE_ENV === 'production' ? process.env.MONGO_PROD : process.env.MONGO_DEV);
 
 @Module({
