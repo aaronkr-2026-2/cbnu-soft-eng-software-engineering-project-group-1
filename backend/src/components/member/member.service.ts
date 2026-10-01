@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  NotFoundException,
   Optional,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -26,6 +27,7 @@ import type {
   MemberDocument,
   MemberEntity,
   MemberPrincipal,
+  MemberProfile,
 } from '../../libs/types/member.types.js';
 import type { LoginDto, SignupDto } from '../../libs/dto/member/member-auth.dto.js';
 import { hashPassword, verifyPassword } from '../auth/member-password.js';
@@ -50,6 +52,40 @@ export class MemberService {
     if (!this.members || !this.sessions)
       throw new ServiceUnavailableException('Authentication is unavailable');
     return { members: this.members, sessions: this.sessions };
+  }
+
+  async getMember(id: string): Promise<MemberProfile> {
+    if (!/^[a-f\d]{24}$/i.test(id))
+      throw new BadRequestException('Invalid member ID');
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+
+    const member = await this.members
+      .findOne({
+        _id: new Types.ObjectId(id),
+        memberType: { $in: [MemberType.USER, MemberType.DOCTOR, MemberType.CLINIC] },
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select({
+        _id: 1,
+        memberType: 1,
+        memberStatus: 1,
+        memberNick: 1,
+        memberFullName: 1,
+        memberImage: 1,
+        memberAddress: 1,
+        memberDesc: 1,
+        clinicId: 1,
+        clinicName: 1,
+        clinicTimezone: 1,
+        doctorClinicStatus: 1,
+        doctorSpecializations: 1,
+      })
+      .lean()
+      .exec();
+    if (!member) throw new NotFoundException('Member not found');
+    return member;
   }
 
   async authenticateAccessToken(token: string): Promise<MemberPrincipal> {

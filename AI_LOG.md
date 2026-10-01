@@ -167,3 +167,45 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** Codex initially wrote “specific tool not recorded” instead of naming Codex and left most reflection fields as “Not recorded.” I asked it to name the tool and include the corrections supported by the session history.
 
 ---
+
+## Get Doctor and Clinic member profiles — 2026-10-01
+**Tool(s) used:** Codex; Nest build, TypeScript check, HTTP/GraphQL and unit tests, lint.
+**What I asked for:** Create a getMember API for Doctor and Clinic members.
+**What I kept as-is:** Existing authentication responses, appointment operations, schemas, and shared-service architecture.
+**What I changed or rejected, and why:** Added public GraphQL getMember(id) and REST GET /member/:id for active provider profiles, ID validation, an explicit profile projection, and tests/docs. Kept email, phone, credentials, and license/provider IDs out of public profiles. Scoped the existing rate limit to auth POST routes so profile reads do not consume the auth budget. Build, type check, 72 HTTP/GraphQL tests, and 6 unit tests passed; lint retains its existing empty-file warning.
+**Something the AI got wrong that I had to catch:** No user-caught mistake recorded for this task.
+
+## Use GraphQL only for member lookup — 2026-10-01
+**Tool(s) used:** Codex; TypeScript check and HTTP/GraphQL tests.
+**What I asked for:** Remove REST from getMember.
+**What I kept as-is:** GraphQL member lookup, shared service logic, REST authentication, and existing appointment routes.
+**What I changed or rejected, and why:** Removed the REST member lookup and updated docs/tests to reflect GraphQL-only reads. All 73 HTTP/GraphQL tests, full TypeScript check, and whitespace check passed.
+**Something the AI got wrong that I had to catch:** Codex initially assumed both transports were wanted because appointment operations exposed both; the user questioned that assumption and requested removal of REST member reads.
+
+## Adopt MediBridge member DTO pattern — 2026-10-01
+**Tool(s) used:** Codex; TypeScript check and HTTP/GraphQL tests.
+**What I asked for:** Use MediBridge's DTO pattern and prefer its patterns when better than ours.
+**What I kept as-is:** getMember(id: ID!) contract, service ID validation, profile fields, and GraphQL-only lookup.
+**What I changed or rejected, and why:** Replaced the separate ID DTO with inline @Args and renamed the output class to Member, following the inspected MediBridge pattern with less code. Recorded the conditional preference in backend/AGENTS.md. Full TypeScript check and all 73 HTTP/GraphQL tests passed.
+**Something the AI got wrong that I had to catch:** The original separate ID DTO followed our appointment pattern; the user requested MediBridge's simpler member pattern and a future preference for better reference patterns.
+
+## Log GraphQL member lookup — 2026-10-01
+**Tool(s) used:** Codex; TypeScript check, HTTP/GraphQL tests, and lint.
+**What I asked for:** Investigate getMember NOT_FOUND and missing backend logs after signup/login.
+**What I kept as-is:** Provider-only lookup filters, privacy projection, HTTP logging, and the user's password-length edit.
+**What I changed or rejected, and why:** Extended the logging interceptor to GraphQL resolver execution, added success/failure/privacy assertions and README troubleshooting. Full TypeScript check and 73 HTTP/GraphQL tests passed; lint retains its existing empty-file warning. Actual target role/ID remains unverified; signup defaults to USER.
+**Something the AI got wrong that I had to catch:** The user noticed missing GraphQL logs; the existing interceptor only logged HTTP requests and had not been extended when GraphQL was introduced.
+
+## Signup passwords of 8–100 characters — 2026-10-01
+**Tool(s) used:** Codex; member authentication E2E tests.
+**What I asked for:** Lower password length to 8–100 characters.
+**What I kept as-is:** Existing login validation, password hashing, and unrelated working changes.
+**What I changed or rejected, and why:** Updated signup validation and README to 8–100; added boundary acceptance/rejection coverage. All 20 authentication tests and whitespace check passed.
+**Something the AI got wrong that I had to catch:** No user-caught mistake recorded for this change.
+
+## Include User profiles in getMember — 2026-10-01
+**Tool(s) used:** Codex; TypeScript check and HTTP/GraphQL tests.
+**What I asked for:** getMember should also get USER accounts.
+**What I kept as-is:** GraphQL contract, active/non-deleted requirements, ADMIN exclusion, and profile field projection.
+**What I changed or rejected, and why:** Added USER to the role filter and updated tests/docs so default signup accounts can be retrieved. Full TypeScript check and all 77 HTTP/GraphQL tests passed.
+**Something the AI got wrong that I had to catch:** The previous provider-only lookup excluded USER accounts; the user clarified that these should also be returned.

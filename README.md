@@ -76,7 +76,7 @@ in `.env` (for example, generate one with `openssl rand -hex 48`). Keep it priva
 and stable across restarts. Startup rejects missing or short secrets.
 
 - `POST /member/signup` returns 201. Required fields: `memberEmail`,
-  `memberPassword` (12–128 characters), `memberPhone` (international format such
+  `memberPassword` (8–100 characters), `memberPhone` (international format such
   as `+821012345678`), and `memberNick` (2–40 characters). `memberFullName` is optional.
 - `memberType` defaults to `USER`. `CLINIC` additionally requires `clinicName`;
   `clinicTimezone` defaults to `Asia/Seoul`. `DOCTOR` requires `clinicId` of an
@@ -108,6 +108,50 @@ and stable across restarts. Startup rejects missing or short secrets.
 HTTP tests use Mongoose document validation with an in-memory persistence substitute;
 they do not connect to Atlas. Clinic verification, affiliation approval endpoints,
 email verification, logout/revocation, and protected booking routes are separate work.
+
+## Get a User, Doctor, or Clinic member
+
+Public GraphQL lookup of one active `USER`, `DOCTOR`, or `CLINIC` by MongoDB member ID
+at `POST /graphql`, without an access token:
+
+```graphql
+query GetMember($id: ID!) {
+  getMember(id: $id) {
+    _id
+    memberType
+    memberStatus
+    memberNick
+    memberFullName
+    memberImage
+    memberAddress
+    memberDesc
+    clinicId
+    clinicName
+    clinicTimezone
+    doctorClinicStatus
+    doctorSpecializations
+  }
+}
+```
+
+Variables: `{ "id": "<member-id>" }`. Doctor profiles include their clinic ID,
+affiliation status, and specializations; clinic profiles include their name and
+timezone. Optional GraphQL fields return `null` when absent. This lookup does not
+require approved doctor affiliation; check `doctorClinicStatus` before offering
+booking. It does not populate the related clinic or list a clinic's doctors.
+
+Responses allowlist profile fields, excluding email, phone, password hashes,
+license numbers, and authentication provider IDs, with `Cache-Control: no-store`.
+Malformed IDs return `BAD_USER_INPUT`. Missing, suspended, deleted, and
+`ADMIN` accounts return `NOT_FOUND`. Unavailable persistence returns
+`SERVICE_UNAVAILABLE`.
+GraphQL application errors appear in the `errors` array with HTTP 200.
+
+Use the `_id` returned by signup/login for an active `USER`, `DOCTOR`, or `CLINIC`.
+Signup defaults to `USER` when `memberType` is omitted; those accounts are also
+returned by this query. Resolver execution logs include
+`MemberResolver.getMember` and `GraphQL Query.getMember` start/completion/failure
+messages without logging GraphQL arguments, query text, or response data.
 
 ## Get an appointment
 

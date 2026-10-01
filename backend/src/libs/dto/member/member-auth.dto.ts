@@ -43,7 +43,7 @@ export class SignupDto {
   memberEmail: string;
 
   @IsString()
-  @Length(12, 128)
+  @Length(8, 100)
   memberPassword: string;
 
   @Transform(trim)
