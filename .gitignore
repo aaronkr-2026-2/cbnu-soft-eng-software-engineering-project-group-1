@@ -1,11 +1,13 @@
 # compiled output
-/dist
-/node_modules
-/build
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
 
 # Local session context
-/AGENTS.md
-/SESSION_LOG.md
+/backend/AGENTS.md
+/backend/SESSION_LOG.md
 
 #Deployment
 /docker-compose.yml
@@ -25,7 +27,7 @@ lerna-debug.log*
 
 # Tests
 /coverage
-/.nyc_output
+.nyc_output/
 
 # IDEs and editors
 /.idea
