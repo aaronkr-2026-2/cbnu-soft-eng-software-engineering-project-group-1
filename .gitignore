@@ -2,13 +2,14 @@
 /dist
 /node_modules
 /build
+/frontend
 
 # Local session context
 /AGENTS.md
 /SESSION_LOG.md
 
 #Deployment
-/docker.compose.yml
+/docker-compose.yml
 /deploy.sh
 
 # Logs
