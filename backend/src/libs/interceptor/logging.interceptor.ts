@@ -1,4 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { GqlExecutionContext, type GqlContextType } from '@nestjs/graphql';
+import type { GraphQLResolveInfo } from 'graphql';
 import type { Request, Response } from 'express';
 import { Observable, catchError, tap, throwError } from 'rxjs';
 import { FileLogger } from '../logger/file-logger.service.js';
@@ -8,19 +10,27 @@ export class LoggingInterceptor implements NestInterceptor {
   constructor(private readonly logger: FileLogger) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    if (context.getType() !== 'http') return next.handle();
+    const transport = context.getType<GqlContextType>();
+    if (transport !== 'http' && transport !== 'graphql') return next.handle();
 
     const startedAt = Date.now();
-    const request = context.switchToHttp().getRequest<Request>();
-    const response = context.switchToHttp().getResponse<Response>();
     const target = `${context.getClass().name}.${context.getHandler().name}`;
-    // Query strings, request bodies, and responses can contain patient data, so never log them.
-    const label = `${request.method} ${request.path}`;
+    // Log routing metadata only; arguments, query text, bodies, and responses can contain patient data.
+    let label: string;
+    let response: Response | undefined;
+    if (transport === 'graphql') {
+      const info = GqlExecutionContext.create(context).getInfo<GraphQLResolveInfo>();
+      label = `GraphQL ${info.parentType.name}.${info.fieldName}`;
+    } else {
+      const request = context.switchToHttp().getRequest<Request>();
+      response = context.switchToHttp().getResponse<Response>();
+      label = `${request.method} ${request.path}`;
+    }
     this.logger.log(`${label} started`, target);
 
     return next.handle().pipe(
       tap(() => this.logger.log(
-        `${label} completed ${response.statusCode} in ${Date.now() - startedAt}ms`, target,
+        `${label} completed${response ? ` ${response.statusCode}` : ''} in ${Date.now() - startedAt}ms`, target,
       )),
       catchError((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);

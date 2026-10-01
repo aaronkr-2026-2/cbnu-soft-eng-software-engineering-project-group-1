@@ -28,3 +28,20 @@ export type MemberAuthResponse = {
 };
 
 export type MemberPrincipal = Pick<MemberEntity, '_id' | 'memberType'>;
+
+export type MemberProfile = Pick<
+  MemberEntity,
+  | '_id'
+  | 'memberType'
+  | 'memberStatus'
+  | 'memberNick'
+  | 'memberFullName'
+  | 'memberImage'
+  | 'memberAddress'
+  | 'memberDesc'
+  | 'clinicId'
+  | 'clinicName'
+  | 'clinicTimezone'
+  | 'doctorClinicStatus'
+  | 'doctorSpecializations'
+>;

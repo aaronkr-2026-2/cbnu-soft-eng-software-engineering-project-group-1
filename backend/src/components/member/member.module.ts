@@ -1,5 +1,6 @@
 import {
   Module,
+  RequestMethod,
   type MiddlewareConsumer,
   type NestModule,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
 import { MemberController } from './member.controller.js';
 import { MemberAccessGuard } from '../auth/guards/member-access.guard.js';
 import { MemberService } from './member.service.js';
+import { MemberResolver } from './member.resolver.js';
 
 const mongoUri =
   process.env.MONGO_URI ??
@@ -55,11 +57,15 @@ const mongoUri =
     }),
   ],
   controllers: [MemberController],
-  providers: [MemberService, MemberAccessGuard],
+  providers: [MemberService, MemberResolver, MemberAccessGuard],
   exports: [MemberService, MemberAccessGuard],
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(memberRateLimit()).forRoutes(MemberController);
+    consumer.apply(memberRateLimit()).forRoutes(
+      { path: 'member/signup', method: RequestMethod.POST },
+      { path: 'member/login', method: RequestMethod.POST },
+      { path: 'member/refresh', method: RequestMethod.POST },
+    );
   }
 }

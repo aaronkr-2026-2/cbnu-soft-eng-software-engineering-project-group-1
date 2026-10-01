@@ -242,6 +242,8 @@ describe('Member REST authentication', () => {
     { memberStatus: 'ACTIVE' },
     { doctorClinicStatus: 'APPROVED' },
     { memberPassword: 'short' },
+    { memberPassword: 'a'.repeat(7) },
+    { memberPassword: 'a'.repeat(101) },
     { memberEmail: { $ne: null } },
     { memberPhone: '123' },
     { memberType: 'CLINIC' },
@@ -254,6 +256,13 @@ describe('Member REST authentication', () => {
       .send({ ...signup, ...overrides })
       .expect(400);
     expect(members).toHaveLength(0);
+  });
+
+  it.each([8, 100])('accepts signup passwords of %i characters', async (length) => {
+    await request(app.getHttpServer())
+      .post('/member/signup')
+      .send({ ...signup, memberPassword: 'a'.repeat(length) })
+      .expect(201);
   });
 
   it('registers clinics and doctors with a pending affiliation to an active clinic', async () => {
