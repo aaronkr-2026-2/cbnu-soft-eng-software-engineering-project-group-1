@@ -13,6 +13,26 @@ export interface AuthResponse {
   accessToken: string;
 }
 
+export type MemberType = "USER" | "DOCTOR" | "CLINIC";
+export type MemberStatus = "ACTIVE" | "SUSPENDED" | "DELETED";
+export type DoctorClinicStatus = "NOT_APPLICABLE" | "PENDING" | "APPROVED" | "REJECTED";
+
+export interface MemberProfile {
+  _id: string;
+  memberType: MemberType;
+  memberStatus: MemberStatus;
+  memberNick: string | null;
+  memberFullName: string | null;
+  memberImage: string | null;
+  memberAddress: string | null;
+  memberDesc: string | null;
+  clinicId: string | null;
+  clinicName: string | null;
+  clinicTimezone: string | null;
+  doctorClinicStatus: DoctorClinicStatus;
+  doctorSpecializations: string[] | null;
+}
+
 export interface Appointment {
   id: string;
   doctorName: string;
