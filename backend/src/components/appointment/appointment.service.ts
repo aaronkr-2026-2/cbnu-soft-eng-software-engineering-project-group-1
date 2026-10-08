@@ -280,4 +280,40 @@ export class AppointmentService {
     if (!appointment) throw new NotFoundException('Appointment not found');
     return appointment;
   }
+
+  async listMyAppointments(member: MemberPrincipal) {
+    if (!this.appointments)
+      throw new ServiceUnavailableException('Appointments are unavailable');
+    const ownershipField =
+      member.memberType === MemberType.USER
+        ? 'patientId'
+        : member.memberType === MemberType.CLINIC
+          ? 'clinicId'
+          : member.memberType === MemberType.DOCTOR
+            ? 'doctorId'
+            : undefined;
+    if (!ownershipField) return [];
+    return this.appointments
+      .find({ [ownershipField]: member._id })
+      .select({
+        _id: 1,
+        startsAt: 1,
+        endsAt: 1,
+        durationMinutes: 1,
+        status: 1,
+        doctorId: 1,
+        clinicId: 1,
+        patientId: 1,
+        doctorChangeRequest: 1,
+        lastChangedBy: 1,
+        canceledAt: 1,
+        canceledBy: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+      .sort({ startsAt: -1 })
+      .limit(200)
+      .lean()
+      .exec();
+  }
 }

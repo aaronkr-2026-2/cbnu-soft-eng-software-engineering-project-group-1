@@ -29,4 +29,9 @@ export class AppointmentResolver {
   ) {
     return this.appointmentService.getAppointment(args.id, req.member);
   }
+
+  @Query(() => [AppointmentOutput])
+  myAppointments(@Context('req') req: AuthenticatedRequest) {
+    return this.appointmentService.listMyAppointments(req.member);
+  }
 }

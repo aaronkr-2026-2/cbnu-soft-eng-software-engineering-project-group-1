@@ -88,6 +88,58 @@ export class MemberService {
     return member;
   }
 
+  private readonly publicFields = {
+    _id: 1,
+    memberType: 1,
+    memberStatus: 1,
+    memberNick: 1,
+    memberFullName: 1,
+    memberImage: 1,
+    memberAddress: 1,
+    memberDesc: 1,
+    clinicId: 1,
+    clinicName: 1,
+    clinicTimezone: 1,
+    doctorClinicStatus: 1,
+    doctorSpecializations: 1,
+  };
+
+  async listClinics(): Promise<MemberProfile[]> {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    return this.members
+      .find({
+        memberType: MemberType.CLINIC,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select(this.publicFields)
+      .sort({ clinicName: 1 })
+      .limit(100)
+      .lean()
+      .exec();
+  }
+
+  async listClinicDoctors(clinicId: string): Promise<MemberProfile[]> {
+    if (!/^[a-f\d]{24}$/i.test(clinicId))
+      throw new BadRequestException('Invalid clinic ID');
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    return this.members
+      .find({
+        memberType: MemberType.DOCTOR,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+        clinicId: new Types.ObjectId(clinicId),
+        doctorClinicStatus: DoctorClinicStatus.APPROVED,
+      })
+      .select(this.publicFields)
+      .sort({ memberFullName: 1 })
+      .limit(100)
+      .lean()
+      .exec();
+  }
+
   async authenticateAccessToken(token: string): Promise<MemberPrincipal> {
     let subject: string;
     try {

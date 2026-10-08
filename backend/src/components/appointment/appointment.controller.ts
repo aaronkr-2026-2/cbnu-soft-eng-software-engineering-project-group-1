@@ -30,6 +30,12 @@ export class AppointmentController {
     return this.appointmentsService.bookAppointment(input, request.member);
   }
 
+  @Get('mine')
+  @Header('Cache-Control', 'no-store')
+  listMine(@Req() request: AuthenticatedRequest) {
+    return this.appointmentsService.listMyAppointments(request.member);
+  }
+
   @Get(':id')
   @Header('Cache-Control', 'no-store')
   getAppointment(
