@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MedConnect · Service status</title>
+  <link rel="stylesheet" href="/status/assets/status.css">
+</head>
+<body>
+  <main>
+    <header><div class="brand">Med<span>Connect</span></div><button id="refresh" type="button">Refresh status</button></header>
+    <h1>Service status</h1>
+    <p class="intro">A live view of the API and its database connection.</p>
+    <section class="overview" aria-live="polite" aria-atomic="true">
+      <p id="summary">Checking services…</p><p id="updated">Waiting for the first check.</p>
+    </section>
+    <div class="cards">
+      <article id="api" data-state="pending"><span class="badge">Checking</span><h2>API information</h2><p class="detail">Fetching name, version, and status.</p><p class="meta">Waiting for response</p><a href="/">View API response ↗</a></article>
+      <article id="live" data-state="pending"><span class="badge">Checking</span><h2>Liveness</h2><p class="detail">Checking whether the API responds.</p><p class="meta">Waiting for response</p><a href="/health/live">View liveness response ↗</a></article>
+      <article id="ready" data-state="pending"><span class="badge">Checking</span><h2>Database readiness</h2><p class="detail">Checking the database connection.</p><p class="meta">Waiting for response</p><a href="/health/ready">View readiness response ↗</a></article>
+    </div>
+    <footer>Refreshes every 30 seconds while this page is visible. Response times are measured from your browser. Database readiness reflects the API’s connection state.</footer>
+    <noscript><p>Enable JavaScript for live checks, or open the response links above.</p></noscript>
+  </main>
+  <script src="/status/assets/status.js" defer></script>
+</body>
+</html>
