@@ -1,4 +1,5 @@
 import { Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayNotEmpty,
   ArrayUnique,
@@ -26,6 +27,7 @@ const email = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
 
 export class LoginDto {
+  @ApiProperty({ example: 'user@example.com' })
   @Transform(email)
   @IsEmail()
   @MaxLength(254)
@@ -33,10 +35,12 @@ export class LoginDto {
 
   @IsString()
   @Length(1, 128)
+  @ApiProperty({ format: 'password' })
   memberPassword: string;
 }
 
 export class SignupDto {
+  @ApiProperty({ example: 'user@example.com' })
   @Transform(email)
   @IsEmail()
   @MaxLength(254)
@@ -44,6 +48,7 @@ export class SignupDto {
 
   @IsString()
   @Length(8, 100)
+  @ApiProperty({ format: 'password' })
   memberPassword: string;
 
   @Transform(trim)
@@ -57,6 +62,10 @@ export class SignupDto {
   memberNick: string;
 
   @IsIn([MemberType.USER, MemberType.CLINIC, MemberType.DOCTOR])
+  @ApiPropertyOptional({
+    enum: [MemberType.USER, MemberType.CLINIC, MemberType.DOCTOR],
+    default: MemberType.USER,
+  })
   memberType: MemberType = MemberType.USER;
 
   @IsOptional()
@@ -72,6 +81,7 @@ export class SignupDto {
   @Transform(trim)
   @IsString()
   @Length(1, 150)
+  @ApiPropertyOptional({ description: 'Required when memberType is CLINIC.' })
   clinicName?: string;
 
   @IsOptional()
@@ -83,6 +93,7 @@ export class SignupDto {
       data.memberType === MemberType.DOCTOR || data.clinicId !== undefined,
   )
   @IsMongoId()
+  @ApiPropertyOptional({ description: 'Required when memberType is DOCTOR.' })
   clinicId?: string;
 
   @ValidateIf(
@@ -94,6 +105,11 @@ export class SignupDto {
   @ArrayNotEmpty()
   @ArrayUnique()
   @IsEnum(DoctorSpecialization, { each: true })
+  @ApiPropertyOptional({
+    enum: DoctorSpecialization,
+    isArray: true,
+    description: 'Required when memberType is DOCTOR; provide at least one specialization.',
+  })
   doctorSpecializations?: DoctorSpecialization[];
 
   @ValidateIf(
@@ -104,6 +120,7 @@ export class SignupDto {
   @Transform(trim)
   @IsString()
   @Length(1, 100)
+  @ApiPropertyOptional({ description: 'Required when memberType is DOCTOR.' })
   professionalLicenseNumber?: string;
 }
 

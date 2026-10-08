@@ -52,6 +52,17 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## Swagger REST documentation
+
+After starting the backend, open `http://localhost:<PORT_API>/docs` (port 3000
+when neither `PORT_API` nor `PORT` is set). The OpenAPI JSON is available at
+`/docs-json`. Swagger documents REST routes; use `/graphql` for GraphQL operations.
+
+For protected appointment endpoints, click **Authorize** and enter the access
+token returned by login. Member signup, login, and refresh do not require it.
+The Nest Swagger CLI plugin generates request schemas from DTOs during the build;
+restart `npm run start:dev` after changing `nest-cli.json`.
+
 ## Run tests
 
 ```bash

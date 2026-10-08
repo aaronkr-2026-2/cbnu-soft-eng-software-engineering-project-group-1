@@ -8,6 +8,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import {
   MemberAccessGuard,
   type AuthenticatedRequest,
@@ -17,6 +18,8 @@ import { BookAppointmentDto } from '../../libs/dto/appointment/book-appointment.
 import { AppointmentService } from './appointment.service.js';
 
 @Controller('appointment')
+@ApiTags('Appointment')
+@ApiBearerAuth()
 @UseGuards(MemberAccessGuard)
 export class AppointmentController {
   constructor(private readonly appointmentsService: AppointmentService) {}
