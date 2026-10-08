@@ -3,6 +3,7 @@ setServers(['8.8.8.8', '1.1.1.1']);
 setDefaultResultOrder('ipv4first');
 
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
@@ -66,9 +67,17 @@ async function bootstrap() {
     next();
   });
   const port = Number(process.env.PORT_API ?? process.env.PORT ?? 3000);
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('MedConnect API')
+    .setDescription('MedConnect REST API documentation. GraphQL is available at /graphql.')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  SwaggerModule.setup('docs', app, () => SwaggerModule.createDocument(app, swaggerConfig));
   await app.listen(port);
   logger.log(`API available at http://localhost:${port}`, 'Bootstrap');
   logger.log(`GraphQL available at http://localhost:${port}/graphql`, 'Bootstrap');
+  logger.log(`Swagger available at http://localhost:${port}/docs`, 'Bootstrap');
   logger.log(`Service status at http://localhost:${port}/status`, 'Bootstrap');
   logger.log(`Health checks: http://localhost:${port}/health/live and /ready`, 'Bootstrap');
 }
