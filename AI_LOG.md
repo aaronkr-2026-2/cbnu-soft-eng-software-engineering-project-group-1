@@ -13,7 +13,7 @@ Every time you update your project, please make a note of what you did in the `A
 
 ---
 
-These entries summarize SESSION_LOG.md. Dates and validation results refer to the recorded sessions; historical checks were not rerun for this backfill. Related requests on the same date are grouped into milestones. Codex is listed as the AI tool, as confirmed by the user. The reflection fields include recorded corrections and preference changes; where no specific mistake was documented, that is stated explicitly.
+These entries summarize SESSION_LOG.md. Dates and validation results refer to the recorded sessions; historical checks were not rerun for this backfill. Related requests on the same date are grouped into milestones. Codex is listed as the AI tool, as I confirmed. The reflection fields include recorded corrections and preference changes; where no specific mistake was documented, that is stated explicitly.
 
 ## MongoDB API foundation and application logging — 2026-09-12
 **Tool(s) used:** Codex; build, unit/E2E tests, and lint.
@@ -173,39 +173,108 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I asked for:** Create a getMember API for Doctor and Clinic members.
 **What I kept as-is:** Existing authentication responses, appointment operations, schemas, and shared-service architecture.
 **What I changed or rejected, and why:** Added public GraphQL getMember(id) and REST GET /member/:id for active provider profiles, ID validation, an explicit profile projection, and tests/docs. Kept email, phone, credentials, and license/provider IDs out of public profiles. Scoped the existing rate limit to auth POST routes so profile reads do not consume the auth budget. Build, type check, 72 HTTP/GraphQL tests, and 6 unit tests passed; lint retains its existing empty-file warning.
-**Something the AI got wrong that I had to catch:** No user-caught mistake recorded for this task.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 ## Use GraphQL only for member lookup — 2026-10-01
 **Tool(s) used:** Codex; TypeScript check and HTTP/GraphQL tests.
 **What I asked for:** Remove REST from getMember.
 **What I kept as-is:** GraphQL member lookup, shared service logic, REST authentication, and existing appointment routes.
 **What I changed or rejected, and why:** Removed the REST member lookup and updated docs/tests to reflect GraphQL-only reads. All 73 HTTP/GraphQL tests, full TypeScript check, and whitespace check passed.
-**Something the AI got wrong that I had to catch:** Codex initially assumed both transports were wanted because appointment operations exposed both; the user questioned that assumption and requested removal of REST member reads.
+**Something the AI got wrong that I had to catch:** Codex initially assumed both transports were wanted because appointment operations exposed both; I questioned that assumption and requested removal of REST member reads.
 
 ## Adopt MediBridge member DTO pattern — 2026-10-01
 **Tool(s) used:** Codex; TypeScript check and HTTP/GraphQL tests.
 **What I asked for:** Use MediBridge's DTO pattern and prefer its patterns when better than ours.
 **What I kept as-is:** getMember(id: ID!) contract, service ID validation, profile fields, and GraphQL-only lookup.
 **What I changed or rejected, and why:** Replaced the separate ID DTO with inline @Args and renamed the output class to Member, following the inspected MediBridge pattern with less code. Recorded the conditional preference in backend/AGENTS.md. Full TypeScript check and all 73 HTTP/GraphQL tests passed.
-**Something the AI got wrong that I had to catch:** The original separate ID DTO followed our appointment pattern; the user requested MediBridge's simpler member pattern and a future preference for better reference patterns.
+**Something the AI got wrong that I had to catch:** The original separate ID DTO followed our appointment pattern; I requested MediBridge's simpler member pattern and a future preference for better reference patterns.
 
 ## Log GraphQL member lookup — 2026-10-01
 **Tool(s) used:** Codex; TypeScript check, HTTP/GraphQL tests, and lint.
 **What I asked for:** Investigate getMember NOT_FOUND and missing backend logs after signup/login.
-**What I kept as-is:** Provider-only lookup filters, privacy projection, HTTP logging, and the user's password-length edit.
+**What I kept as-is:** Provider-only lookup filters, privacy projection, HTTP logging, and my password-length edit.
 **What I changed or rejected, and why:** Extended the logging interceptor to GraphQL resolver execution, added success/failure/privacy assertions and README troubleshooting. Full TypeScript check and 73 HTTP/GraphQL tests passed; lint retains its existing empty-file warning. Actual target role/ID remains unverified; signup defaults to USER.
-**Something the AI got wrong that I had to catch:** The user noticed missing GraphQL logs; the existing interceptor only logged HTTP requests and had not been extended when GraphQL was introduced.
+**Something the AI got wrong that I had to catch:** I noticed missing GraphQL logs; the existing interceptor only logged HTTP requests and had not been extended when GraphQL was introduced.
 
 ## Signup passwords of 8–100 characters — 2026-10-01
 **Tool(s) used:** Codex; member authentication E2E tests.
 **What I asked for:** Lower password length to 8–100 characters.
 **What I kept as-is:** Existing login validation, password hashing, and unrelated working changes.
 **What I changed or rejected, and why:** Updated signup validation and README to 8–100; added boundary acceptance/rejection coverage. All 20 authentication tests and whitespace check passed.
-**Something the AI got wrong that I had to catch:** No user-caught mistake recorded for this change.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 ## Include User profiles in getMember — 2026-10-01
 **Tool(s) used:** Codex; TypeScript check and HTTP/GraphQL tests.
 **What I asked for:** getMember should also get USER accounts.
 **What I kept as-is:** GraphQL contract, active/non-deleted requirements, ADMIN exclusion, and profile field projection.
 **What I changed or rejected, and why:** Added USER to the role filter and updated tests/docs so default signup accounts can be retrieved. Full TypeScript check and all 77 HTTP/GraphQL tests passed.
-**Something the AI got wrong that I had to catch:** The previous provider-only lookup excluded USER accounts; the user clarified that these should also be returned.
+**Something the AI got wrong that I had to catch:** The previous provider-only lookup excluded USER accounts; I clarified that these should also be returned.
+
+---
+
+## First sprint example — 2026-10-08
+
+**Tool(s) used:** Codex; local file inspection with rg, cat, and sed; Git status.
+**What I asked for:** Show a first-sprint file example in chat.
+**What I kept as-is:** Existing REST authentication, GraphQL appointment operations, shared services, 30-minute slots, and clinic approval prerequisites.
+**What I changed or rejected, and why:** Drafted a proposed one-week plan around clinic approval and weekly availability APIs, with a 20-hour solo capacity assumption, acceptance checks, estimates, tasks, check-ins, and definition of done. Displayed the example in chat; did not implement backlog items or create GitHub Issues. Remote issues were not reviewed; no application tests were run.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Prioritize approval and schedule setup because existing booking requires both, and neither currently has a management API.
+
+---
+
+## October 1–8 sprint example — 2026-10-08
+
+**Tool(s) used:** Codex; local file/code inspection with cat, tail, and rg; Git log/status; apply_patch; Git whitespace check.
+**What I asked for:** Create a first-sprint example for October 1–8, including Swagger.
+**What I kept as-is:** Existing application behavior and prior logs; the actual October 1 member/logging/password work and October 8 Swagger evidence.
+**What I changed or rejected, and why:** Created SPRINT_01.md as a retrospective example with six selected items, top-two acceptance checks, illustrative 20-hour capacity, estimates, tasks, check-ins, definition of done, and recorded results. Distinguished assumed planning details from historical outcomes; did not rerun application tests or create GitHub Issues.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Use recorded work for the requested period, and label estimates/check-ins as examples because no historical hours or check-in records are available.
+
+
+---
+
+## Finalize Sprint 01 document — 2026-10-08
+
+**Tool(s) used:** Codex; local instruction, sprint, README, test, and log inspection; Git history/status; Python text editing; Git whitespace check.
+**What I asked for:** Turn the October 1–8 example into a finished sprint Markdown document and apply my additions to AGENTS.md.
+**What I kept as-is:** Sprint dates, member/Swagger scope, historical validation evidence, estimates, and known documentation gaps.
+**What I changed or rejected, and why:** Finalized SPRINT_01.md with colored workflow labels, a delivery review, and evidence-based completion checks. Kept capacity assumptions and unconfirmed check-ins explicit. Changed third-person references in earlier AI log entries to my voice. No application code changed or application tests rerun.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Separate workflow labels from delivery outcomes because Doing alone cannot show that implementation is complete, and leave review/manual checks open until their results are recorded.
+
+---
+
+## README quality review — 2026-10-08
+
+**Tool(s) used:** Codex; local README, backend configuration, instructions, deployment files, and session-log inspection with cat, rg, sed, and nl; Git whitespace check.
+**What I asked for:** Assess whether the README is professional and needs polishing.
+**What I kept as-is:** README and application files; detailed API contracts, privacy rules, booking prerequisites, and test limitations.
+**What I changed or rejected, and why:** Recorded review findings only. Prioritized the missing backend working directory, startup/environment prerequisites, stale booking/resolver statements, inconsistent port examples, and organization. Deployment scripts also need reconciliation with the repository layout before documenting reproducible deployment. No README rewrite or application tests performed.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Fix copyable setup instructions and stale claims before cosmetic formatting because a new developer must be able to start the project and trust its documented behavior.
+
+
+---
+
+## README maintenance and polish — 2026-10-08
+
+**Tool(s) used:** Codex; local instruction/configuration/source inspection; apply_patch; Python editing and document checks; Git status and whitespace checks.
+**What I asked for:** First add README maintenance instructions to AGENTS.md, then update the README when needed.
+**What I kept as-is:** Application behavior, API contracts and examples, privacy/booking rules, testing limitations, and project logging requirements.
+**What I changed or rejected, and why:** Added README maintenance rules before editing README.md. Reorganized the README with navigation, backend quick start, environment table, consistent port examples, production build steps, architecture, API details, deployment limitations, and project links. Removed stale booking/resolver claims. Documented the existing database variable mismatch without changing application code. Structure, fences, local links, anchors, npm script references, and whitespace checks passed; application tests and live deployment checks were not run.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Document the configuration the code actually uses, including known inconsistencies, so a fresh checkout has reliable startup instructions without silently changing runtime behavior.
+
+
+---
+
+## Remove reference-project wording from README — 2026-10-08
+
+**Tool(s) used:** Codex; local file inspection; apply_patch; Python reference check; Git whitespace check.
+**What I asked for:** Remove MediBridge structure-copy references from the README.
+**What I kept as-is:** Architecture tree, folder conventions, API documentation, and application behavior.
+**What I changed or rejected, and why:** Reworded the architecture introduction around MedConnect and removed the comparison to the reference project's multi-app/Redis setup. Verified no reference-project mentions remain in README.md; whitespace check passed. No application tests run for this wording change.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Describe the repository's actual structure directly so readers can understand MedConnect without knowing another project.

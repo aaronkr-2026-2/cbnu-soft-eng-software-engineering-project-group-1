@@ -1,84 +1,186 @@
 # MedConnect
 
-## Description
+MedConnect is a healthcare appointment platform for patients, doctors, and clinics.
+It brings booking information and appointment statuses into one place, reducing
+reliance on phone calls and scattered messages.
 
-**FOR** patients and clinics
-**WHO** need a simpler way to book and manage medical appointments,
-**THE** MedConnect IS A healthcare appointment platform
-**THAT** connects patients with doctors and helps clinics coordinate bookings,
-**UNLIKE** scheduling through phone calls and scattered messages,
-**OUR PRODUCT** brings patients, doctors, and clinics into one place with shared appointment information and clear booking statuses.
+The backend uses NestJS, TypeScript, MongoDB/Mongoose, and GraphQL, with REST for
+member authentication and existing appointment routes. A React/Vite frontend lives
+in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 
-## `AI_LOG.md`
+## Contents
 
-Every time you update your project, please make a note of what you did in the `AI_LOG.md` file, according to the following template.
+- [Implemented features](#implemented-features)
+- [Requirements and quick start](#requirements-and-quick-start)
+- [Environment configuration](#environment-configuration)
+- [API documentation and status](#api-documentation-and-status)
+- [Development and testing](#development-and-testing)
+- [Architecture](#architecture)
+- [Member authentication](#member-authentication-rest)
+- [Member profiles](#get-a-user-doctor-or-clinic-member)
+- [Appointment lookup](#get-an-appointment)
+- [Appointment booking](#book-an-appointment)
+- [GraphQL appointments](#graphql-appointments)
+- [Deployment](#deployment)
+- [Known limitations](#known-limitations)
+- [Project records](#project-records)
 
-```markdown
-## [Milestone name] — [Date]
+## Implemented features
 
-**Tool(s) used:**
-**What I asked for:**
-**What I kept as-is:**
-**What I changed or rejected, and why:**
-**Something the AI got wrong that I had to catch:**
-```
+- Member signup, login, and rotating refresh tokens through REST.
+- Public GraphQL profile lookup for active USER, DOCTOR, and CLINIC members.
+- Authenticated appointment booking and lookup through GraphQL and REST.
+- Fixed 30-minute bookings with approval, availability, and ownership checks.
+- Swagger REST documentation, GraphQL execution logs, and a service status page.
 
-# MedConnect API
+Clinic approval and availability management APIs are not yet implemented. Booking
+requires an approved doctor and configured working hours in the database.
 
-Open `/status` for a visual dashboard of API information, liveness, and database readiness. It checks the existing JSON endpoints from your browser, supports manual refresh, and refreshes every 30 seconds while visible. It is a public status page with no patient data or administrative controls. The root `/` continues to return API information as JSON.
+## Requirements and quick start
 
-Booking-platform API foundation for clinics. REST routes start at `/` with no global prefix. The application builds as CommonJS (`"type": "commonjs"`).
+Use Node.js 24.x with npm for the backend and a reachable MongoDB instance or Atlas
+cluster. The project uses Node's built-in `.env` loading. For Atlas, configure
+network access and a database account before starting the API.
 
-Endpoints: `GET /`, `GET /health/live`, and `GET /health/ready`. The readiness endpoint returns 503 until MongoDB has connected and never exposes credentials or driver details.
-
-## Description
-
-## Project setup
-
-```bash
-$ npm install
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Swagger REST documentation
-
-After starting the backend, open `http://localhost:<PORT_API>/docs` (port 3000
-when neither `PORT_API` nor `PORT` is set). The OpenAPI JSON is available at
-`/docs-json`. Swagger documents REST routes; use `/graphql` for GraphQL operations.
-
-For protected appointment endpoints, click **Authorize** and enter the access
-token returned by login. Member signup, login, and refresh do not require it.
-The Nest Swagger CLI plugin generates request schemas from DTOs during the build;
-restart `npm run start:dev` after changing `nest-cli.json`.
-
-## Run tests
+From the repository root:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cd backend
+npm ci
 ```
 
-## Deployment
+Create `backend/.env` with the following development settings. Replace the MongoDB
+URI with your connection string and the JWT placeholder with a generated secret.
+Do not commit this file.
 
-I have deployed backend on Hostinger vps. Status accesible at http://72.62.195.195:3333/status
+```dotenv
+NODE_ENV=development
+PORT_API=3333
+MONGO_DEV=mongodb://127.0.0.1:27017/medconnect
+JWT_ACCESS_SECRET=replace-with-a-random-secret-of-at-least-32-bytes
+CORS_ORIGINS=http://localhost:3000,http://localhost:5173
+```
+
+Generate a secret with `openssl rand -hex 48`, then paste it into your local `.env`.
+The sample MongoDB URI requires a local MongoDB server already running.
+
+Start the backend from `backend/`:
+
+```bash
+npm run start:dev
+```
+
+Open [Swagger](http://localhost:3333/docs) or the
+[status page](http://localhost:3333/status). Examples use `PORT_API=3333`; substitute
+your configured port. If neither `PORT_API` nor `PORT` is set, the default is 3000.
+
+From the repository root, you can also run:
+
+```bash
+npm --prefix backend run start:dev
+```
+
+## Environment configuration
+
+The backend loads `.env` from its working directory before loading application modules.
+
+| Variable | Purpose | Default or requirement |
+|---|---|---|
+| `NODE_ENV` | Runtime environment | Set `development` locally; `production` on the server |
+| `PORT_API` | API listening port | Falls back to `PORT`, then 3000 |
+| `MONGO_DEV` | Development MongoDB connection | Required for the documented development setup |
+| `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_DEV` is unset; use `mongodb+srv://` |
+| `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
+| `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
+
+**Current database configuration limitation:** Startup validation recognizes
+`MONGO_URI`, but `DatabaseModule` does not use it. The module also prefers
+`MONGO_DEV` even in production. Use `MONGO_DEV` for development; for production,
+unset `MONGO_DEV` and set `MONGO_PROD` to an Atlas SRV connection string. Do not rely
+on `MONGO_URI` alone until these configuration paths are aligned.
+
+## API documentation and status
+
+REST routes have no global prefix. With the example port:
+
+| URL | Purpose |
+|---|---|
+| `http://localhost:3333/docs` | Swagger UI for REST endpoints |
+| `http://localhost:3333/docs-json` | OpenAPI JSON specification |
+| `http://localhost:3333/graphql` | GraphQL endpoint; GraphiQL outside production |
+| `http://localhost:3333/status` | Visual API and database status |
+| `http://localhost:3333/` | API information as JSON |
+| `http://localhost:3333/health/live` | Liveness check |
+| `http://localhost:3333/health/ready` | Database readiness; 503 when unavailable |
+
+In Swagger, click **Authorize** and enter the access token returned by login to
+try protected appointment endpoints. Signup, login, and refresh do not require an
+access token. Swagger covers REST; GraphQL uses its own schema. Request schemas
+are generated through the Nest Swagger CLI plugin; full response schemas remain
+incomplete. Restart the development server after changing `nest-cli.json`.
+
+The public `/status` page shows API information, liveness, and database readiness,
+with manual refresh and 30-second polling while visible. It exposes no patient
+data or administrative controls.
+
+## Development and testing
+
+Run these commands from `backend/`:
+
+```bash
+npm run start:dev    # Development with watch mode
+npm run build        # Compile the backend
+npm run lint         # Check source and tests
+npm test             # Unit tests
+npm run test:e2e     # HTTP/GraphQL tests
+npm run test:cov     # Unit-test coverage
+```
+
+For a compiled production run, configure the production environment first:
+
+```bash
+npm run build
+npm run start:prod
+```
+
+HTTP tests use an in-memory persistence substitute with Mongoose validation;
+they do not connect to Atlas or verify real MongoDB concurrency/index enforcement.
+
+## Architecture
+
+The MedConnect backend is organized as a single NestJS application:
+
+```text
+backend/src/
+  components/
+    components.module.ts
+    appointment/          # controller, service, module
+    auth/
+      guards/             # access guard
+      member-password.ts
+      member-rate-limit.ts
+    health/               # controller, module
+    member/               # controller, service, module, resolver
+  database/
+  libs/
+    dto/
+      appointment/
+      member/
+    enum/
+    interceptor/
+    logger/
+    types/
+  schemas/                # Mongoose models
+  app.module.ts
+  main.ts
+```
+
+Feature filenames use the singular feature name (for example,
+`appointment.service.ts`). `AppModule` imports `ComponentsModule`, which registers
+feature modules. DTOs stay under `libs/dto/<feature>`. Auth helpers and guards are
+located under `components/auth`; their current provider wiring stays in
+`MemberModule`.
+Appointment GraphQL operations share the existing service with REST routes.
 
 ## Member authentication (REST)
 
@@ -118,7 +220,8 @@ and stable across restarts. Startup rejects missing or short secrets.
 
 HTTP tests use Mongoose document validation with an in-memory persistence substitute;
 they do not connect to Atlas. Clinic verification, affiliation approval endpoints,
-email verification, logout/revocation, and protected booking routes are separate work.
+email verification, and logout/revocation remain unimplemented. Protected booking
+and appointment lookup are implemented; their prerequisites are described below.
 
 ## Get a User, Doctor, or Clinic member
 
@@ -192,42 +295,6 @@ Current account status and role are checked on every request, including after a
 previously valid token was issued. Existing appointments in any status can be read
 by their matching participants; this endpoint does not create appointments.
 
-## Folder structure
-
-This single-app API follows the relevant conventions of the `medi-bridge` API:
-
-```text
-src/
-  components/
-    components.module.ts
-    appointment/          # controller, service, module
-    auth/
-      guards/             # access guard
-      member-password.ts
-      member-rate-limit.ts
-    health/               # controller, module
-    member/               # controller, service, module, resolver placeholder
-  database/
-  libs/
-    dto/
-      appointment/
-      member/
-    enum/
-    interceptor/
-    logger/
-    types/
-  schemas/                # Mongoose models
-  app.module.ts
-  main.ts
-```
-
-Feature filenames use the singular feature name (for example,
-`appointment.service.ts`). `AppModule` imports `ComponentsModule`, which registers
-feature modules. DTOs stay under `libs/dto/<feature>`. Auth helpers and guards are
-located under `components/auth`; their current provider wiring stays in
-`MemberModule`. The reference project's multi-app and Redis setup is not required here.
-Appointment GraphQL operations share the existing service with REST routes.
-
 ## Book an appointment
 
 ```http
@@ -280,7 +347,7 @@ has not been integration-tested.
 Appointments support GraphQL at `POST /graphql`. Signup, login, and refresh remain REST endpoints. Existing appointment
 REST routes remain available and call the same service.
 
-In Postman, use GraphQL body mode with `http://localhost:3003/graphql` (or your
+In Postman, use GraphQL body mode with `http://localhost:3333/graphql` (or your
 configured API port). Add `Authorization: Bearer <accessToken>` and send:
 
 ```graphql
@@ -346,3 +413,52 @@ caching is disabled. GraphiQL is available at `/graphql` outside production.
 The schema is generated from DTO decorators in memory. `AppointmentResolver`
 handles GraphQL arguments/context and delegates to `AppointmentService`.
 Setup follows the [Nest GraphQL guide](https://docs.nestjs.com/graphql/quick-start).
+
+## Deployment
+
+The project records a Hostinger VPS deployment. Its recorded status URL is
+[http://72.62.195.195:3333/status](http://72.62.195.195:3333/status); live availability
+was not verified during this documentation update.
+
+For a server running the compiled backend, use `backend/` as the working directory,
+install dependencies with `npm ci`, configure the production environment, then run
+`npm run build` and `npm run start:prod`. Configure the process manager, browser
+origins, reverse proxy, and TLS for the actual hosting environment.
+
+Local `deploy.sh` and `docker-compose.yml` are Git-ignored. Their current contents
+need reconciliation before reuse: the script selects `master`, and Compose runs
+npm from the repository root instead of `backend/`. They are not a verified
+checkout-to-deployment procedure for the current layout.
+
+## Known limitations
+
+- Clinic affiliation approval and availability management APIs are not implemented.
+- Email verification and logout/revocation endpoints are not implemented.
+- Swagger response schemas are incomplete.
+- Real MongoDB booking races and index enforcement are not integration-tested.
+- Patient bookings with different doctors can overlap.
+- Authentication rate limiting is per process, without a shared multi-instance store.
+- Database environment-variable handling and local deployment scripts need the
+  alignment described above.
+
+## Project records
+
+- [Sprint 01](SPRINT_01.md): October 1–8 scope and delivery review.
+- [AI usage log](AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.
+- [Software engineering project guide](resources/software-engineering-project-guide.md).
+
+After meaningful project work, append an accurate entry to `AI_LOG.md`:
+
+```markdown
+## <Task title> — YYYY-MM-DD
+
+**Tool(s) used:**
+**What I asked for:**
+**What I kept as-is:**
+**What I changed or rejected, and why:**
+**Something the AI got wrong that I had to catch:**
+**One decision I can explain without AI:**
+```
+
+Write reflections in first person, record only checks actually performed, and do
+not invent mistakes. Keep secrets and sensitive personal data out of project records.
