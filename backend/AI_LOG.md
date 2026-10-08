@@ -1,6 +1,6 @@
 # AI_LOG.md
 
-Every time you update your project, please make a note of what you did in the `AI_LOG.md` file, according to the following template.
+Every time you update your project, please make a note of what you did in the `backend/AI_LOG.md` file (relative to the repository root), according to the following template.
 
 ---
 
@@ -278,3 +278,89 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Reworded the architecture introduction around MedConnect and removed the comparison to the reference project's multi-app/Redis setup. Verified no reference-project mentions remain in README.md; whitespace check passed. No application tests run for this wording change.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** Describe the repository's actual structure directly so readers can understand MedConnect without knowing another project.
+
+
+---
+
+## Existing features list and maintenance rule — 2026-10-08
+
+**Tool(s) used:** Codex; local Markdown/source inspection; apply_patch; Python document checks; Git whitespace check.
+**What I asked for:** Add an Existing Features list to README and save the instruction to update it whenever a feature is added in AGENTS.md.
+**What I kept as-is:** Application behavior, detailed API documentation, and existing project instructions.
+**What I changed or rejected, and why:** Expanded the existing feature summary under the requested title, updated navigation, and saved the ongoing rule in backend/AGENTS.md. Included frontend starter screens with sample-data and unverified integration limitations. Heading, navigation, maintenance instruction, local links, and whitespace checks passed; application tests were not run for documentation-only changes.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Maintain one feature inventory based on implemented behavior so new features are discoverable without presenting planned work as complete.
+
+
+---
+
+## Move Sprint 01 into backend — 2026-10-08
+
+**Tool(s) used:** Codex; rg and local file inspection; Python move/edit and document checks; Git whitespace check.
+**What I asked for:** Move SPRINT_01.md into backend and update references to its location whenever needed.
+**What I kept as-is:** Sprint content and historical log entries.
+**What I changed or rejected, and why:** Moved the document to backend/SPRINT_01.md, updated its README link, and saved the location and reference-maintenance rule in backend/AGENTS.md. Updated current session context. Content preservation, file location, README link, and whitespace checks passed. No application tests run for this documentation-only change.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Update active links and instructions when a document moves so readers and future edits use the same location.
+
+
+---
+
+## Save product documentation workflow — 2026-10-08
+
+**Tool(s) used:** Codex; local instructions/session inspection; apply_patch; Python instruction checks; Git whitespace check.
+**What I asked for:** Polish my supplied product documentation workflow for AGENTS.md and add it there.
+**What I kept as-is:** Existing project instructions, product documents, application behavior, and unrelated changes.
+**What I changed or rejected, and why:** Added the workflow to backend/AGENTS.md in its existing heading/bullet style, retaining root-relative paths, persona grounding, stable IDs, story count, gap mapping, simulated critique, logging, and requested-only commit/push rules. Made the workflow conditional on a product documentation request; did not execute it. Required content and whitespace checks passed.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Save reusable instructions separately from performing the review so future documentation work follows the supplied evidence and completion rules.
+
+
+---
+
+## Move AI collaboration log into backend — 2026-10-08
+
+**Tool(s) used:** Codex; rg/local document inspection; Python file move, edits, and link/path checks; Git whitespace check.
+**What I asked for:** Move AI_LOG.md into backend and update its location.
+**What I kept as-is:** Existing log entries, application behavior, and unrelated changes.
+**What I changed or rejected, and why:** Moved the log to backend/AI_LOG.md and updated active references in README, backend/AGENTS.md, sprint, project guide, log introduction, and current session context. Recorded a rule to update references when the log moves again. Move preservation, link/path, and whitespace checks passed; application tests not run for documentation-only changes.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Keep existing log history intact while updating active instructions so future entries go to the new location.
+
+
+---
+
+## Ground Alex in the creator — 2026-10-08
+
+**Tool(s) used:** Codex; local file inspection; apply_patch; Python content checks; Git whitespace check.
+**What I asked for:** Apply my clarification that Alex represents me to the persona document.
+**What I kept as-is:** Alex alias and the three story IDs from the example; unrelated files and application behavior.
+**What I changed or rejected, and why:** Populated the empty docs/product/personas.md with my confirmed grounding, a persona card, provisional scenario, and three proposed stories. Left age, background, and healthcare needs unconfirmed rather than treating the illustrative student/part-time-job details as my biography. Secondary persona and full workflow remain pending. Grounding, IDs, and whitespace checks passed.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Confirming whom a persona represents does not confirm every detail in an illustrative example, so personal facts and proposed needs must remain separate.
+
+
+---
+
+## Document OAuth sign-in gap — 2026-10-08
+
+**Tool(s) used:** Codex; local persona/session/authentication source inspection; apply_patch; Python document checks; Git whitespace check.
+**What I asked for:** Add our desired OAuth sign-in to Alex’s scenario and record it as a gap to fill.
+**What I kept as-is:** Existing story IDs, unconfirmed biography/healthcare needs, and application behavior.
+**What I changed or rejected, and why:** Added P1-S04 for external-account sign-in and a Backlog mapping with rationale and next actions. Recorded my confirmation that OAuth is wanted but absent; provider, account roles, and avoiding another password remain unresolved. Labeled AI persona critique as simulation. Story/mapping/link/whitespace checks passed; no runtime verification or implementation. Four stories total; full inventory, other mappings, and secondary persona remain pending.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Put OAuth in the backlog map rather than the existing-feature inventory because it is a requested capability that has not been implemented.
+
+
+---
+
+## Split into three personas — 2026-10-08
+
+**Tool(s) used:** Codex; local document inspection; clarification tool; Python edits/structure checks; Git whitespace check.
+**What I asked for:** Divide the document into three personas, each with one scenario and one story; the other two represent my friends.
+**What I kept as-is:** Alex’s creator grounding, OAuth story ID and Backlog status, and unrelated changes.
+**What I changed or rejected, and why:** Split the document into Alex, Friend 1, and Friend 2; adapted existing booking/status examples as explicitly provisional friend scenarios. Updated gap mappings and AGENTS.md to the latest three-story preference, with old IDs reserved and migration recorded. Asked for friends’ aliases, roles, and background instead of inventing them. Three sections/scenarios/stories, IDs, mappings, and whitespace checks passed; no runtime verification. Full feature inventory/orphan review remains pending.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Knowing the personas represent real friends does not establish their roles or needs, so those details remain provisional until supplied.
+
+**Follow-up clarification:** I supplied John and Eddy as the friends, with “my friend” as their alias. Updated persona names, grounding, mappings, and instructions; their roles and personal circumstances remain unconfirmed.

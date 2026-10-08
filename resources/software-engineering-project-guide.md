@@ -131,7 +131,7 @@ You're free to pitch your own idea — these are here to get you unstuck, the wa
 
 ## 7. AI Collaboration Log template
 
-Copy this into your repo as `AI_LOG.md` and add an entry per milestone.
+Copy this into your repo as `backend/AI_LOG.md` and add an entry per milestone.
 
 ```
 ## [Milestone name] — [Date]

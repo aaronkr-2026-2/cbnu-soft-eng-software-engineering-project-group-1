@@ -82,7 +82,7 @@ These check-ins are proposed checkpoints; attendance and messages were not recor
 - [ ] Changes are reviewed by a peer when available; otherwise record a self-review.
 - [x] Changes are integrated into local main (merge commit `d9f8a10`).
 - [ ] Manually retrieve a member profile and try a REST request through Swagger.
-- [ ] README, AI_LOG.md, and SESSION_LOG.md reflect actual work and limitations.
+- [ ] root README, [AI_LOG.md](AI_LOG.md), and SESSION_LOG.md reflect actual work and limitations.
 
 The manual acceptance check verifies that the instructions and Swagger browser interaction are usable against a running backend. Automated tests cover repeatable contracts and validation. Review and manual walkthrough remain open until evidence is recorded.
 
