@@ -10,7 +10,7 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 
 ## Contents
 
-- [Implemented features](#implemented-features)
+- [Existing Features list](#existing-features-list)
 - [Requirements and quick start](#requirements-and-quick-start)
 - [Environment configuration](#environment-configuration)
 - [API documentation and status](#api-documentation-and-status)
@@ -25,13 +25,34 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - [Known limitations](#known-limitations)
 - [Project records](#project-records)
 
-## Implemented features
+## Existing Features list
 
-- Member signup, login, and rotating refresh tokens through REST.
-- Public GraphQL profile lookup for active USER, DOCTOR, and CLINIC members.
-- Authenticated appointment booking and lookup through GraphQL and REST.
-- Fixed 30-minute bookings with approval, availability, and ownership checks.
-- Swagger REST documentation, GraphQL execution logs, and a service status page.
+- **Member registration and login:** REST signup for USER, DOCTOR, and CLINIC
+  accounts, password hashing, input validation, and JWT access tokens.
+- **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
+- **Authentication protection:** Authentication rate limiting and current-account
+  checks for protected appointment operations.
+- **Public member profiles:** GraphQL lookup for active USER, DOCTOR, and CLINIC
+  members, with private contact and credential fields excluded.
+- **Appointment booking:** Authenticated USER booking through GraphQL and REST,
+  creating a PENDING appointment for a fixed 30-minute slot.
+- **Booking validation:** Approved doctor affiliation, active clinic/doctor checks,
+  clinic-timezone slot alignment, weekly working hours, date-specific overrides,
+  and occupied-slot checks backed by a unique active-slot index.
+- **Appointment lookup:** GraphQL and REST retrieval for the appointment's patient,
+  doctor, or clinic, with ownership checks.
+- **API documentation:** Swagger UI and OpenAPI JSON for REST, plus a GraphQL
+  schema and development GraphiQL interface.
+- **Request logging:** HTTP and GraphQL execution logging, including timings and
+  failures, without logging GraphQL arguments or response data.
+- **Service monitoring:** API information, liveness and database readiness checks,
+  and a public status page with manual refresh and automatic polling.
+- **Frontend starter screens:** Login, registration, and a protected dashboard
+  layout. Dashboard statistics and appointments currently use sample data;
+  frontend/backend integration is not verified.
+
+Update this list whenever a new feature is added. Keep entries aligned with the
+implemented behavior, and revise them when features change or are removed.
 
 Clinic approval and availability management APIs are not yet implemented. Booking
 requires an approved doctor and configured working hours in the database.
@@ -443,11 +464,11 @@ checkout-to-deployment procedure for the current layout.
 
 ## Project records
 
-- [Sprint 01](SPRINT_01.md): October 1–8 scope and delivery review.
-- [AI usage log](AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.
+- [Sprint 01](backend/SPRINT_01.md): October 1–8 scope and delivery review.
+- [AI usage log](backend/AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.
 - [Software engineering project guide](resources/software-engineering-project-guide.md).
 
-After meaningful project work, append an accurate entry to `AI_LOG.md`:
+After meaningful project work, append an accurate entry to `backend/AI_LOG.md`:
 
 ```markdown
 ## <Task title> — YYYY-MM-DD
