@@ -3,8 +3,6 @@ import clsx from "clsx";
 import {
   LayoutGrid,
   CalendarCheck,
-  Pill,
-  Star,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -13,9 +11,7 @@ import { useAuthStore } from "@/lib/auth";
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Overview", icon: LayoutGrid },
   { to: "/dashboard/appointments", label: "My appointments", icon: CalendarCheck },
-  { to: "/dashboard/medicines", label: "Medicine search", icon: Pill },
-  { to: "/dashboard/reviews", label: "My reviews", icon: Star },
-  { to: "/dashboard/settings", label: "Settings", icon: Settings },
+  { to: "/dashboard/settings", label: "Profile", icon: Settings },
 ];
 
 export function Sidebar() {

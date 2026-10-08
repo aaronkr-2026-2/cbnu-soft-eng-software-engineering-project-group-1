@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
+import Appointments from "@/pages/Appointments";
+import Profile from "@/pages/Profile";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { DashboardLayout } from "@/components/DashboardLayout";
 
@@ -16,9 +18,8 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            {/* Add nested routes here as you build them out: */}
-            {/* <Route path="/dashboard/appointments" element={<Appointments />} /> */}
-            {/* <Route path="/dashboard/medicines" element={<MedicineSearch />} /> */}
+            <Route path="/dashboard/appointments" element={<Appointments />} />
+            <Route path="/dashboard/settings" element={<Profile />} />
           </Route>
         </Route>
 

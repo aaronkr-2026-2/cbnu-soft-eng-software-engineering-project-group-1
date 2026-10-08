@@ -7,7 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { AuthLayout } from "@/components/AuthLayout";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
-import { mockLogin } from "@/lib/api";
+import { login, errorMessage } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 const schema = z.object({
@@ -16,7 +16,7 @@ const schema = z.object({
     .min(1, "Email is required")
     .email("Enter a valid email address"),
 
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -42,20 +42,11 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Mock login — backendga request yuborilmaydi
-      const { data } = await mockLogin(values.email);
-
-      console.log("Mock login:", data);
-
-      // User sessionni saqlash
-      setSession(data.user, data.accessToken);
-
-      // Dashboardga o'tish
+      const data = await login(values.email, values.password);
+      setSession(data.user, data.accessToken, data.refreshToken);
       navigate("/dashboard");
     } catch (error) {
-      console.error("Login error:", error);
-
-      setServerError("Login failed. Please try again.");
+      setServerError(errorMessage(error, "Login failed. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -70,11 +61,6 @@ export default function Login() {
       <h2 className="font-display text-2xl font-medium text-ink-900">
         Sign in to your account
       </h2>
-
-      {/* Mock mode indicator */}
-      <p className="mt-2 inline-block rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-600">
-        Mock mode — any valid email/password logs you in
-      </p>
 
       <p className="mt-1.5 text-sm text-ink-500">
         Don't have an account?{" "}
