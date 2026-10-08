@@ -7,7 +7,7 @@ import clsx from "clsx";
 import { AuthLayout } from "@/components/AuthLayout";
 import { TextField } from "@/components/TextField";
 import { Button } from "@/components/Button";
-import { register as registerRequest, MOCK_AUTH, mockRegister } from "@/lib/api";
+import { register as registerRequest, errorMessage } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth";
 
 const schema = z
@@ -19,7 +19,7 @@ const schema = z
       .min(9, "Enter a complete phone number")
       .regex(/^[0-9+\s]+$/, "Digits only"),
     role: z.enum(["patient", "doctor", "hospital_admin"]),
-    password: z.string().min(6, "Password must be at least 6 characters"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -58,15 +58,11 @@ export default function Register() {
     setServerError(null);
     setLoading(true);
     try {
-      const { data } = MOCK_AUTH
-        ? await mockRegister(values.fullName, values.email)
-        : await registerRequest(values);
-      setSession(data.user, data.accessToken);
+      const data = await registerRequest(values);
+      setSession(data.user, data.accessToken, data.refreshToken);
       navigate("/dashboard");
-    } catch (err: any) {
-      setServerError(
-        err?.response?.data?.message || "Something went wrong while signing up. Please try again."
-      );
+    } catch (err) {
+      setServerError(errorMessage(err, "Something went wrong while signing up. Please try again."));
     } finally {
       setLoading(false);
     }
