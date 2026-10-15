@@ -169,6 +169,10 @@ they do not connect to Atlas or verify real MongoDB concurrency/index enforcemen
 
 ## Architecture
 
+See the [backend architecture](docs/architecture/architecture-backend.md) for the
+technology stack, component responsibilities, request/data flows, shared services,
+integration status, logical/deployment diagrams, and documented concerns.
+
 The MedConnect backend is organized as a single NestJS application:
 
 ```text
