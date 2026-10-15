@@ -527,6 +527,7 @@ checkout-to-deployment procedure for the current layout.
 ## Project records
 
 - [Sprint 01](backend/SPRINT_01.md): October 1–8 scope and delivery review.
+- [Sprint 02](backend/SPRINT_02.md): October 9–15 Google sign-in backend delivery and remaining integration work.
 - [AI usage log](backend/AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.
 - [Software engineering project guide](resources/software-engineering-project-guide.md).
 

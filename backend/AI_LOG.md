@@ -424,3 +424,18 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Removed the proposed phone onboarding step for Google accounts as requested. Kept new Google registration USER-only and no automatic email linking. Added browser nonce binding to prevent accepting a Google login detached from the initiating browser. Omitted missing sparse-unique fields instead of storing nulls.
 **Something the AI got wrong that I had to catch:** Automated checks caught Codex importing a test enum not exported by google-auth-library, expecting the wrong refresh HTTP status, and constructing an expired JWT fixture with conflicting options. Codex corrected these before the passing verification run; I did not manually identify these test errors.
 **One decision I can explain without AI:** Google sub is the stable identity; names are display labels that can collide, so nickname retries must not create or merge another person's account.
+
+
+---
+
+## Create Sprint 02 and automatic delivery updates — 2026-10-15
+
+**Tool(s) used:** Codex; local source/test/planning and Git history inspection; apply_patch; Python document/link checks; git diff --check.
+**What I asked for:** Add automatic sprint updates after completed features/fixes and create the second-week sprint record.
+**Pre-planning:** Checked Sprint 01's October 1–8 period, current Google implementation, prior verification records, local mistake register, product gap map, and existing instructions. OAuth commit c20b395 is dated October 15.
+**Planning:** Use October 9–15 for Sprint 02; record completed backend scope separately from browser/live-integration follow-up, preserve Sprint 01, and label capacity/effort as retrospective assumptions.
+**Implementation process:** Added AGENTS.md delivery-update rules and numbered sprint handling; created SPRINT_02.md with seven prioritized entries, two refined backend items, ordered tasks, proposed check-ins, delivery evidence and open acceptance; updated README navigation and session context. Document links/anchors, unique backlog IDs, labels, commit date, unchanged Sprint 01, whitespace, and git diff --check passed. No application tests rerun, remote issues published/reviewed, or backlog features implemented.
+**What I kept as-is:** Closed Sprint 01, application behavior, no-conversation/no-preimplementation-code-log rules, and historical verification results.
+**What I changed or rejected, and why:** Replaced the hard-coded instruction to always edit Sprint 01 with the matching numbered sprint. Did not claim full browser OAuth completion, measured hours, peer review, or historical check-ins.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Record delivery in the sprint covering its actual date and preserve incomplete integration work, so sprint history stays accurate.
