@@ -11,7 +11,7 @@ The backend is a single NestJS application serving member authentication, public
 | Layer | Responsibility | Source |
 | --- | --- | --- |
 | Transport | REST request handling and GraphQL arguments/context; delegate operations | `backend/src/components/member/member.controller.ts`, `member.resolver.ts`; `backend/src/components/appointment/appointment.controller.ts`, `appointment.resolver.ts` |
-| Authentication | Resolve a Bearer token to a current database-backed member principal for protected operations | `backend/src/components/auth/guards/member-access.guard.ts`; `backend/src/components/member/member.service.ts` |
+| Authentication | Verify Google credentials/browser nonce; resolve Bearer tokens to current member principals | `backend/src/components/auth/google-auth.service.ts`; `backend/src/components/auth/guards/member-access.guard.ts`; `backend/src/components/member/member.service.ts` |
 | Application logic | Authentication/session lifecycle, profile projection, booking rules, participant access | `backend/src/components/member/member.service.ts`; `backend/src/components/appointment/appointment.service.ts` |
 | Validation and contracts | Input validation, GraphQL output types, enums, shared TypeScript types | `backend/src/libs/dto/`, `backend/src/libs/enum/`, `backend/src/libs/types/` |
 | Data access | Injected Mongoose models queried directly by feature services; no separate repository layer | `backend/src/schemas/`; feature services |
@@ -27,7 +27,7 @@ Versions below are declared dependency ranges in [backend/package.json](../../ba
 | Server framework | NestJS `^12.0.1`, Express adapter | Dependency injection, modules, REST controllers, guards, pipes, interceptors |
 | GraphQL | Nest GraphQL/Apollo `^14.0.0`, Apollo Server `^5.5.1`, GraphQL `^16.14.2` | Code-first schema generated in memory from DTO decorators at `/graphql` |
 | Persistence | MongoDB driver `^7.6.0`, Mongoose `^9.10.0`, Nest Mongoose `^12.0.0` | MongoDB/Atlas-compatible connection, schemas, indexes, queries |
-| Authentication | Nest JWT `^12.0.1`, Node `crypto` | HS256 access JWTs, salted scrypt passwords, random opaque refresh tokens and SHA-256 token hashes |
+| Authentication | Nest JWT `^12.0.1`, `google-auth-library` `^11.3.0`, Node `crypto` | Google ID-token verification, HS256 access JWTs, salted scrypt passwords, random opaque refresh tokens and SHA-256 token hashes |
 | Input handling | `class-validator` `^0.15.1`, `class-transformer` `^0.5.1` | Global validation/transform pipe and DTO rules |
 | API documentation | Nest Swagger `^12.0.2` | REST UI at `/docs`, OpenAPI JSON at `/docs-json` |
 | Abuse controls | `express-rate-limit` `^8.7.0` | In-memory auth request limits per process |
@@ -46,6 +46,8 @@ flowchart TD
   GQL[Apollo GraphQL resolvers]
   Guard[MemberAccessGuard - protected appointments]
   Member[MemberService]
+  Google[GoogleAuthService]
+  Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
@@ -60,6 +62,9 @@ flowchart TD
   Guard -->|In-process call: verify token and load principal| Member
   REST -->|In-process calls: signup, login, refresh| Member
   GQL -->|In-process call: public profile ID| Member
+  REST -->|In-process call: issue sign-in nonce| Google
+  Member -->|In-process call: verify Google ID token and browser nonce| Google
+  Google -->|HTTPS: fetch public signing keys for local JWT verification| Provider
   REST -->|In-process calls: validated input and principal| Booking
   GQL -->|In-process calls: validated input and principal| Booking
   Member -->|Mongoose calls: member and session reads/writes| Models
@@ -70,7 +75,7 @@ flowchart TD
   GQL -->|Interceptor events: operation field, duration, errors| Logs
 ```
 
-External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. OAuth and email are absent from this implemented-component diagram.
+External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the browser Google button is pending. Email delivery is absent.
 
 ## APIs and request flows
 
@@ -79,12 +84,15 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | Interface | Operation | Access and implementation |
 | --- | --- | --- |
 | REST | `POST /member/signup`, `/member/login`, `/member/refresh` | Public authentication endpoints with validation and auth rate limiting; `MemberController` → `MemberService` |
+| REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
 | REST | `POST /appointment/bookAppointment`, `GET /appointment/:id` | Same guard and appointment service as GraphQL |
 | Operations | `GET /`, `/health/live`, `/health/ready`, `/status` | Public API info, liveness, database readiness, and status UI; `/status/assets/*` serves its CSS/JS |
 
 **Authentication:** signup validates public role/input fields, hashes the password, creates a member, and issues tokens. Doctors require an active clinic and start with PENDING affiliation; ADMIN is excluded from public signup. Login verifies email/password credentials and account status. Access JWTs last 15 minutes. Refresh tokens have a fixed seven-day session lifetime; only their hashes are persisted. Refresh atomically replaces the stored hash, so a token can be consumed once; rotation does not extend session expiry. There is no implemented logout/revocation endpoint.
+
+**Google sign-in:** the browser first requests a five-minute signed nonce from `/member/google/nonce`, which also sets an HttpOnly cookie. It passes that nonce to Google Identity Services and posts the resulting ID token to `/member/google/login` with credentials included. GoogleAuthService validates the challenge and Google's signature/audience/issuer/expiry and checks the ID-token nonce against the cookie. Production uses a Secure, host-only cookie; successful login clears it. MemberService finds by Google `sub` or immediately creates an active USER, omitting phone/password. The provider name supplies a trimmed/truncated nickname; missing names/collisions use `google_user` plus six random digits, retried against the unique index. Only verified provider email is copied. Existing account profile/role remains unchanged. Email conflicts return 409 without automatic linking; inactive accounts are rejected. The service reuses normal access/refresh issuance. GOOGLE_CLIENT_ID is required for this flow; GOOGLE_CLIENT_SECRET is not consumed. Frontend Google sign-in integration remains pending.
 
 **Protected requests:** the guard extracts REST or GraphQL request context and calls `MemberService.authenticateAccessToken`. JWT algorithm, issuer, audience, expiry, token type, and subject are checked. A fresh member query determines active status and current role. Services then enforce operation-specific authorization; a token alone does not grant appointment access.
 
@@ -113,7 +121,7 @@ Here, shared services include reusable in-process capabilities and external prov
 | Capability/provider | Status | Boundary and evidence |
 | --- | --- | --- |
 | Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. An email address is a login identifier; no email is sent. |
-| OAuth / Google sign-in | Requested backlog; not implemented | `googleId` and `AuthProvider.GOOGLE` exist in schema/enums, but no provider verification flow, callback/token endpoint, or Google identity SDK is implemented. Future provider choice and account-linking rules need an explicit design. |
+| Google sign-in | Backend implemented; browser integration pending | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
 | Telegram identity | Schema support only | `telegramId` exists; no implemented Telegram login flow. |
 | Email delivery | Not implemented; provider unselected | No mail adapter/SDK, SMTP transport, verification email, or appointment notification sender found in backend source/dependencies. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
@@ -122,7 +130,7 @@ Here, shared services include reusable in-process capabilities and external prov
 | Health monitoring | Implemented internally | DatabaseService supplies connection status; `/status` polls this application's JSON endpoints using browser fetch. No external monitoring provider is established. |
 | Cache, queue, scheduler, batch service | Not implemented | No Redis/shared rate-limit store, mail queue, or batch runtime wired into AppModule. |
 
-When adding OAuth, email, or an external API, keep provider SDK calls and credentials behind a backend adapter/service. Expose explicit application methods to features, define who owns identity/notification data, and document failure/retry behavior. These are proposed boundaries, not existing components.
+Google verification is behind GoogleAuthService; account/session writes remain in MemberService. When adding email or another external API, keep provider SDK calls and credentials behind a backend adapter/service. Expose explicit application methods to features, define who owns identity/notification data, and document failure/retry behavior. Email and additional external API adapters are proposed boundaries, not existing components.
 
 ## Security and configuration
 
@@ -132,7 +140,8 @@ Auth endpoints share a 20-request/minute/IP/process limiter. It is not a distrib
 
 | Configuration name | Purpose / current behavior |
 | --- | --- |
-| `JWT_ACCESS_SECRET` | Server-only signing key; startup requires at least 32 bytes |
+| `JWT_ACCESS_SECRET` | Server-only signing key for access JWTs and Google nonce challenges; startup requires at least 32 bytes |
+| `GOOGLE_CLIENT_ID` | Google web client audience; absence disables Google endpoints with 503. GOOGLE_CLIENT_SECRET is unused by this ID-token flow. |
 | `MONGO_URI`, `MONGO_DEV`, `MONGO_PROD`, `NODE_ENV` | Startup and feature modules prefer MONGO_URI, then the environment-specific URI. DatabaseModule currently instead prefers MONGO_DEV and ignores MONGO_URI; see critique. |
 | `PORT_API`, `PORT` | Listener precedence: PORT_API, then PORT, then 3000. README examples use 3333. |
 | `CORS_ORIGINS` | Comma-separated origin allowlist; defaults include localhost ports 3000 and 5173 |
@@ -153,21 +162,23 @@ flowchart LR
     File[Local JSON-line log file]
   end
   DB[(External MongoDB / Atlas-compatible database)]
+  Google[Google identity provider and public signing keys]
   React -->|HTTP: JSON API requests and Bearer tokens; integration incomplete| API
   API -->|HTTP: status HTML, CSS, JavaScript| Status
   Status -->|HTTP fetch: API info and health JSON| API
   API -->|MongoDB wire protocol: application records; production SRV/TLS requirement| DB
   API -->|Node filesystem append: log events| File
+  API -->|HTTPS: retrieve Google public signing keys| Google
 ```
 
-No live deployment was inspected. Browser/backend HTTP transport is shown as implemented/recorded; a production TLS terminator is not established by repository code. The local Compose file proposes a Node 24.12.0 container, PORT_API mapping, and external Docker network, but its npm working directory is inconsistent with the repository. It is not shown as a verified running container. OAuth/email providers, batch processes, queues, and hosted monitoring are not deployed components established by this source inspection.
+No live deployment was inspected. Browser/backend HTTP transport is shown as implemented/recorded; a production TLS terminator is not established by repository code. The local Compose file proposes a Node 24.12.0 container, PORT_API mapping, and external Docker network, but its npm working directory is inconsistent with the repository. It is not shown as a verified running container. Google public-key retrieval is wired in backend code; live provider calls were not verified. Email providers, batch processes, queues, and hosted monitoring are not deployed components established by this source inspection.
 ## Deployment and verification limits
 
 The [deployment diagram](#deployment) separates the browser, Node/Nest process, and external database. The README records a Hostinger VPS backend deployment; this documentation task did not contact it or verify the installed runtime, proxy, TLS, frontend hosting, or database.
 
 The backend's production scripts build with `npm run build` and start with `npm run start:prod` from `backend/`. Local ignored `docker-compose.yml` selects `node:24.12.0` and binds PORT_API, but runs npm from the repository root, where no package.json exists. `deploy.sh` hard-resets the checkout and selects `master`. These files require reconciliation before being treated as a repeatable deployment procedure; they were inspected, not executed or changed.
 
-Tests under `backend/test/` exercise HTTP/GraphQL behavior with simulated persistence; unit tests include slot calculation. This documentation update used source/package/script inspection and document checks only. Application tests, live authentication, actual MongoDB race/index enforcement, email, and OAuth were not exercised. Frontend screens still include mock authentication and conflicting API clients/contracts; their existence does not demonstrate working backend integration.
+Tests under `backend/test/` exercise HTTP/GraphQL behavior with simulated persistence; unit tests include slot calculation. Google authentication tests exercise the real token-verification library using locally signed RSA tokens and a substituted public-key fetch; persistence is simulated. Live Google/browser authentication, actual MongoDB race/index enforcement, and email delivery were not exercised. Frontend screens still include mock authentication and conflicting API clients/contracts; their existence does not demonstrate working backend integration.
 
 ## Architecture concerns
 

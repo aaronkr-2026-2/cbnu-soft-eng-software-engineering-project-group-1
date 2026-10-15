@@ -1,3 +1,4 @@
+import { GoogleAuthService } from '../src/components/auth/google-auth.service.js';
 import { Test } from '@nestjs/testing';
 import {
   BadRequestException,
@@ -6,7 +7,8 @@ import {
 } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { getModelToken } from '@nestjs/mongoose';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { OAuth2Client } from 'google-auth-library';
 import type { Server } from 'node:http';
 import { model } from 'mongoose';
 import request from 'supertest';
@@ -16,7 +18,7 @@ import { MemberService } from '../src/components/member/member.service.js';
 import MemberSchema, { MEMBER } from '../src/schemas/member.model.js';
 import { MEMBER_SESSION } from '../src/schemas/member-session.model.js';
 import type { MemberDocument } from '../src/libs/types/member.types.js';
-import { MemberStatus } from '../src/libs/enum/member.enum.js';
+import { AuthProvider, MemberStatus } from '../src/libs/enum/member.enum.js';
 
 const Member = model('AuthTestMember', MemberSchema);
 const secret = 'test-only-secret-that-is-at-least-32-bytes';
@@ -43,8 +45,66 @@ describe('Member REST authentication', () => {
     memberPhone: '+821012345678',
     memberNick: 'alice',
   };
+  const googleClientId = 'test-google-client.apps.googleusercontent.com';
+  const originalClientId = process.env.GOOGLE_CLIENT_ID;
+  const keys = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const googleToken = (
+    nonce: string,
+    overrides: Record<string, unknown> = {},
+  ) => {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+      iss: 'https://accounts.google.com',
+      aud: googleClientId,
+      sub: 'google-subject-1',
+      iat: now,
+      exp: now + 3600,
+      nonce,
+      email: 'google@example.com',
+      email_verified: true,
+      name: 'Google Person',
+      ...overrides,
+    };
+    const encoded = [{ alg: 'RS256', kid: 'test-key' }, payload]
+      .map((value) => Buffer.from(JSON.stringify(value)).toString('base64url'))
+      .join('.');
+    return `${encoded}.${sign('RSA-SHA256', Buffer.from(encoded), keys.privateKey).toString('base64url')}`;
+  };
+  const beginGoogle = async () => {
+    const response = await request(app.getHttpServer())
+      .post('/member/google/nonce')
+      .expect(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    const cookies = response.headers['set-cookie'] as unknown as string[];
+    expect(cookies[0]).toContain('HttpOnly');
+    return {
+      nonce: response.body.nonce as string,
+      cookie: cookies[0].split(';')[0],
+    };
+  };
+  const googleLogin = async (overrides: Record<string, unknown> = {}) => {
+    const { nonce, cookie } = await beginGoogle();
+    return request(app.getHttpServer())
+      .post('/member/google/login')
+      .set('Cookie', cookie)
+      .send({ idToken: googleToken(nonce, overrides) });
+  };
 
   beforeAll(async () => {
+    process.env.GOOGLE_CLIENT_ID = googleClientId;
+    // Keep real Google JWT verification; substitute only the network key lookup.
+    jest
+      .spyOn(OAuth2Client.prototype, 'getFederatedSignonCertsAsync')
+      .mockResolvedValue({
+        certs: {
+          'test-key': keys.publicKey
+            .export({ type: 'spki', format: 'pem' })
+            .toString(),
+        },
+        format: 'PEM' as Awaited<
+          ReturnType<OAuth2Client['getFederatedSignonCertsAsync']>
+        >['format'],
+      });
     const fixture = await Test.createTestingModule({
       imports: [
         JwtModule.register({
@@ -60,40 +120,53 @@ describe('Member REST authentication', () => {
       controllers: [MemberController],
       providers: [
         MemberService,
+        GoogleAuthService,
         {
           provide: getModelToken(MEMBER),
           useValue: {
+            init: async () => {},
             create: async (data: object) => {
               const member = new Member(data);
               await member.validate();
               if (
-                members.some(
-                  (item) =>
-                    item.memberEmail === member.memberEmail ||
-                    item.memberPhone === member.memberPhone ||
-                    item.memberNick === member.memberNick,
+                members.some((item) =>
+                  (
+                    [
+                      'memberEmail',
+                      'memberPhone',
+                      'memberNick',
+                      'googleId',
+                    ] as const
+                  ).some(
+                    (key) => member[key] != null && item[key] === member[key],
+                  ),
                 )
               )
                 throw { code: 11000 };
               members.push(member);
               return member;
             },
-            findOne: ({ memberEmail }: { memberEmail: string }) =>
+            findOne: (filter: Record<string, unknown>) =>
               query(
-                members.find((item) => item.memberEmail === memberEmail) ??
-                  null,
+                members.find((item) =>
+                  Object.entries(filter).every(
+                    ([key, value]) => item.get(key) === value,
+                  ),
+                ) ?? null,
               ),
             findById: (id: unknown) =>
               query(
                 members.find((item) => String(item._id) === String(id)) ?? null,
               ),
             exists: async (filter: Record<string, unknown>) =>
-              members.find(
-                (item) =>
-                  String(item._id) === filter._id &&
-                  item.memberType === filter.memberType &&
-                  item.memberStatus === filter.memberStatus &&
-                  !item.deletedAt,
+              members.find((item) =>
+                Object.entries(filter).every(([key, value]) =>
+                  key === '_id'
+                    ? String(item._id) === String(value)
+                    : value === null
+                      ? item.get(key) == null
+                      : item.get(key) === value,
+                ),
               ) ?? null,
           },
         },
@@ -144,11 +217,15 @@ describe('Member REST authentication', () => {
     await app.listen(0, '127.0.0.1');
   });
   beforeEach(() => {
+    process.env.GOOGLE_CLIENT_ID = googleClientId;
     members.length = 0;
     sessions.clear();
   });
   afterAll(async () => {
-    await app.close();
+    await app?.close();
+    jest.restoreAllMocks();
+    if (originalClientId === undefined) delete process.env.GOOGLE_CLIENT_ID;
+    else process.env.GOOGLE_CLIENT_ID = originalClientId;
   });
 
   it('limits repeated authentication requests', async () => {
@@ -258,12 +335,15 @@ describe('Member REST authentication', () => {
     expect(members).toHaveLength(0);
   });
 
-  it.each([8, 100])('accepts signup passwords of %i characters', async (length) => {
-    await request(app.getHttpServer())
-      .post('/member/signup')
-      .send({ ...signup, memberPassword: 'a'.repeat(length) })
-      .expect(201);
-  });
+  it.each([8, 100])(
+    'accepts signup passwords of %i characters',
+    async (length) => {
+      await request(app.getHttpServer())
+        .post('/member/signup')
+        .send({ ...signup, memberPassword: 'a'.repeat(length) })
+        .expect(201);
+    },
+  );
 
   it('registers clinics and doctors with a pending affiliation to an active clinic', async () => {
     const clinic = await request(app.getHttpServer())
@@ -328,5 +408,233 @@ describe('Member REST authentication', () => {
       .send({ refreshToken: nextToken })
       .expect(401);
     expect(sessions.size).toBe(0);
+  });
+
+  it('creates a Google USER without phone/password and reuses the normal session contract', async () => {
+    const result = await googleLogin();
+    expect(result.status).toBe(200);
+    expect(result.headers['cache-control']).toBe('no-store');
+    expect(result.headers['set-cookie'][0]).toContain(
+      'Expires=Thu, 01 Jan 1970',
+    );
+    expect(result.body.member.memberNick).toBe('Google Person');
+    expect(result.body.member.memberType).toBe('USER');
+    expect(members[0].authProvider).toBe(AuthProvider.GOOGLE);
+    expect(members[0].memberPhone).toBeUndefined();
+    expect(members[0].memberPassword).toBeUndefined();
+    expect(result.body.member).not.toHaveProperty('googleId');
+    const claims = await app
+      .get(JwtService)
+      .verifyAsync(result.body.accessToken);
+    expect(claims.tokenType).toBe('access');
+    expect(claims.sub).toBe(String(members[0]._id));
+    const stored = [...sessions.values()][0];
+    expect(stored.refreshTokenHash).not.toBe(result.body.refreshToken);
+    const refreshed = await request(app.getHttpServer())
+      .post('/member/refresh')
+      .send({ refreshToken: result.body.refreshToken })
+      .expect(200);
+    expect(refreshed.body.refreshToken).not.toBe(result.body.refreshToken);
+  });
+
+  it('reuses the same Google subject and preserves an existing nickname', async () => {
+    const first = await googleLogin();
+    const second = await googleLogin({
+      name: 'Changed Google Name',
+      email: 'changed@example.com',
+    });
+    expect(second.status).toBe(200);
+    expect(second.body.member._id).toBe(first.body.member._id);
+    expect(second.body.member.memberNick).toBe('Google Person');
+    expect(members).toHaveLength(1);
+  });
+
+  it.each([undefined, '', '  '])(
+    'assigns a fallback nickname for unusable Google name %j',
+    async (name) => {
+      const result = await googleLogin({ name });
+      expect(result.status).toBe(200);
+      expect(result.body.member.memberNick).toMatch(/^google_user\d{6}$/);
+    },
+  );
+
+  it('resolves duplicate names and permits multiple Google accounts with absent phones/emails', async () => {
+    await googleLogin({ email: undefined });
+    const second = await googleLogin({
+      sub: 'google-subject-2',
+      email: undefined,
+    });
+    expect(second.status).toBe(200);
+    expect(second.body.member.memberNick).toMatch(/^google_user\d{6}$/);
+    expect(members).toHaveLength(2);
+  });
+
+  it('handles concurrent first Google logins without creating duplicate identities', async () => {
+    const results = await Promise.all([googleLogin(), googleLogin()]);
+    expect(results.map((result) => result.status)).toEqual([200, 200]);
+    expect(results[0].body.member._id).toBe(results[1].body.member._id);
+    expect(members).toHaveLength(1);
+  });
+
+  it('rejects email conflicts without linking or changing the password account', async () => {
+    await request(app.getHttpServer())
+      .post('/member/signup')
+      .send(signup)
+      .expect(201);
+    const result = await googleLogin({ email: signup.memberEmail });
+    expect(result.status).toBe(409);
+    expect(members).toHaveLength(1);
+    expect(members[0].authProvider).toBe(AuthProvider.EMAIL);
+    expect(members[0].googleId).toBeUndefined();
+  });
+
+  it.each(['SUSPENDED', 'DELETED'])(
+    'rejects inactive Google accounts: %s',
+    async (status) => {
+      await googleLogin();
+      if (status === 'DELETED') members[0].deletedAt = new Date();
+      else members[0].memberStatus = MemberStatus.SUSPENDED;
+      sessions.clear();
+      expect((await googleLogin()).status).toBe(401);
+      expect(sessions.size).toBe(0);
+    },
+  );
+
+  it.each([
+    { aud: 'another-client' },
+    { iss: 'https://attacker.example' },
+    { exp: 1 },
+    { sub: '' },
+    { nonce: 'another-browser' },
+  ])('rejects signed but invalid Google claims: %j', async (claims) => {
+    const result = await googleLogin(claims);
+    expect(result.status).toBe(401);
+    expect(result.body.message).toBe('Invalid Google sign-in');
+    expect(members).toHaveLength(0);
+    expect(sessions.size).toBe(0);
+  });
+
+  it('rejects forged signatures and missing browser nonce cookies', async () => {
+    const { nonce, cookie } = await beginGoogle();
+    const forged =
+      googleToken(nonce).split('.').slice(0, 2).join('.') + '.forged';
+    await request(app.getHttpServer())
+      .post('/member/google/login')
+      .set('Cookie', cookie)
+      .send({ idToken: forged })
+      .expect(401);
+    await request(app.getHttpServer())
+      .post('/member/google/login')
+      .send({ idToken: googleToken(nonce) })
+      .expect(401);
+    expect(members).toHaveLength(0);
+  });
+
+  it('rejects expired nonce challenges and access JWTs used as nonce challenges', async () => {
+    for (const challenge of [
+      { tokenType: 'google_nonce', expiresIn: -60 },
+      { tokenType: 'access', expiresIn: 300 },
+    ]) {
+      const nonce = await app
+        .get(JwtService)
+        .signAsync(
+          { nonce: 'random', tokenType: challenge.tokenType },
+          { expiresIn: challenge.expiresIn },
+        );
+      await request(app.getHttpServer())
+        .post('/member/google/login')
+        .set('Cookie', `medconnect_google_nonce=${nonce}`)
+        .send({ idToken: googleToken(nonce) })
+        .expect(401);
+    }
+  });
+
+  it('does not persist unverified Google email addresses', async () => {
+    const result = await googleLogin({ email_verified: false });
+    expect(result.status).toBe(200);
+    expect(members[0].memberEmail).toBeUndefined();
+  });
+
+  it('rejects privileged request fields and keeps email/password phone validation', async () => {
+    const { nonce, cookie } = await beginGoogle();
+    await request(app.getHttpServer())
+      .post('/member/google/login')
+      .set('Cookie', cookie)
+      .send({
+        idToken: googleToken(nonce),
+        memberType: 'ADMIN',
+        memberNick: 'chosen',
+      })
+      .expect(400);
+    await request(app.getHttpServer())
+      .post('/member/signup')
+      .send({ ...signup, memberPhone: undefined })
+      .expect(400);
+    const invalid = new Member({
+      ...signup,
+      authProvider: AuthProvider.EMAIL,
+      memberPhone: undefined,
+    });
+    await expect(invalid.validate()).rejects.toThrow('memberPhone');
+  });
+
+  it('returns 503 when Google sign-in is not configured', async () => {
+    delete process.env.GOOGLE_CLIENT_ID;
+    await request(app.getHttpServer()).post('/member/google/nonce').expect(503);
+    await request(app.getHttpServer())
+      .post('/member/google/login')
+      .send({ idToken: 'anything' })
+      .expect(503);
+  });
+
+  it('rejects a token from another browser and duplicate nonce cookies', async () => {
+    const first = await beginGoogle();
+    const second = await beginGoogle();
+    for (const cookie of [second.cookie, `${first.cookie}; ${second.cookie}`]) {
+      await request(app.getHttpServer())
+        .post('/member/google/login')
+        .set('Cookie', cookie)
+        .send({ idToken: googleToken(first.nonce) })
+        .expect(401);
+    }
+    expect(members).toHaveLength(0);
+    await expect(
+      app.get(MemberService).authenticateAccessToken(first.nonce),
+    ).rejects.toThrow('Invalid access token');
+  });
+
+  it('uses secure host-only nonce cookies in production', async () => {
+    const original = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const response = await request(app.getHttpServer())
+        .post('/member/google/nonce')
+        .expect(200);
+      const cookie = response.headers['set-cookie'][0];
+      expect(cookie).toMatch(/^__Host-medconnect_google_nonce=/);
+      expect(cookie).toContain('Secure');
+      expect(cookie).toContain('HttpOnly');
+      expect(cookie).toContain('SameSite=None');
+      expect(cookie).toContain('Path=/');
+      expect(cookie).not.toContain('Domain=');
+    } finally {
+      process.env.NODE_ENV = original;
+    }
+  });
+
+  it('reports a provider key-fetch outage without leaking error details', async () => {
+    jest
+      .mocked(OAuth2Client.prototype.getFederatedSignonCertsAsync)
+      .mockRejectedValueOnce(
+        Object.assign(new Error('sensitive provider details'), {
+          code: 'ENOTFOUND',
+        }),
+      );
+    const result = await googleLogin();
+    expect(result.status).toBe(503);
+    expect(result.body.message).toBe(
+      'Google sign-in is temporarily unavailable',
+    );
+    expect(members).toHaveLength(0);
   });
 });

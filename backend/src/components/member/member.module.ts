@@ -16,6 +16,7 @@ import { MemberController } from './member.controller.js';
 import { MemberAccessGuard } from '../auth/guards/member-access.guard.js';
 import { MemberService } from './member.service.js';
 import { MemberResolver } from './member.resolver.js';
+import { GoogleAuthService } from '../auth/google-auth.service.js';
 
 const mongoUri =
   process.env.MONGO_URI ??
@@ -57,15 +58,24 @@ const mongoUri =
     }),
   ],
   controllers: [MemberController],
-  providers: [MemberService, MemberResolver, MemberAccessGuard],
+  providers: [
+    MemberService,
+    MemberResolver,
+    MemberAccessGuard,
+    GoogleAuthService,
+  ],
   exports: [MemberService, MemberAccessGuard],
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(memberRateLimit()).forRoutes(
-      { path: 'member/signup', method: RequestMethod.POST },
-      { path: 'member/login', method: RequestMethod.POST },
-      { path: 'member/refresh', method: RequestMethod.POST },
-    );
+    consumer
+      .apply(memberRateLimit())
+      .forRoutes(
+        { path: 'member/signup', method: RequestMethod.POST },
+        { path: 'member/login', method: RequestMethod.POST },
+        { path: 'member/refresh', method: RequestMethod.POST },
+        { path: 'member/google/nonce', method: RequestMethod.POST },
+        { path: 'member/google/login', method: RequestMethod.POST },
+      );
   }
 }

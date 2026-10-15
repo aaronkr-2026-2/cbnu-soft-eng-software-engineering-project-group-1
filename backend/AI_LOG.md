@@ -409,3 +409,18 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Replaced the multi-document workflow with my requested single-document preference so future work follows the same layout.
 **Something the AI got wrong that I had to catch:** I clarified that the three supporting architecture files were unnecessary; Codex had created them following the earlier workflow.
 **One decision I can explain without AI:** Keeping related architecture information in one document avoids maintaining duplicate descriptions and cross-file links.
+
+
+---
+
+## Implement Google sign-in backend — 2026-10-15
+
+**Tool(s) used:** Codex; local MedConnect/MediBridge inspection; official Google identity documentation; npm; apply_patch/Python; Nest build; TypeScript; Jest/Supertest; Oxlint; Git/document checks.
+**What I asked for:** Implement Google sign-in using the revised proposal: no phone requirement for Google accounts, provider-supplied names as nicknames, and unique google_user000000-style fallbacks.
+**Pre-planning:** Traced existing member schemas, DTOs, controllers/services/modules, password/session handling, test persistence substitutes, and MediBridge Google verification/account creation. Preserved REST authentication and the existing access/refresh contract. No .env values read or copied.
+**Planning:** Isolate provider verification in GoogleAuthService; keep identity/account/session writes in MemberService. Use nonce-bound ID tokens, create new USER accounts immediately, omit phone/password, and handle nickname/identity races through unique indexes and bounded retries. Reject existing-email conflicts rather than auto-linking.
+**Implementation process:** Installed google-auth-library; added nonce/login endpoints, DTO, middleware registration, verifier, shared identity type, conditional phone requirement, account creation and existing session reuse. Tests use real verification of locally signed RSA tokens with only key retrieval and persistence substituted. Build/full TypeScript check, 100 HTTP tests, 6 unit tests, links/fences/whitespace, lockfile consistency, and git diff --check passed. Lint has only the existing empty config.ts warning. Updated README, architecture/diagrams, scoped product status, and session context. No live provider or Atlas integration test; frontend Google button and explicit linking remain pending.
+**What I kept as-is:** Email/password phone/nickname validation, protected-route current-account checks, appointment behavior, refresh rotation/lifetime, allowlisted responses, and server-only credentials. The client secret is not used by this ID-token flow.
+**What I changed or rejected, and why:** Removed the proposed phone onboarding step for Google accounts as requested. Kept new Google registration USER-only and no automatic email linking. Added browser nonce binding to prevent accepting a Google login detached from the initiating browser. Omitted missing sparse-unique fields instead of storing nulls.
+**Something the AI got wrong that I had to catch:** Automated checks caught Codex importing a test enum not exported by google-auth-library, expecting the wrong refresh HTTP status, and constructing an expired JWT fixture with conflicting options. Codex corrected these before the passing verification run; I did not manually identify these test errors.
+**One decision I can explain without AI:** Google sub is the stable identity; names are display labels that can collide, so nickname retries must not create or merge another person's account.

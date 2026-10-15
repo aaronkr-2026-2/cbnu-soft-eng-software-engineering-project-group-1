@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { Model, Types } from 'mongoose';
 import {
   AuthProvider,
@@ -28,9 +28,14 @@ import type {
   MemberEntity,
   MemberPrincipal,
   MemberProfile,
+  GoogleIdentity,
 } from '../../libs/types/member.types.js';
-import type { LoginDto, SignupDto } from '../../libs/dto/member/member-auth.dto.js';
+import type {
+  LoginDto,
+  SignupDto,
+} from '../../libs/dto/member/member-auth.dto.js';
 import { hashPassword, verifyPassword } from '../auth/member-password.js';
+import { GoogleAuthService } from '../auth/google-auth.service.js';
 
 const REFRESH_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const tokenHash = (token: string) =>
@@ -40,6 +45,7 @@ const tokenHash = (token: string) =>
 export class MemberService {
   constructor(
     private readonly jwt: JwtService,
+    private readonly googleAuth: GoogleAuthService,
     @Optional()
     @InjectModel(MEMBER)
     private readonly members?: Model<MemberEntity>,
@@ -63,7 +69,9 @@ export class MemberService {
     const member = await this.members
       .findOne({
         _id: new Types.ObjectId(id),
-        memberType: { $in: [MemberType.USER, MemberType.DOCTOR, MemberType.CLINIC] },
+        memberType: {
+          $in: [MemberType.USER, MemberType.DOCTOR, MemberType.CLINIC],
+        },
         memberStatus: MemberStatus.ACTIVE,
         deletedAt: null,
       })
@@ -222,6 +230,74 @@ export class MemberService {
       throw new UnauthorizedException('Invalid email or password');
     }
     return this.issueTokens(member);
+  }
+
+  async loginWithGoogle(
+    idToken: string,
+    nonce?: string,
+  ): Promise<MemberAuthResponse> {
+    const identity = await this.googleAuth.verify(idToken, nonce);
+    const { members } = this.models();
+    // Await sparse unique indexes before creating accounts or resolving races.
+    await members.init();
+    let member = await members.findOne({ googleId: identity.sub }).exec();
+    if (!member) member = await this.createGoogleMember(identity, members);
+    if (member.memberStatus !== MemberStatus.ACTIVE || member.deletedAt)
+      throw new UnauthorizedException('Invalid Google sign-in');
+    return this.issueTokens(member);
+  }
+
+  private async createGoogleMember(
+    identity: GoogleIdentity,
+    members: Model<MemberEntity>,
+  ): Promise<MemberDocument> {
+    // Strip non-printing characters from the provider's display name.
+    // oxlint-disable-next-line no-control-regex
+    const name = identity.name?.replace(/[\u0000-\u001f\u007f]/g, '').trim();
+    const displayName = name ? name.slice(0, 40) : undefined;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      // Names can collide; the database index is authoritative, including races.
+      const memberNick =
+        attempt === 0 && displayName
+          ? displayName
+          : `google_user${randomInt(1_000_000).toString().padStart(6, '0')}`;
+      try {
+        return await members.create({
+          googleId: identity.sub,
+          authProvider: AuthProvider.GOOGLE,
+          memberType: MemberType.USER,
+          memberStatus: MemberStatus.ACTIVE,
+          memberNick,
+          ...(identity.email ? { memberEmail: identity.email } : {}),
+          ...(name ? { memberFullName: name.slice(0, 100) } : {}),
+          ...(identity.picture ? { memberImage: identity.picture } : {}),
+          // Omit phone/password entirely: sparse unique indexes must not see nulls.
+        });
+      } catch (error) {
+        if (
+          typeof error !== 'object' ||
+          error === null ||
+          !('code' in error) ||
+          error.code !== 11000
+        )
+          throw error;
+        const existing = await members
+          .findOne({ googleId: identity.sub })
+          .exec();
+        if (existing) return existing;
+        // Never automatically link or overwrite another account based on email.
+        if (
+          identity.email &&
+          (await members.exists({ memberEmail: identity.email }))
+        )
+          throw new ConflictException(
+            'An account with these details already exists',
+          );
+      }
+    }
+    throw new ConflictException(
+      'Unable to assign a unique nickname; try again',
+    );
   }
 
   async refresh(refreshToken: string): Promise<MemberAuthResponse> {

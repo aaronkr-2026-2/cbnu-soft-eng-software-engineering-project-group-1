@@ -1,3 +1,4 @@
+import { GoogleAuthService } from '../src/components/auth/google-auth.service.js';
 import { GraphQLModule } from '@nestjs/graphql';
 import { graphqlConfig } from '../src/libs/graphql/graphql.config.js';
 import { AppointmentResolver } from '../src/components/appointment/appointment.resolver.js';
@@ -85,6 +86,7 @@ describe('GET appointment by ID', () => {
         AppointmentService,
         AppointmentResolver,
         MemberService,
+        GoogleAuthService,
         MemberAccessGuard,
         {
           provide: getModelToken(MEMBER),

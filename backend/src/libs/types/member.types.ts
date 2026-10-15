@@ -27,6 +27,13 @@ export type MemberAuthResponse = {
   refreshToken: string;
 };
 
+export interface GoogleIdentity {
+  sub: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+}
+
 export type MemberPrincipal = Pick<MemberEntity, '_id' | 'memberType'>;
 
 export type MemberProfile = Pick<
