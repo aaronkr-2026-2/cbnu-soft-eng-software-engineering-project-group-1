@@ -47,3 +47,27 @@
 **What I changed or rejected, and why:** I added the requested scripts without expanding this task into application scaffolding.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** I documented the missing tsconfig so a declared typecheck command is not mistaken for verified TypeScript checking.
+
+## Logo color variables — 2026-10-15
+
+**Tool(s) used:** Codex, apply_patch, Python/Pillow color sampling, and declaration/whitespace checks.
+**What I asked for:** Use logo blue as primary, green as secondary, and white.
+**Pre-planning:** I used the inspected reference's variable naming and sampled the existing logo's opaque blue and green pixels.
+**Planning:** I selected representative colors from the gradient logo and kept three reusable variables in one SCSS file.
+**Implementation process:** I created `styles/variables.scss`, documented usage and pending Sass setup in the README, and recorded the palette preference in AGENTS.md. Declaration and whitespace checks passed; no compilation was run because Sass/application wiring is absent.
+**What I kept as-is:** I preserved the logo, package dependencies, and existing applications.
+**What I changed or rejected, and why:** I used the logo's representative colors instead of the reference project's palette.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** I centralized brand colors so future stylesheet changes can update the palette in one place.
+
+## Shared SCSS foundation — 2026-10-16
+
+**Tool(s) used:** Codex, apply_patch, shell/Python checks, and the reference project's Sass 1.97.3 compiler.
+**What I asked for:** Set up the useful styling foundation identified in medi-bridge-next.
+**Pre-planning:** I checked project instructions, continuity, current files, and the reference's installed compiler. This project still has no application pages.
+**Planning:** I chose shared values and derived runtime tokens, base styles, layout styles, and a feature entry point, with responsive rules kept beside their styles.
+**Implementation process:** I created the SCSS import structure, minimal reset, default typography/focus, button and layout styles; added the Sass dependency declaration; and updated documentation/instructions. Full SCSS compilation using the reference compiler, generated-CSS inspection, manifest parsing, and whitespace checks passed. Project installation, Next.js compilation, and browser checks remain pending.
+**What I kept as-is:** I preserved logo colors, existing applications, and package scripts.
+**What I changed or rejected, and why:** I derived CSS tokens from Sass values to avoid duplicate palettes and preserved keyboard focus. Feature styles will be added as screens are built.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** I kept responsive rules with each feature so a screen's styles can be understood and changed in one place.

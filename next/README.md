@@ -36,6 +36,43 @@ Yarn uses `node_modules/`, matching the reference project. Commit the generated
 
 ## Scripts and current status
 
+Shared brand colors live in `styles/variables.scss`: blue `$primary` (`#014b9f`),
+green `$secondaryColor` (`#1ca54c`), and `$whiteColor` (`#ffffff`). Blue and green
+are representative colors sampled from the gradient logo. Stylesheets can import
+them with `@use "./variables" as *;` (adjust the path for their location).
+The manifest includes Sass, using the reference project's installed version as
+the baseline. Dependency installation in this project remains pending.
+
+### Style foundation
+
+```text
+styles/
+  variables.scss           # Shared Sass values, including logo colors
+  _tokens.scss             # CSS custom properties derived from those values
+  style.scss               # Single global stylesheet entry point
+  sections/
+    _index.scss            # Loads base, layout, then feature styles
+    base/                  # Minimal reset, typography/focus, shared button
+    layout/                # Site shell, responsive container, section spacing
+    features/              # Add feature partials as screens are implemented
+```
+
+When the Pages Router app is scaffolded, import `../styles/style.scss` once from
+`pages/_app.tsx`. No app entry point exists yet, so these styles are not rendered.
+Use `.site-shell` around the app with a direct `<main>` child, `.container` for
+centered content, `.section` for section spacing, and `.button` on semantic buttons
+or navigation links. Use native `disabled` on buttons; `aria-disabled` only styles
+the state and does not prevent link activation.
+
+Add a feature partial under `sections/features/` and forward it from that folder's
+`_index.scss`. Scope selectors under a feature class and keep its responsive rules
+in the same partial. Use `var(--color-primary)` for normal CSS values and import
+`variables.scss` with `@use` when Sass calculations are needed. Do not repeat brand
+hex values in components or add a second palette. Dark mode is not implemented.
+
+The stylesheet compiled successfully with the reference project's Sass 1.97.3;
+Next.js compilation and browser behavior remain unverified.
+
 The scripts match the reference project:
 
 | Command | Purpose |
