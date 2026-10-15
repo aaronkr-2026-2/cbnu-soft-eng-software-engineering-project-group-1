@@ -8,6 +8,7 @@ coverage/
 # Local session context
 /backend/AGENTS.md
 /backend/SESSION_LOG.md
+/backend/FIXES-and-BUGS.md
 
 #Deployment
 /docker-compose.yml

@@ -1,3 +1,4 @@
+import { GoogleAuthService } from '../src/components/auth/google-auth.service.js';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
@@ -52,6 +53,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       controllers: [MemberController],
       providers: [
         MemberService,
+        GoogleAuthService,
         MemberResolver,
         { provide: getModelToken(MEMBER), useValue: { findOne } },
       ],

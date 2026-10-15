@@ -57,7 +57,9 @@ const MemberSchema = new Schema({
     trim: true,
     unique: true,
     sparse: true,
-    required: true,
+    required: function (this: { authProvider?: AuthProvider }) {
+      return this.authProvider !== AuthProvider.GOOGLE;
+    },
   },
 
   memberNick: {

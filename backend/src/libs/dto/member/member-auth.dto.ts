@@ -16,15 +16,22 @@ import {
   MaxLength,
   ValidateIf,
 } from 'class-validator';
-import {
-  DoctorSpecialization,
-  MemberType,
-} from '../../enum/member.enum.js';
+import { DoctorSpecialization, MemberType } from '../../enum/member.enum.js';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 const email = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
+
+export class GoogleLoginDto {
+  @ApiProperty({
+    description:
+      'Google Identity Services credential (ID token), using the nonce from /member/google/nonce.',
+  })
+  @IsString()
+  @Length(1, 8192)
+  idToken: string;
+}
 
 export class LoginDto {
   @ApiProperty({ example: 'user@example.com' })
@@ -108,7 +115,8 @@ export class SignupDto {
   @ApiPropertyOptional({
     enum: DoctorSpecialization,
     isArray: true,
-    description: 'Required when memberType is DOCTOR; provide at least one specialization.',
+    description:
+      'Required when memberType is DOCTOR; provide at least one specialization.',
   })
   doctorSpecializations?: DoctorSpecialization[];
 

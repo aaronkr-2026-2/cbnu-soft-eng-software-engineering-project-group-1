@@ -30,6 +30,9 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - **Member registration and login:** REST signup for USER, DOCTOR, and CLINIC
   accounts, password hashing, input validation, and JWT access tokens.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
+- **Google sign-in API:** Nonce-bound Google ID-token verification, automatic USER
+  registration without phone/password, Google-name or unique fallback nicknames,
+  and the existing access/refresh session contract. Browser UI integration is pending.
 - **Authentication protection:** Authentication rate limiting and current-account
   checks for protected appointment operations.
 - **Public member profiles:** GraphQL lookup for active USER, DOCTOR, and CLINIC
@@ -112,6 +115,7 @@ The backend loads `.env` from its working directory before loading application m
 | `MONGO_DEV` | Development MongoDB connection | Required for the documented development setup |
 | `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_DEV` is unset; use `mongodb+srv://` |
 | `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
+| `GOOGLE_CLIENT_ID` | Expected Google web client ID for sign-in verification | Required only for Google sign-in; absent configuration returns 503 |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
 
 **Current database configuration limitation:** Startup validation recognizes
@@ -168,6 +172,10 @@ HTTP tests use an in-memory persistence substitute with Mongoose validation;
 they do not connect to Atlas or verify real MongoDB concurrency/index enforcement.
 
 ## Architecture
+
+See the [backend architecture](docs/architecture/architecture-backend.md) for the
+technology stack, component responsibilities, request/data flows, shared services,
+integration status, logical/deployment diagrams, and documented concerns.
 
 The MedConnect backend is organized as a single NestJS application:
 
@@ -243,6 +251,60 @@ HTTP tests use Mongoose document validation with an in-memory persistence substi
 they do not connect to Atlas. Clinic verification, affiliation approval endpoints,
 email verification, and logout/revocation remain unimplemented. Protected booking
 and appointment lookup are implemented; their prerequisites are described below.
+
+### Google sign-in (REST)
+
+Google sign-in uses `google-auth-library` to verify an ID token. Set
+`GOOGLE_CLIENT_ID` to your Google web application's client ID and configure its
+authorized JavaScript origins for the frontend. `GOOGLE_CLIENT_SECRET` is not
+used by this ID-token flow; keep any configured secret server-only. No Google
+API access/refresh tokens are requested or stored.
+
+The browser integration must follow this sequence (the checked-in frontend does
+not yet provide a Google button):
+
+1. Send `POST /member/google/nonce` with credentials included. It returns
+   `{ "nonce": "..." }` and sets a five-minute HttpOnly nonce cookie.
+2. Initialize Google Identity Services with the same client ID and the returned
+   `nonce`. Its credential callback supplies the Google ID token.
+3. Send `POST /member/google/login` with JSON `{ "idToken": "<credential>" }`
+   and credentials included, preserving the cookie from step 1. Do not send
+   phone, nickname, role, profile, or approval fields.
+4. On success, the nonce cookie is cleared and the endpoint returns HTTP 200
+   with `{ member, accessToken, refreshToken }`, matching existing authentication.
+
+Google signature/audience/issuer/expiry checks and the token's nonce bind the
+identity to this browser's sign-in attempt. The nonce is also a server-signed,
+five-minute challenge; it cannot authorize protected appointment routes.
+Production uses a Secure, host-only `__Host-medconnect_google_nonce` cookie with
+`SameSite=None`; development uses `medconnect_google_nonce` with `SameSite=Lax`.
+Use HTTPS in production and configure `CORS_ORIGINS` for the actual frontend.
+Cross-site deployments also depend on the browser allowing the nonce cookie;
+a same-site frontend/API deployment avoids third-party-cookie restrictions.
+
+New identities become active `USER` accounts with `authProvider=GOOGLE`; phone
+and password are omitted. The provider's trimmed display name supplies the
+nickname (up to 40 characters) and full name (up to 100). Missing/blank names or
+nickname collisions use `google_user` plus six random digits, such as
+`google_user004271`, with bounded retries against the unique database index.
+Verified Google email and picture are copied when supplied. Email is optional;
+unverified email is not persisted. Google `sub`, not email/name, identifies the account.
+
+Returning accounts retain their nickname/profile/role. Suspended/deleted accounts
+are rejected. Matching an existing email returns 409 without automatic linking
+or overwriting; a dedicated account-linking flow is not implemented. This endpoint
+cannot register a new doctor, clinic, or admin. Email/password signup still
+requires phone and nickname.
+
+Errors: 400 for invalid/extra input; 401 for invalid credentials, missing/mismatched/
+expired nonce, or inactive accounts; 409 for account conflicts or exhausted
+nickname retries; 503 for missing Google configuration or recognized provider
+network/server failures. Both Google endpoints share the existing auth rate limit
+and return `Cache-Control: no-store`.
+
+Automated tests use locally signed tokens and a substituted public-key fetch to
+exercise the real verification library with simulated persistence. Actual Google
+browser sign-in and MongoDB uniqueness races have not been integration-tested.
 
 ## Get a User, Doctor, or Clinic member
 
@@ -465,6 +527,7 @@ checkout-to-deployment procedure for the current layout.
 ## Project records
 
 - [Sprint 01](backend/SPRINT_01.md): October 1–8 scope and delivery review.
+- [Sprint 02](backend/SPRINT_02.md): October 9–15 Google sign-in backend delivery and remaining integration work.
 - [AI usage log](backend/AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.
 - [Software engineering project guide](resources/software-engineering-project-guide.md).
 

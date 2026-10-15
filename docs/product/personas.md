@@ -16,7 +16,7 @@ This version uses three personas with one scenario and one story each, as reques
 
 ### Scenario
 
-Alex opens MedConnect before arranging a clinic visit and wants to sign in through an existing external account. Only email/password authentication is currently implemented, so this sign-in path is unavailable. Alex wants to reach an authenticated MedConnect session through a supported provider. The OAuth requirement is confirmed; the clinic-visit context and provider choice remain provisional.
+Alex opens MedConnect before arranging a clinic visit and wants to sign in through an existing external account. The backend now supports Google sign-in, but the website has no Google button or connected provider flow yet, so this browser journey remains incomplete. Alex wants to reach an authenticated MedConnect session through a supported provider. The OAuth requirement and Google provider are confirmed; the clinic-visit context remains provisional.
 
 ### User story
 
