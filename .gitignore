@@ -10,6 +10,11 @@ coverage/
 /backend/SESSION_LOG.md
 /backend/FIXES-and-BUGS.md
 
+# Local session context for NEXT.JS
+/next/AGENTS.md
+/next/SESSION_LOG.md
+/next/FIXES-and-BUGS.md
+
 #Deployment
 /docker-compose.yml
 /deploy.sh

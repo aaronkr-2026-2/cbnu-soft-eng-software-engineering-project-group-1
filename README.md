@@ -7,6 +7,9 @@ reliance on phone calls and scattered messages.
 The backend uses NestJS, TypeScript, MongoDB/Mongoose, and GraphQL, with REST for
 member authentication and existing appointment routes. A React/Vite frontend lives
 in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
+A separate Next.js frontend is being prepared in `next/` using Yarn; see its
+[setup and current limitations](next/README.md). It currently has package
+configuration only, with no application pages or verified runtime.
 
 ## Contents
 
