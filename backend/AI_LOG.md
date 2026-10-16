@@ -451,3 +451,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** I described document preparation without claiming a running Next.js frontend.
 **Something the AI got wrong that I had to catch:** Tool output caught initial verification-harness module resolution errors; the AI corrected them. See next/FIXES-and-BUGS.md N-01.
 **One decision I can explain without AI:** I kept the README explicit about missing client/session wiring because document validation alone does not prove runtime integration.
+
+## Next landing-page documentation alignment — 2026-10-16
+
+**Tool(s) used:** Codex, shell/Python, source inspection, and Next build/type/HTML checks.
+**What I asked for:** Implement the proposed MUI root landing page.
+**Pre-planning:** I checked public member discovery contracts and the existing architecture/README descriptions; Next implementation detail is recorded in `next/AI_LOG.md`.
+**Planning:** I aligned shared documentation with the implemented public discovery boundary and its verification limits.
+**Implementation process:** I updated the root overview/features and architecture discovery flow. Next build/typecheck and seven mocked transport checks passed; desktop/mobile layout reviewed. No backend behavior changed, and successful real API integration remains unverified.
+**What I kept as-is:** I preserved backend business rules, authentication, persistence, and closed sprint records.
+**What I changed or rejected, and why:** I described the landing page without claiming sign-in, booking, or live database integration was delivered.
+**Something the AI got wrong that I had to catch:** Runtime/browser checks identified Next theme/bundler integration mistakes; the AI corrected them. See next/FIXES-and-BUGS.md N-02/N-03.
+**One decision I can explain without AI:** I documented the public read-only client separately from protected booking because they have different credentials and ownership boundaries.

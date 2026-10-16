@@ -44,6 +44,8 @@ flowchart TD
   Client[Axios API clients - integration incomplete]
   REST[Nest REST controllers]
   GQL[Apollo GraphQL resolvers]
+  NextUI[Next.js landing page and clinic directory]
+  PublicClient[Public discovery fetch helper]
   Guard[MemberAccessGuard - protected appointments]
   Member[MemberService]
   Google[GoogleAuthService]
@@ -57,6 +59,8 @@ flowchart TD
   UI -->|In-process calls: auth payloads| Client
   Session -->|In-process read: access token| Client
   Client -->|HTTP REST: JSON and Bearer token; some paths mismatched| REST
+  NextUI -->|In-process calls: clinic and doctor discovery| PublicClient
+  PublicClient -->|HTTP GraphQL: public queries, credentials omitted| GQL
   GQL -->|In-process context: appointment Bearer token| Guard
   REST -->|In-process request: appointment Bearer token| Guard
   Guard -->|In-process call: verify token and load principal| Member
@@ -76,6 +80,22 @@ flowchart TD
 ```
 
 External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the browser Google button is pending. Email delivery is absent.
+
+### Next.js public discovery client
+
+Added October 16, 2026: `next/pages/index.tsx` composes the MUI landing page.
+`next/components/landing/ClinicDirectory.tsx` calls `next/libs/hooks/useMembers.ts`,
+which delegates HTTP and GraphQL error handling to
+`next/libs/api/public-members.ts`. The browser sends existing `GET_CLINICS` and
+`GET_CLINIC_DOCTORS` documents to `NEXT_PUBLIC_GRAPHQL_URL` with cookies omitted
+and no shared cache. MemberResolver delegates to MemberService's public projections;
+the backend owns account filtering and doctor affiliation approval. Search filters
+only the returned public records. Requests are canceled on unmount and bounded
+by a ten-second timeout. No Next server API, direct database access, or authentication
+store was introduced. Pages are rendered by Next locally; no new hosting is verified.
+Builds, mocked transport checks, and desktop/mobile layout inspection passed;
+successful browser-to-Nest/database discovery remains unverified. Patient sign-in
+and booking screens remain pending.
 
 ## APIs and request flows
 

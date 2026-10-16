@@ -1,0 +1,987 @@
+@use '../../variables' as v;
+
+.landing {
+  background: v.$whiteColor;
+  color: v.$textColor;
+  -webkit-font-smoothing: antialiased;
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+  a {
+    text-decoration: none;
+  }
+  button,
+  a,
+  input {
+    -webkit-tap-highlight-color: transparent;
+  }
+  [id] {
+    scroll-margin-top: 6rem;
+  }
+  .eyebrow {
+    color: v.$primary;
+    font-size: 0.69rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+  }
+  h2 {
+    font-size: clamp(1.85rem, 3.3vw, 2.65rem);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 1.14;
+  }
+  .skip-link {
+    position: fixed;
+    top: -6rem;
+    left: 1rem;
+    z-index: 1500;
+    padding: 1rem;
+    background: v.$whiteColor;
+    &:focus {
+      top: 1rem;
+    }
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    width: 168px;
+    height: 57px;
+    overflow: hidden;
+    img {
+      width: 100%;
+      height: auto;
+    }
+  }
+  .landing-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(v.$whiteColor, 0.97);
+    border-bottom: 1px solid rgba(v.$primary, 0.07);
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 88px;
+    gap: 1.5rem;
+  }
+  .desktop-navigation {
+    display: flex;
+    align-items: center;
+    gap: 2.5rem;
+    a {
+      font-size: 0.88rem;
+      color: v.$textColor;
+      &:hover {
+        color: v.$primary;
+      }
+    }
+  }
+  .header-actions {
+    display: flex;
+    gap: 0.7rem;
+    align-items: center;
+    .MuiButton-root {
+      font-size: 0.82rem;
+    }
+  }
+  .mobile-menu-toggle {
+    display: none;
+  }
+  .mobile-navigation {
+    display: none;
+  }
+  .landing-hero {
+    overflow: hidden;
+    background: linear-gradient(112deg, #fafcfb 12%, #f4f9f8 70%, #eef6f3 100%);
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 3rem;
+    min-height: 650px;
+    padding-block: 4.6rem 4.4rem;
+  }
+  .eyebrow-line {
+    width: 24px;
+    height: 2px;
+    background: v.$secondaryColor;
+  }
+  .hero-copy {
+    h1 {
+      margin-top: 1.5rem;
+      font-size: clamp(3.2rem, 5.4vw, 4.75rem);
+      font-weight: 500;
+      letter-spacing: -0.065em;
+      line-height: 1.04;
+      em {
+        color: v.$primary;
+        font-style: normal;
+      }
+    }
+    > p {
+      margin-top: 1.7rem;
+      color: v.$mutedTextColor;
+      font-size: 1.04rem;
+      line-height: 1.8;
+    }
+  }
+  .hero-actions {
+    display: flex;
+    align-items: center;
+    gap: 1.8rem;
+    margin-top: 2rem;
+    .MuiButton-root {
+      padding: 14px 23px;
+    }
+  }
+  .text-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.86rem;
+    font-weight: 700;
+    svg {
+      font-size: 1rem;
+    }
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+  .hero-footnote {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    font-size: 0.73rem;
+    color: v.$mutedTextColor;
+    margin-top: 2.4rem;
+  }
+  .footnote-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 19px;
+    height: 19px;
+    border-radius: 50%;
+    color: v.$secondaryColor;
+    background: rgba(v.$secondaryColor, 0.1);
+    svg {
+      font-size: 0.85rem;
+    }
+  }
+  .hero-art {
+    position: relative;
+    min-width: 0;
+    height: 490px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .art-orbit {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(v.$secondaryColor, 0.13);
+  }
+  .orbit-one {
+    width: 490px;
+    height: 490px;
+    background: radial-gradient(
+      circle,
+      rgba(v.$secondaryColor, 0.04) 0,
+      rgba(v.$secondaryColor, 0.04) 60%,
+      transparent 61%
+    );
+  }
+  .orbit-two {
+    width: 370px;
+    height: 370px;
+    border-color: rgba(v.$primary, 0.08);
+  }
+  .art-cross {
+    position: absolute;
+    font-weight: 300;
+    color: rgba(v.$secondaryColor, 0.4);
+    font-size: 2.5rem;
+  }
+  .cross-one {
+    right: 5px;
+    top: 92px;
+    transform: rotate(15deg);
+  }
+  .cross-two {
+    left: 12px;
+    bottom: 62px;
+    color: rgba(v.$primary, 0.2);
+  }
+  .connection-pill {
+    z-index: 2;
+    position: absolute;
+    top: 7px;
+    right: 12px;
+    background: v.$whiteColor;
+    border-radius: 30px;
+    padding: 11px 17px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    box-shadow: 0 5px 30px rgba(v.$primary, 0.05);
+    font-size: 0.72rem;
+    color: v.$mutedTextColor;
+    svg {
+      font-size: 1rem;
+      color: v.$secondaryColor;
+    }
+    > span {
+      width: 5px;
+      height: 5px;
+      background: v.$secondaryColor;
+      border-radius: 50%;
+    }
+  }
+  .appointment-preview {
+    z-index: 1;
+    width: 340px;
+    padding: 25px;
+    border: 1px solid rgba(v.$primary, 0.09);
+    border-radius: 16px;
+    background: v.$whiteColor;
+    transform: rotate(-4deg);
+    box-shadow: 0 25px 70px -25px rgba(v.$primary, 0.18);
+  }
+  .preview-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.53rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: v.$mutedTextColor;
+  }
+  .preview-logo {
+    display: inline-flex;
+    color: v.$primary;
+    svg {
+      font-size: 22px;
+    }
+  }
+  .preview-dots {
+    margin-left: auto;
+    font-size: 0.9rem;
+    letter-spacing: 0.13em;
+  }
+  .preview-calendar {
+    margin-block: 23px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    > svg {
+      font-size: 33px;
+      color: v.$primary;
+    }
+    > span {
+      font-size: 1.25rem;
+      letter-spacing: -0.03em;
+      line-height: 1.35;
+    }
+    strong {
+      font-weight: 600;
+    }
+  }
+  .sample-label {
+    display: inline-block;
+    font-size: 0.55rem;
+    letter-spacing: 0.12em;
+    color: v.$mutedTextColor;
+    margin-bottom: 14px;
+  }
+  .preview-details {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    strong,
+    span {
+      display: block;
+    }
+    strong {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    span {
+      font-size: 0.68rem;
+      color: v.$mutedTextColor;
+    }
+    .preview-check {
+      margin-left: auto;
+      color: v.$secondaryColor;
+    }
+  }
+  .preview-avatar {
+    width: 43px;
+    height: 43px;
+    display: grid;
+    place-items: center;
+    background: #edf4fa;
+    color: v.$primary;
+    border-radius: 50%;
+  }
+  .preview-slot {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f6f8fb;
+    padding: 15px 12px;
+    border-radius: 9px;
+    margin-top: 20px;
+    > svg {
+      font-size: 22px;
+      color: v.$primary;
+    }
+    strong,
+    span {
+      display: block;
+    }
+    strong {
+      font-size: 0.74rem;
+      font-weight: 600;
+    }
+    span {
+      font-size: 0.62rem;
+      color: v.$mutedTextColor;
+      margin-top: 3px;
+    }
+    .preview-year {
+      margin-left: auto;
+      align-self: flex-start;
+    }
+  }
+  .preview-footer {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.61rem;
+    color: v.$mutedTextColor;
+    padding-top: 17px;
+    > span:last-child {
+      margin-left: auto;
+    }
+  }
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #b48b39;
+  }
+  .care-note {
+    position: absolute;
+    z-index: 2;
+    bottom: 45px;
+    right: -3px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    background: v.$whiteColor;
+    padding: 17px 20px;
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(v.$primary, 0.1);
+    transform: rotate(3deg);
+    strong,
+    span {
+      display: block;
+    }
+    strong {
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    span {
+      font-size: 0.65rem;
+      color: v.$mutedTextColor;
+      margin-top: 3px;
+    }
+    .note-icon {
+      width: 37px;
+      height: 37px;
+      display: grid;
+      place-items: center;
+      background: rgba(v.$secondaryColor, 0.09);
+      border-radius: 50%;
+      color: v.$secondaryColor;
+      svg {
+        font-size: 21px;
+      }
+    }
+  }
+  .illustration-caption {
+    position: absolute;
+    bottom: 0;
+    font-size: 0.62rem;
+    color: v.$mutedTextColor;
+    letter-spacing: 0.025em;
+  }
+  .care-strip {
+    border-block: 1px solid #e9eff0;
+    background: v.$whiteColor;
+    .container {
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      padding-block: 24px;
+      gap: 1rem;
+    }
+    span {
+      display: flex;
+      gap: 0.7rem;
+      align-items: center;
+      font-size: 0.83rem;
+      color: v.$mutedTextColor;
+    }
+    svg {
+      color: v.$primary;
+      font-size: 21px;
+    }
+  }
+  .section-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-bottom: 2.6rem;
+    h2 {
+      margin-top: 1rem;
+    }
+    > p {
+      font-size: 0.9rem;
+      color: v.$mutedTextColor;
+      line-height: 1.8;
+      padding-bottom: 3px;
+    }
+  }
+  .landing-steps {
+    padding-block: 6rem;
+  }
+  .steps-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2.5rem;
+  }
+  .step {
+    border-top: 1px solid v.$borderColor;
+    padding-top: 1.6rem;
+    h3 {
+      margin-top: 1.3rem;
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    > p {
+      font-size: 0.86rem;
+      color: v.$mutedTextColor;
+      margin-top: 0.8rem;
+      max-width: 31ch;
+      line-height: 1.8;
+    }
+  }
+  .step-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .step-icon {
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    color: v.$primary;
+    background: #f1f6fb;
+  }
+  .step-number {
+    font-size: 0.72rem;
+    color: v.$mutedTextColor;
+    letter-spacing: 0.1em;
+  }
+  .landing-directory {
+    background: #f6f9f9;
+    padding-block: 5.4rem;
+  }
+  .directory-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.8rem;
+    .MuiTextField-root {
+      max-width: 440px;
+      background: v.$whiteColor;
+      border-radius: 8px;
+    }
+    > span {
+      color: v.$mutedTextColor;
+      font-size: 0.8rem;
+      flex-shrink: 0;
+    }
+  }
+  .clinic-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.2rem;
+  }
+  .clinic-card {
+    padding: 25px;
+    border: 1px solid #e2e9ed;
+    background: v.$whiteColor;
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    min-width: 0;
+    h3 {
+      font-size: 1.15rem;
+      margin-top: 0.5rem;
+    }
+    .MuiButton-root {
+      margin-top: auto;
+      padding-inline: 0;
+    }
+  }
+  .clinic-mark {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: #eef5fb;
+    color: v.$primary;
+    display: grid;
+    place-items: center;
+    margin-bottom: 22px;
+    svg {
+      font-size: 28px;
+    }
+  }
+  .clinic-mark-1 {
+    background: rgba(v.$secondaryColor, 0.08);
+    color: v.$secondaryColor;
+  }
+  .clinic-mark-2 {
+    background: #f4f1ed;
+    color: #8a7351;
+  }
+  .clinic-category {
+    font-size: 0.57rem;
+    letter-spacing: 0.14em;
+    color: v.$mutedTextColor;
+  }
+  .clinic-location {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    font-size: 0.76rem;
+    color: v.$mutedTextColor;
+    margin-top: 0.7rem;
+    svg {
+      font-size: 15px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+  }
+  .clinic-description {
+    font-size: 0.82rem;
+    line-height: 1.75;
+    color: v.$mutedTextColor;
+    margin-block: 0.8rem 1rem;
+  }
+  .clinic-timezone {
+    font-size: 0.69rem;
+    color: v.$mutedTextColor;
+    padding-bottom: 14px;
+  }
+  .directory-state {
+    min-height: 245px;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    border: 1px dashed #cad7df;
+    border-radius: 12px;
+    padding: 30px;
+    gap: 11px;
+    > svg {
+      color: v.$primary;
+      margin-bottom: 2px;
+      font-size: 30px;
+    }
+    h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+    }
+    p {
+      font-size: 0.86rem;
+      color: v.$mutedTextColor;
+    }
+  }
+  .landing-your-care {
+    padding-block: 5.5rem;
+  }
+  .your-care-panel {
+    display: grid;
+    grid-template-columns: 70px 1fr 60px;
+    gap: 2rem;
+    align-items: start;
+    padding: 3.2rem;
+    border: 1px solid #e2e9ed;
+    border-radius: 16px;
+    background: linear-gradient(120deg, #f8fbfe, #f5faf6);
+    h2 {
+      margin-top: 1.2rem;
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+    }
+    p {
+      color: v.$mutedTextColor;
+      font-size: 0.9rem;
+      max-width: 52ch;
+      margin-top: 1rem;
+    }
+    .MuiChip-root {
+      font-size: 0.57rem;
+      letter-spacing: 0.12em;
+      height: 25px;
+      color: v.$primary;
+      border-color: rgba(v.$primary, 0.2);
+    }
+    .upcoming-note {
+      font-size: 0.76rem;
+    }
+  }
+  .your-care-icon {
+    width: 65px;
+    height: 65px;
+    display: grid;
+    place-items: center;
+    background: v.$whiteColor;
+    border: 1px solid rgba(v.$primary, 0.08);
+    border-radius: 50%;
+    svg {
+      color: v.$primary;
+      font-size: 32px;
+    }
+  }
+  .care-panel-link {
+    align-self: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: v.$whiteColor;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(v.$primary, 0.12);
+    &:hover {
+      background: #edf4fa;
+    }
+  }
+  .landing-final {
+    text-align: center;
+    padding: 1rem 0 6rem;
+    h2 {
+      margin: 1rem 0 1.8rem;
+      font-size: clamp(1.8rem, 3.4vw, 2.8rem);
+    }
+  }
+  .landing-footer {
+    border-top: 1px solid #e5ecee;
+    padding-block: 2.3rem 1.2rem;
+  }
+  .footer-main {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    align-items: center;
+    p {
+      font-size: 0.76rem;
+      color: v.$mutedTextColor;
+      margin-top: 0.6rem;
+    }
+    nav {
+      display: flex;
+      gap: 2rem;
+      a {
+        font-size: 0.8rem;
+        color: v.$mutedTextColor;
+        &:hover {
+          color: v.$primary;
+        }
+      }
+    }
+  }
+  .footer-bottom {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    border-top: 1px solid #e9eef0;
+    padding-top: 1.2rem;
+    margin-top: 2rem;
+    font-size: 0.65rem;
+    color: v.$mutedTextColor;
+  }
+  @media (min-width: 90rem) {
+    .hero-grid {
+      min-height: 710px;
+    }
+  }
+  @media (max-width: 64rem) {
+    .desktop-navigation {
+      gap: 1.4rem;
+    }
+    .header-actions .sign-in-wrap {
+      display: none;
+    }
+    .hero-grid {
+      gap: 1.5rem;
+    }
+    .hero-art {
+      transform: scale(0.9);
+    }
+    .hero-copy h1 {
+      font-size: 4rem;
+    }
+    .connection-pill {
+      right: -10px;
+    }
+    .section-heading > p {
+      max-width: 31ch;
+    }
+  }
+  @media (max-width: 48rem) {
+    .header-inner {
+      min-height: 74px;
+      gap: 0.7rem;
+    }
+    .brand {
+      width: 145px;
+      height: 49px;
+    }
+    .desktop-navigation,
+    .header-actions {
+      display: none;
+    }
+    .mobile-menu-toggle {
+      display: inline-flex;
+    }
+    .mobile-navigation {
+      display: flex;
+      flex-direction: column;
+      padding: 1rem 1.5rem 1.5rem;
+      gap: 1rem;
+      border-top: 1px solid #edf0f3;
+      a {
+        font-size: 0.92rem;
+        color: v.$textColor;
+      }
+      span {
+        font-size: 0.78rem;
+        color: v.$mutedTextColor;
+      }
+    }
+    .hero-grid {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      padding-block: 3rem 1.8rem;
+    }
+    .hero-copy h1 {
+      font-size: clamp(3.2rem, 11vw, 4.2rem);
+    }
+    .hero-copy > p {
+      font-size: 0.95rem;
+    }
+    .hero-art {
+      width: min(100%, 440px);
+      justify-self: center;
+      height: 435px;
+      transform: none;
+      margin-top: 10px;
+    }
+    .orbit-one {
+      width: 390px;
+      height: 390px;
+    }
+    .orbit-two {
+      width: 310px;
+      height: 310px;
+    }
+    .connection-pill {
+      right: 0;
+      font-size: 0.62rem;
+    }
+    .appointment-preview {
+      width: 305px;
+      padding: 21px;
+    }
+    .care-note {
+      right: 0;
+      bottom: 40px;
+      padding: 13px;
+    }
+    .cross-one {
+      right: 0;
+    }
+    .hero-actions {
+      gap: 1.3rem;
+    }
+    .hero-footnote {
+      margin-top: 1.8rem;
+    }
+    .care-strip .container {
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px 25px;
+      padding-block: 20px;
+    }
+    .care-strip span {
+      font-size: 0.69rem;
+      gap: 7px;
+    }
+    .care-strip svg {
+      font-size: 18px;
+    }
+    .landing-steps,
+    .landing-directory {
+      padding-block: 3.6rem;
+    }
+    .section-heading {
+      display: block;
+      margin-bottom: 2rem;
+      > p {
+        margin-top: 1.2rem;
+        max-width: none;
+      }
+    }
+    .steps-grid {
+      grid-template-columns: 1fr;
+      gap: 1.8rem;
+    }
+    .step {
+      > p {
+        max-width: 50ch;
+      }
+      h3 {
+        margin-top: 1rem;
+      }
+    }
+    .step-icon {
+      width: 40px;
+      height: 40px;
+    }
+    .clinic-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .directory-toolbar {
+      flex-wrap: wrap;
+      gap: 0.8rem;
+    }
+    .directory-toolbar .MuiTextField-root {
+      max-width: none;
+    }
+    .clinic-card {
+      padding: 20px;
+    }
+    .landing-your-care {
+      padding-block: 3.5rem;
+    }
+    .your-care-panel {
+      padding: 1.8rem;
+      grid-template-columns: 1fr;
+      gap: 1.4rem;
+    }
+    .your-care-icon {
+      width: 50px;
+      height: 50px;
+    }
+    .care-panel-link {
+      display: none;
+    }
+    .landing-final {
+      padding-bottom: 3.8rem;
+    }
+    .footer-main {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 1.4rem;
+    }
+    .footer-main nav {
+      gap: 1.5rem;
+    }
+    .footer-bottom {
+      flex-wrap: wrap;
+    }
+  }
+  @media (max-width: 25rem) {
+    .clinic-grid {
+      grid-template-columns: 1fr;
+    }
+    .hero-art {
+      height: 405px;
+    }
+    .appointment-preview {
+      width: 280px;
+    }
+    .care-note {
+      bottom: 25px;
+      right: -2px;
+    }
+    .hero-actions .MuiButton-root {
+      padding-inline: 16px;
+    }
+    .hero-actions {
+      gap: 1rem;
+    }
+    .text-link {
+      font-size: 0.78rem;
+    }
+    .eyebrow {
+      font-size: 0.59rem;
+    }
+    .illustration-caption {
+      font-size: 0.57rem;
+    }
+  }
+}
+
+// Dialogs render through a MUI portal outside the landing-page root.
+.doctor-intro {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+.doctor-list {
+  list-style: none;
+  padding: 0;
+  margin: 1.5rem 0;
+  li {
+    display: flex;
+    gap: 1rem;
+    padding-block: 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  h3 {
+    font-size: 1rem;
+    margin: 0 0 0.4rem;
+  }
+  p {
+    margin: 0 0 0.3rem;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+  }
+}
+.availability-note {
+  padding: 1rem;
+  background: var(--color-background);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}

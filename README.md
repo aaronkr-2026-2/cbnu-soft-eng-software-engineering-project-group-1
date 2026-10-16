@@ -8,10 +8,10 @@ The backend uses NestJS, TypeScript, MongoDB/Mongoose, and GraphQL, with REST fo
 member authentication and existing appointment routes. A React/Vite frontend lives
 in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 A separate Next.js frontend is being prepared in `next/` using Yarn; see its
-[setup and current limitations](next/README.md). It currently has package
-configuration, a shared SCSS foundation, and GraphQL query/mutation documents
-matching the backend schema. Application pages, Apollo client/session wiring,
-and runtime verification remain pending.
+[setup and current limitations](next/README.md). Its root landing page uses MUI,
+shared brand styles, and public GraphQL clinic/doctor discovery with search and
+retry states. Sign-in and booking screens remain pending; real API/browser data
+integration is not yet verified.
 
 ## Contents
 
@@ -58,6 +58,10 @@ and runtime verification remain pending.
 - **Frontend starter screens:** Login, registration, and a protected dashboard
   layout. Dashboard statistics and appointments currently use sample data;
   frontend/backend integration is not verified.
+- **Next.js landing page:** `next/` provides a responsive root page, clinic search,
+  doctor previews, a care guide, and upcoming-portal information. Public discovery
+  uses existing GraphQL operations; successful real API integration is unverified.
+  Sign-in and booking are marked coming soon. See [Next.js setup](next/README.md).
 
 Update this list whenever a new feature is added. Keep entries aligned with the
 implemented behavior, and revise them when features change or are removed.
