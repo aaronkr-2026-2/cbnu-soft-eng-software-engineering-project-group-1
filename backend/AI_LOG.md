@@ -439,3 +439,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Replaced the hard-coded instruction to always edit Sprint 01 with the matching numbered sprint. Did not claim full browser OAuth completion, measured hours, peer review, or historical check-ins.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** Record delivery in the sprint covering its actual date and preserve incomplete integration work, so sprint history stays accurate.
+
+## Next GraphQL preparation README alignment — 2026-10-16
+
+**Tool(s) used:** Codex, apply_patch, shell/Python, and offline GraphQL schema validation.
+**What I asked for:** Create the Next.js GraphQL structure based on MediBridge's Apollo folder.
+**Pre-planning:** I checked current backend resolvers/DTOs and the Next.js reference; detailed implementation is recorded in `next/AI_LOG.md`.
+**Planning:** I aligned the root README with the prepared documents and their pending integration.
+**Implementation process:** I updated the root introduction. All six documents passed offline source-schema validation; README path and whitespace checks passed. No backend code or live integration changed.
+**What I kept as-is:** I preserved backend API contracts and closed sprint records.
+**What I changed or rejected, and why:** I described document preparation without claiming a running Next.js frontend.
+**Something the AI got wrong that I had to catch:** Tool output caught initial verification-harness module resolution errors; the AI corrected them. See next/FIXES-and-BUGS.md N-01.
+**One decision I can explain without AI:** I kept the README explicit about missing client/session wiring because document validation alone does not prove runtime integration.

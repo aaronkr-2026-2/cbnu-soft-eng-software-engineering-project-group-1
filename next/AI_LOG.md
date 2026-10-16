@@ -71,3 +71,15 @@
 **What I changed or rejected, and why:** I derived CSS tokens from Sass values to avoid duplicate palettes and preserved keyboard focus. Feature styles will be added as screens are built.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** I kept responsive rules with each feature so a screen's styles can be understood and changed in one place.
+
+## GraphQL operation structure — 2026-10-16
+
+**Tool(s) used:** Codex, apply_patch, shell/Python, official Apollo documentation search, TypeScript transpilation, Nest GraphQL schema factory, and GraphQL validation.
+**What I asked for:** Inspect MediBridge Next's Apollo GraphQL files and create the structure for this Next.js project.
+**Pre-planning:** I inspected the reference's client/store/user/admin operations and our resolvers, DTOs, package setup, instructions, and continuity records. Our backend exposes six GraphQL operations and keeps authentication REST.
+**Planning:** I kept the user query/mutation layout, added reusable selection fragments, and limited documents to implemented backend contracts.
+**Implementation process:** I added three Apollo document files, declared Apollo Client 4/GraphQL/RxJS, and documented their variables/access and integration limits. All six documents passed offline validation against a source-generated backend schema; TypeScript transpilation, JSON parsing, and whitespace checks passed. Dependency installation, full app typecheck/build, and live integration remain unverified.
+**What I kept as-is:** I preserved backend behavior, REST authentication, existing frontends, scripts, and styles.
+**What I changed or rejected, and why:** I used our `id` argument and `BookAppointmentInput`, shared fragments to keep repeated selections consistent, and omitted unsupported admin/subscription/auth mutations and unrelated client/store features.
+**Something the AI got wrong that I had to catch:** The AI's initial verification harness failed module resolution from the root, then failed to resolve source `.js` imports with an unsupported environment option. Tool output identified these; the AI corrected the working directory and registered ts-node's experimental resolver explicitly. Final validation passed (N-01).
+**One decision I can explain without AI:** I matched documents to our real API so copying another project's folder pattern does not introduce operations our server cannot execute.

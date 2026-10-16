@@ -82,9 +82,51 @@ The scripts match the reference project:
 | `yarn start` | Start the production server after building |
 | `yarn typecheck` | Check TypeScript without emitting files (`tsc --noEmit`) |
 
+### GraphQL operation structure
+
+```text
+apollo/
+  user/
+    fragment.ts   # Shared MemberFields and AppointmentFields selections
+    query.ts      # Member/clinic discovery and appointment reads
+    mutation.ts   # Appointment booking
+```
+
+Import documents directly from `apollo/user/query.ts` or `mutation.ts`.
+The exports match the current Nest resolvers and DTOs:
+
+| Export | Variables | Access |
+|---|---|---|
+| `GET_MEMBER` | `{ id }` | Public |
+| `GET_CLINICS` | None | Public |
+| `GET_CLINIC_DOCTORS` | `{ clinicId }` | Public |
+| `GET_APPOINTMENT` | `{ id }` | Authenticated participant |
+| `MY_APPOINTMENTS` | None | Authenticated member |
+| `BOOK_APPOINTMENT` | `{ input: { doctorId, clinicId, startsAt } }` | Active USER |
+
+IDs are MongoDB ObjectId strings. For booking, `startsAt` is an ISO 8601 string
+with an explicit timezone, for example `2030-01-07T10:00:00+09:00`; the backend
+enforces clinic-timezone slot alignment and derives the patient from authentication.
+Member reads return the public profile fields, not credentials or contact details.
+GraphQL date outputs are serialized ISO strings.
+
+The manifest declares Apollo Client 4, GraphQL 16 (matching the backend major),
+and RxJS, following [Apollo's installation guidance](https://www.apollographql.com/docs/react/get-started).
+Run `yarn install` as described above before importing these files in the app.
+All six documents, including their fragments, were validated against a schema
+generated from the backend's source resolvers and DTOs using installed backend
+tooling. This was an offline contract check; it did not send API requests or verify
+the declared Apollo Client 4 installation.
+
+Apollo transport/client configuration, provider, cache/session state, token refresh,
+and page integration are not implemented yet. Future appointment calls must send
+`Authorization: Bearer <accessToken>` to the backend's `/graphql` endpoint.
+Signup, login, Google sign-in, and refresh remain REST operations. No admin or
+subscription documents are included because the backend has no such resolvers.
+
 The default frontend port is 3000; configure the backend separately.
 
-This step creates the package setup only. Dependencies have not been installed,
+The package, style foundation, and GraphQL documents are prepared. Dependencies have not been installed,
 and there are no pages, TypeScript configuration, or UI/API integrations yet.
 Development and build commands require application scaffolding before they can
 be verified. Type checking requires a `tsconfig.json`, which has not been created

@@ -9,7 +9,9 @@ member authentication and existing appointment routes. A React/Vite frontend liv
 in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 A separate Next.js frontend is being prepared in `next/` using Yarn; see its
 [setup and current limitations](next/README.md). It currently has package
-configuration and a shared SCSS foundation, with no application pages or verified runtime.
+configuration, a shared SCSS foundation, and GraphQL query/mutation documents
+matching the backend schema. Application pages, Apollo client/session wiring,
+and runtime verification remain pending.
 
 ## Contents
 
