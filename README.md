@@ -11,7 +11,8 @@ A separate Next.js frontend is being prepared in `next/` using Yarn; see its
 [setup and current limitations](next/README.md). Its root landing page uses MUI,
 shared brand styles, and public GraphQL clinic/doctor discovery with search and
 retry states. `/auth` provides email/password sign-in and patient signup in one
-page, with in-memory sessions; Google sign-in and booking remain pending. Real
+page, with in-memory sessions and a Google Identity Services callback flow. Booking
+remains pending. Real
 API/database integration is not yet verified.
 
 ## Contents
@@ -38,7 +39,8 @@ API/database integration is not yet verified.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
 - **Google sign-in API:** Nonce-bound Google ID-token verification, automatic USER
   registration without phone/password, Google-name or unique fallback nicknames,
-  and the existing access/refresh session contract. Browser UI integration is pending.
+  and the existing access/refresh session contract. Next.js includes the Google
+  button/callback flow; successful live provider login remains unverified.
 - **Authentication protection:** Authentication rate limiting and current-account
   checks for protected appointment operations.
 - **Public member profiles:** GraphQL lookup for active USER, DOCTOR, and CLINIC
@@ -66,8 +68,9 @@ API/database integration is not yet verified.
 - **Next.js sign-in and signup:** `/auth` switches forms in place, validates patient
   signup, provides password eye controls, and calls the existing REST endpoints.
   Client sessions stay in memory until reload/expiry; local sign-out is available.
-  Google is a disabled placeholder. Browser flows were checked with a local fixture;
-  real Nest/database integration and persistent sessions remain unverified/pending.
+  Google uses its official popup button and the existing cookie-bound nonce/login
+  endpoints. Email/password browser flows were checked with a local fixture; real
+  Google/Nest/database completion and persistent sessions remain unverified/pending.
 
 Update this list whenever a new feature is added. Keep entries aligned with the
 implemented behavior, and revise them when features change or are removed.
@@ -275,8 +278,9 @@ authorized JavaScript origins for the frontend. `GOOGLE_CLIENT_SECRET` is not
 used by this ID-token flow; keep any configured secret server-only. No Google
 API access/refresh tokens are requested or stored.
 
-The browser integration must follow this sequence (the checked-in frontend does
-not yet provide a Google button):
+The Next.js `/auth` page implements the following Google flow. Configure matching
+`NEXT_PUBLIC_GOOGLE_CLIENT_ID` and backend `GOOGLE_CLIENT_ID` values, and register
+the frontend origin in the Google Web client. Live account sign-in remains unverified:
 
 1. Send `POST /member/google/nonce` with credentials included. It returns
    `{ "nonce": "..." }` and sets a five-minute HttpOnly nonce cookie.

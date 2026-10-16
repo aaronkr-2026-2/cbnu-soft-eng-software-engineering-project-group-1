@@ -107,3 +107,15 @@
 **What I changed or rejected, and why:** I used USER-only signup and kept Google disabled. I did not add persistent storage, refresh loops, or a new auth server; those would expand the current scope. I removed the stale README env-example copy step instead of recreating a removed file.
 **Something the AI got wrong that I had to catch:** Browser automation exposed a maximum-update-depth error while entering signup fields. The AI added equality guards to field/error updates; keyboard retest and fixture signup passed, but the original trigger was not isolated (N-04). Tool output also caught a mock-harness rerun from the wrong working directory; the AI reran it successfully in next/.
 **One decision I can explain without AI:** I kept OAuth in a separate disabled component so adding Google's real flow later does not require rewriting the email/password form.
+
+## Google Identity Services sign-in — 2026-10-16
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, official Google documentation, Prettier, pinned Yarn type/build checks, mocked transport/SDK/lifecycle harnesses, local nonce fixture, curl, and Chrome computer-use attempts.
+**What I asked for:** Add Google auth to the existing sign-in/signup page.
+**Pre-planning:** I inspected nonce creation/verification, cookie settings, CORS, auth responses, the isolated Google component, current session behavior, and Google's current button API. The backend Web client ID existed; the public frontend setting did not.
+**Planning:** I used Google's official popup button and the existing ID-token backend flow, reused the session completion path, and avoided dependencies or new routes. Both Google requests include the nonce cookie; email/password requests continue to omit cookies.
+**Implementation process:** I added the SDK loader, nonce preparation, credential exchange, recovery/expiry and callback guards, shared form locks, responsive styles, and configuration/documentation. I added only the matching public client ID to ignored next/.env. Typecheck/build, 16 Google-specific mocked checks, 15 existing auth/session checks, and HTTP preview passed. Reliable Chrome page inspection and live Google/Nest completion remain unverified.
+**What I kept as-is:** I preserved backend verification and account rules, REST/GraphQL contracts, password forms, dependencies, lockfile, and temporary in-memory sessions.
+**What I changed or rejected, and why:** I send Google's credential only to the backend and start a session from the returned MedConnect token. I avoid One Tap, automatic account selection, silent callback retries, account linking, and token persistence beyond the current scope.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. An edit patch needed updated context before applying; no partial edit was applied. Chrome's unavailable page-capture surface limited visual verification and was not treated as an application failure.
+**One decision I can explain without AI:** I include credentials on both Google endpoints because the server compares Google's nonce claim with its HttpOnly browser-binding cookie before creating a MedConnect session.

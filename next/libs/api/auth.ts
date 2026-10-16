@@ -34,13 +34,15 @@ function apiBase() {
   return base.replace(/\/$/, '');
 }
 
-// Email/password auth only. OAuth can supply the same AuthResult later.
+// All sign-in methods return the same allowlisted member/access-token result.
 export async function authenticate(
-  mode: 'signin' | 'signup',
-  input: LoginInput | SignupInput,
+  mode: 'signin' | 'signup' | 'google',
+  input: LoginInput | SignupInput | { idToken: string },
   signal: AbortSignal,
 ): Promise<AuthResult> {
-  const endpoint = `${apiBase()}/member/${mode === 'signup' ? 'signup' : 'login'}`;
+  const route =
+    mode === 'google' ? 'google/login' : mode === 'signup' ? 'signup' : 'login';
+  const endpoint = `${apiBase()}/member/${route}`;
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal.addEventListener('abort', abort, { once: true });
@@ -51,7 +53,7 @@ export async function authenticate(
     try {
       response = await fetch(endpoint, {
         method: 'POST',
-        credentials: 'omit',
+        credentials: mode === 'google' ? 'include' : 'omit',
         cache: 'no-store',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
@@ -67,9 +69,15 @@ export async function authenticate(
     if (!response.ok) {
       const messages: Record<number, string> = {
         400: 'Please check your details and try again.',
-        401: 'The email or password is incorrect, or the account is unavailable.',
+        401:
+          mode === 'google'
+            ? 'Google sign-in expired or could not be verified. Please try again.'
+            : 'The email or password is incorrect, or the account is unavailable.',
         403: 'This account cannot sign in right now.',
-        409: 'An account with these details already exists. Try signing in.',
+        409:
+          mode === 'google'
+            ? 'An account with this email already exists. Please use its original sign-in method.'
+            : 'An account with these details already exists. Try signing in.',
         429: 'Too many attempts. Please wait a moment before trying again.',
       };
       throw new Error(
@@ -102,6 +110,40 @@ export async function authenticate(
       },
       accessToken: result.accessToken,
     };
+  } finally {
+    clearTimeout(timeout);
+    signal.removeEventListener('abort', abort);
+  }
+}
+
+// This HttpOnly browser-binding cookie must be sent back on google/login.
+export async function getGoogleNonce(signal: AbortSignal): Promise<string> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  signal.addEventListener('abort', abort, { once: true });
+  if (signal.aborted) abort();
+  const timeout = setTimeout(abort, 15000);
+  try {
+    const response = await fetch(`${apiBase()}/member/google/nonce`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error('Nonce request failed');
+    const data = await response.json();
+    if (
+      typeof data?.nonce !== 'string' ||
+      !data.nonce ||
+      data.nonce.length > 4096
+    )
+      throw new Error('Invalid nonce');
+    return data.nonce;
+  } catch {
+    throw new Error(
+      'Google sign-in is unavailable right now. Please try again.',
+    );
   } finally {
     clearTimeout(timeout);
     signal.removeEventListener('abort', abort);

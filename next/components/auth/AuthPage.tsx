@@ -6,7 +6,11 @@ import { Alert, Button, TextField } from '@mui/material';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import FavoriteBorderRounded from '@mui/icons-material/FavoriteBorderRounded';
-import { authenticate, type SignupInput } from '../../libs/api/auth';
+import {
+  authenticate,
+  type AuthResult,
+  type SignupInput,
+} from '../../libs/api/auth';
 import { startSession, useSession } from '../../libs/auth-session';
 import { PasswordField } from './PasswordField';
 import { GoogleSignIn } from './GoogleSignIn';
@@ -38,6 +42,9 @@ export function AuthPage() {
   );
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [googlePending, setGooglePending] = useState(false);
+  const googleBusy = useRef(false);
+  const busy = pending || googlePending;
   const request = useRef<AbortController | null>(null);
   const form = useRef<HTMLFormElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -49,7 +56,7 @@ export function AuthPage() {
   }, [mode]);
 
   function switchMode() {
-    if (request.current) return;
+    if (request.current || googleBusy.current) return;
     setMode(signup ? 'signin' : 'signup');
     setFields((previous) => ({ ...previous, password: '', confirm: '' }));
     setErrors({});
@@ -66,9 +73,21 @@ export function AuthPage() {
     setError('');
   }
 
+  function googleBusyChanged(value: boolean) {
+    googleBusy.current = value;
+    setGooglePending(value);
+  }
+
+  async function completeSignIn(result: AuthResult) {
+    startSession(result);
+    setFields((previous) => ({ ...previous, password: '', confirm: '' }));
+    // Fixed internal destination; no user-supplied redirect URL.
+    await router.replace('/');
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (request.current) return;
+    if (request.current || googleBusy.current) return;
     const nextErrors: typeof errors = {};
     const email = fields.email.trim().toLowerCase();
     const length = (value: string) => Array.from(value).length;
@@ -124,10 +143,7 @@ export function AuthPage() {
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      startSession(result);
-      setFields((previous) => ({ ...previous, password: '', confirm: '' }));
-      // Fixed internal destination; no user-supplied redirect URL.
-      await router.replace('/');
+      await completeSignIn(result);
     } catch (reason) {
       if (!controller.signal.aborted)
         setError(
@@ -210,7 +226,7 @@ export function AuthPage() {
                   {error}
                 </Alert>
               )}
-              <form ref={form} onSubmit={submit} noValidate aria-busy={pending}>
+              <form ref={form} onSubmit={submit} noValidate aria-busy={busy}>
                 {signup && (
                   <div className="auth-name-fields">
                     <TextField
@@ -222,7 +238,7 @@ export function AuthPage() {
                         update('fullName', event.target.value)
                       }
                       autoComplete="name"
-                      disabled={pending}
+                      disabled={busy}
                       error={!!errors.fullName}
                       helperText={errors.fullName}
                       fullWidth
@@ -236,7 +252,7 @@ export function AuthPage() {
                         update('nickname', event.target.value)
                       }
                       autoComplete="nickname"
-                      disabled={pending}
+                      disabled={busy}
                       error={!!errors.nickname}
                       helperText={errors.nickname || '2–40 characters'}
                       required
@@ -252,7 +268,7 @@ export function AuthPage() {
                   value={fields.email}
                   onChange={(event) => update('email', event.target.value)}
                   autoComplete="email"
-                  disabled={pending}
+                  disabled={busy}
                   error={!!errors.email}
                   helperText={errors.email}
                   required
@@ -268,7 +284,7 @@ export function AuthPage() {
                     onChange={(event) => update('phone', event.target.value)}
                     autoComplete="tel"
                     placeholder="+821012345678"
-                    disabled={pending}
+                    disabled={busy}
                     error={!!errors.phone}
                     helperText={errors.phone || 'Include your country code.'}
                     required
@@ -282,7 +298,7 @@ export function AuthPage() {
                   value={fields.password}
                   onChange={(event) => update('password', event.target.value)}
                   autoComplete={signup ? 'new-password' : 'current-password'}
-                  disabled={pending}
+                  disabled={busy}
                   error={!!errors.password}
                   helperText={
                     errors.password || (signup ? '8–100 characters' : undefined)
@@ -296,7 +312,7 @@ export function AuthPage() {
                     value={fields.confirm}
                     onChange={(event) => update('confirm', event.target.value)}
                     autoComplete="new-password"
-                    disabled={pending}
+                    disabled={busy}
                     error={!!errors.confirm}
                     helperText={errors.confirm}
                     maxLength={200}
@@ -307,7 +323,7 @@ export function AuthPage() {
                   type="submit"
                   variant="contained"
                   fullWidth
-                  disabled={pending}
+                  disabled={busy}
                   endIcon={!pending && <ArrowForwardRounded />}
                 >
                   {pending
@@ -323,14 +339,18 @@ export function AuthPage() {
                 <span>or</span>
               </div>
               <div className="auth-alternatives">
-                <GoogleSignIn />
+                <GoogleSignIn
+                  disabled={pending}
+                  onBusyChange={googleBusyChanged}
+                  onSuccess={completeSignIn}
+                />
                 <div className="auth-switch">
                   <span>
                     {signup ? 'Already a member?' : 'New to MedConnect?'}
                   </span>
                   <Button
                     onClick={switchMode}
-                    disabled={pending}
+                    disabled={busy}
                     endIcon={<ArrowForwardRounded />}
                   >
                     {signup ? 'Sign in' : 'Sign up'}

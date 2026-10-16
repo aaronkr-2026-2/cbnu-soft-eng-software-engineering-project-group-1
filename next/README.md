@@ -104,15 +104,58 @@ are discarded; persistent sessions and automatic refresh remain pending. Local
 sign-out does not revoke the server session, and client session state grants no
 backend authorization. No tokens are written to browser storage or page props.
 
-`components/auth/GoogleSignIn.tsx` reserves a disabled Google button and logo with
-“Coming soon.” No OAuth script, handler, nonce request, or Google credential call
-is loaded. Future integration can use the same auth-result/session boundary.
+### Google sign-in
+
+`components/auth/GoogleSignIn.tsx` now loads Google's official Identity Services
+button through `libs/google-identity.ts`. Both sign-in and signup use the same
+Google flow. It requests `/member/google/nonce` with credentials included, passes
+the exact nonce to Google's popup client, then sends `{ idToken }` to
+`/member/google/login` with the binding cookie. The Nest service verifies the token
+and nonce and returns the MedConnect session. Google credentials are never used
+as MedConnect API access tokens or stored by the frontend.
+
+Configure the same public Web client ID in both applications:
+
+```dotenv
+# next/.env or next/.env.local (intentionally public)
+NEXT_PUBLIC_GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+# backend/.env
+GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+```
+
+The matching public ID was added to this checkout's ignored `next/.env`; no client
+secret was copied. Restart `yarn dev` after public settings change. Configure the
+frontend origin (scheme, hostname, port) in the Google Web client's Authorized
+JavaScript origins, including `http://localhost:3000` for local use, and allow it
+in backend `CORS_ORIGINS`. Use the same hostname for frontend and API during local
+HTTP development: `localhost` and `127.0.0.1` are different sites for cookies.
+Production requires HTTPS for the backend's Secure nonce cookie; cross-site
+cookie restrictions can still prevent sign-in. This popup/callback flow needs no
+new redirect route and no client secret. See Google's
+[setup guide](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid)
+and [JavaScript API reference](https://developers.google.com/identity/gsi/web/reference/js-reference).
+
+The SDK loads once and can retry failed loading. Missing configuration, script/API
+failure, stale challenges, and rejected credentials show recoverable states. Idle
+challenges expire from the UI after four minutes (the backend allows five); retry
+obtains a fresh nonce. No One Tap or automatic account selection is requested.
+Duplicate/late callbacks are ignored; password submissions and Google verification
+cannot overlap. Google-account email conflicts require the original sign-in method;
+accounts are not automatically linked. Both methods reuse the current temporary
+in-memory session and redirect home.
+
+Google QA: 16 mocked transport/SDK/component-lifecycle checks passed, alongside the
+15 existing auth/session checks and production build/typecheck. A local preview
+with a temporary nonce fixture returned HTTP 200. Chrome's preview surface did not
+reliably expose the page, so official-button rendering, authorized-origin settings,
+real Google login, and live Nest/database completion remain unverified.
 
 Auth QA: typecheck/production build and 15 mocked transport/session checks passed.
 Chrome checks covered same-route mode switching, independent password visibility,
 validation, retained email/cleared passwords, and sign-in/signup redirects plus
 local sign-out using a temporary local fixture. Desktop and 400px layouts were
-inspected. No real Nest/database account creation or OAuth flow was exercised.
+inspected during email/password implementation. No real Nest/database account
+creation or Google account sign-in has been exercised.
 
 ## Scripts and styling
 
@@ -219,7 +262,8 @@ The default frontend port is 3000; configure the backend separately.
   Webpack preview showed no fresh hydration warning; the absent API produced the
   expected directory error state. Successful clinic/doctor browser integration,
   menu interactions, and real Nest/database responses remain unverified.
-- Auth requests were exercised only against a temporary local fixture; no real
-  authentication, booking, or Google requests were sent. No deployment was performed.
+- Auth exchanges were exercised against temporary fixtures; the Google SDK was
+  requested by the preview. No real accounts were signed in, no bookings were made,
+  and no deployment was performed.
 - A lint script is not configured. No sprint record covers October 16, 2026;
   the latest recorded sprint ended October 15.

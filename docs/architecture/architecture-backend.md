@@ -79,7 +79,7 @@ flowchart TD
   GQL -->|Interceptor events: operation field, duration, errors| Logs
 ```
 
-External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the browser Google button is pending. Email delivery is absent.
+External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. Email delivery is absent.
 
 ### Next.js public discovery client
 
@@ -104,9 +104,17 @@ patient signup form sends USER only; the client does not grant permissions. The
 only, expires it using the access token’s exp claim for UI timing, and clears it
 on local sign-out. No refresh token is retained and no automatic refresh or server
 revocation is implemented. Client-side navigation home preserves that temporary
-state; a reload clears it. Google remains a disabled isolated component without
-OAuth handlers. Build/type checks and temporary-fixture browser auth passed; real
-Nest/database auth integration remains unverified.
+state; a reload clears it. The isolated GoogleSignIn component loads the official
+GIS SDK, obtains the backend's signed nonce/cookie with credentials included, and
+initializes the popup with that exact nonce. Its credential callback posts only
+`idToken` with the cookie to the Google login endpoint; a successful MedConnect
+response uses the same session module and internal home redirect. Password login
+still omits cookies. No provider credential is stored or treated as an API token.
+The public Next client ID must match the backend audience; CORS/cookie/origin
+configuration remains a deployment responsibility. SDK errors/challenge expiry
+support explicit retries; duplicate/late callbacks and overlapping sign-in writes
+are blocked. Build/type checks and mocked Google lifecycle checks passed; real
+Google/Nest/database completion and official-button rendering remain unverified.
 
 ## APIs and request flows
 
@@ -123,7 +131,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 
 **Authentication:** signup validates public role/input fields, hashes the password, creates a member, and issues tokens. Doctors require an active clinic and start with PENDING affiliation; ADMIN is excluded from public signup. Login verifies email/password credentials and account status. Access JWTs last 15 minutes. Refresh tokens have a fixed seven-day session lifetime; only their hashes are persisted. Refresh atomically replaces the stored hash, so a token can be consumed once; rotation does not extend session expiry. There is no implemented logout/revocation endpoint.
 
-**Google sign-in:** the browser first requests a five-minute signed nonce from `/member/google/nonce`, which also sets an HttpOnly cookie. It passes that nonce to Google Identity Services and posts the resulting ID token to `/member/google/login` with credentials included. GoogleAuthService validates the challenge and Google's signature/audience/issuer/expiry and checks the ID-token nonce against the cookie. Production uses a Secure, host-only cookie; successful login clears it. MemberService finds by Google `sub` or immediately creates an active USER, omitting phone/password. The provider name supplies a trimmed/truncated nickname; missing names/collisions use `google_user` plus six random digits, retried against the unique index. Only verified provider email is copied. Existing account profile/role remains unchanged. Email conflicts return 409 without automatic linking; inactive accounts are rejected. The service reuses normal access/refresh issuance. GOOGLE_CLIENT_ID is required for this flow; GOOGLE_CLIENT_SECRET is not consumed. Frontend Google sign-in integration remains pending.
+**Google sign-in:** the browser first requests a five-minute signed nonce from `/member/google/nonce`, which also sets an HttpOnly cookie. It passes that nonce to Google Identity Services and posts the resulting ID token to `/member/google/login` with credentials included. GoogleAuthService validates the challenge and Google's signature/audience/issuer/expiry and checks the ID-token nonce against the cookie. Production uses a Secure, host-only cookie; successful login clears it. MemberService finds by Google `sub` or immediately creates an active USER, omitting phone/password. The provider name supplies a trimmed/truncated nickname; missing names/collisions use `google_user` plus six random digits, retried against the unique index. Only verified provider email is copied. Existing account profile/role remains unchanged. Email conflicts return 409 without automatic linking; inactive accounts are rejected. The service reuses normal access/refresh issuance. GOOGLE_CLIENT_ID is required for this flow; GOOGLE_CLIENT_SECRET is not consumed. The Next.js Google button/callback integration is implemented; live Google account completion remains unverified.
 
 **Protected requests:** the guard extracts REST or GraphQL request context and calls `MemberService.authenticateAccessToken`. JWT algorithm, issuer, audience, expiry, token type, and subject are checked. A fresh member query determines active status and current role. Services then enforce operation-specific authorization; a token alone does not grant appointment access.
 
@@ -152,7 +160,7 @@ Here, shared services include reusable in-process capabilities and external prov
 | Capability/provider | Status | Boundary and evidence |
 | --- | --- | --- |
 | Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. An email address is a login identifier; no email is sent. |
-| Google sign-in | Backend implemented; browser integration pending | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
+| Google sign-in | Backend and Next.js callback implemented; live provider completion unverified | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
 | Telegram identity | Schema support only | `telegramId` exists; no implemented Telegram login flow. |
 | Email delivery | Not implemented; provider unselected | No mail adapter/SDK, SMTP transport, verification email, or appointment notification sender found in backend source/dependencies. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |

@@ -159,6 +159,7 @@
     gap: 16px;
   }
   .auth-google {
+    max-width: 200px;
     display: flex;
     align-items: center;
     flex-direction: column;
@@ -171,6 +172,10 @@
       padding: 10px 14px;
       font-size: 0.75rem;
     }
+  }
+  .auth-google-button[inert] {
+    opacity: 0.5;
+    pointer-events: none;
   }
   .auth-switch {
     text-align: right;
@@ -230,6 +235,7 @@
       padding-inline: 18px;
     }
     .auth-alternatives {
+      flex-wrap: wrap;
       gap: 10px;
     }
     .auth-google .MuiButton-root {

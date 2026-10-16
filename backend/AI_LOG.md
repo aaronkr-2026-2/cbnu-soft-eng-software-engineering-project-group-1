@@ -475,3 +475,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** I documented temporary in-memory client sessions and disabled Google without claiming persistent sessions or real integration.
 **Something the AI got wrong that I had to catch:** Browser/tool checks caught a repeated field-update symptom and a harness working-directory error; the AI applied guards and corrected the command. See next/FIXES-and-BUGS.md N-04 and next/AI_LOG.md.
 **One decision I can explain without AI:** I kept authentication verification on the server; the browser's member/expiry state only controls presentation.
+
+## Next Google sign-in documentation alignment — 2026-10-16
+
+**Tool(s) used:** Codex, source/shell/Python inspection, official Google documentation, Next type/build checks, mocked Google/auth/session checks, and local preview attempts.
+**What I asked for:** Add Google auth to the Next.js auth page.
+**Pre-planning:** I checked GoogleAuthService, member controller/service, nonce cookies, CORS, and shared response/session contracts.
+**Planning:** I preserved backend ownership of identity verification and account/session writes and documented the new browser callback boundary.
+**Implementation process:** I updated root README/features and architecture descriptions. Next build/typecheck and 31 mocked checks passed. No backend source or real account changed; live Google/Nest/database completion remains unverified.
+**What I kept as-is:** I preserved signed browser-bound nonces, Google signature/audience/issuer verification, existing account conflict rules, and closed sprint records.
+**What I changed or rejected, and why:** I documented implemented frontend wiring separately from unverified provider/database completion, without claiming a successful live login.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. Native Chrome page capture limited verification; it was not classified as a backend defect.
+**One decision I can explain without AI:** I kept Google ID tokens distinct from MedConnect access tokens so only the backend's session authorizes application requests.
