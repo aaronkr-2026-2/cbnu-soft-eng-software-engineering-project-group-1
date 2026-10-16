@@ -463,3 +463,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** I described the landing page without claiming sign-in, booking, or live database integration was delivered.
 **Something the AI got wrong that I had to catch:** Runtime/browser checks identified Next theme/bundler integration mistakes; the AI corrected them. See next/FIXES-and-BUGS.md N-02/N-03.
 **One decision I can explain without AI:** I documented the public read-only client separately from protected booking because they have different credentials and ownership boundaries.
+
+## Next auth-page documentation alignment — 2026-10-16
+
+**Tool(s) used:** Codex, source/shell/Python checks, Next type/build checks, mocked transport/session checks, and Chrome with a temporary fixture.
+**What I asked for:** Implement the agreed combined sign-in/signup page, with no OAuth handler yet.
+**Pre-planning:** I checked backend member DTOs/controller/token lifecycle and existing shared documentation.
+**Planning:** I kept auth writes owned by Nest and documented the new browser REST adapter and session limits.
+**Implementation process:** I updated the root feature list and shared architecture notes. Next typecheck/build and 15 mocked checks passed; fixture browser login/signup/sign-out passed. No backend source or real account changed.
+**What I kept as-is:** I preserved all backend contracts, refresh/Google behavior, and closed sprint records.
+**What I changed or rejected, and why:** I documented temporary in-memory client sessions and disabled Google without claiming persistent sessions or real integration.
+**Something the AI got wrong that I had to catch:** Browser/tool checks caught a repeated field-update symptom and a harness working-directory error; the AI applied guards and corrected the command. See next/FIXES-and-BUGS.md N-04 and next/AI_LOG.md.
+**One decision I can explain without AI:** I kept authentication verification on the server; the browser's member/expiry state only controls presentation.

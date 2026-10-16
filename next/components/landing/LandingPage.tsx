@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import Image from 'next/image';
-import { Button, Chip, Collapse, IconButton, Tooltip } from '@mui/material';
+import Link from 'next/link';
+import { clearSession, useSession } from '../../libs/auth-session';
+import { Button, Chip, Collapse, IconButton } from '@mui/material';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import ArrowOutwardRounded from '@mui/icons-material/ArrowOutwardRounded';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
@@ -31,7 +33,7 @@ const steps = [
     number: '03',
     icon: CalendarMonthOutlined,
     title: 'Plan your visit',
-    text: 'Choose your next step. Online sign-in and appointment booking are coming soon.',
+    text: 'Create your patient account and keep exploring. Online appointment booking is coming soon.',
   },
 ];
 
@@ -124,6 +126,7 @@ function AppointmentIllustration() {
 
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const session = useSession();
   return (
     <div className="landing site-shell" id="top">
       <a className="skip-link" href="#main">
@@ -138,11 +141,15 @@ export function LandingPage() {
             <a href="#your-care">Your care</a>
           </nav>
           <div className="header-actions">
-            <Tooltip title="Online sign-in is coming soon">
-              <span className="sign-in-wrap">
-                <Button disabled>Sign in</Button>
-              </span>
-            </Tooltip>
+            <span className="sign-in-wrap">
+              {session ? (
+                <Button onClick={clearSession}>Sign out</Button>
+              ) : (
+                <Button component={Link} href="/auth">
+                  Sign in
+                </Button>
+              )}
+            </span>
             <Button
               variant="contained"
               href="#clinics"
@@ -176,7 +183,20 @@ export function LandingPage() {
             <a href="#your-care" onClick={() => setMenuOpen(false)}>
               Your care
             </a>
-            <span>Sign-in coming soon</span>
+            {session ? (
+              <Button
+                onClick={() => {
+                  clearSession();
+                  setMenuOpen(false);
+                }}
+              >
+                Sign out
+              </Button>
+            ) : (
+              <Link href="/auth" onClick={() => setMenuOpen(false)}>
+                Sign in
+              </Link>
+            )}
           </nav>
         </Collapse>
       </header>
@@ -297,7 +317,7 @@ export function LandingPage() {
                   place, so you can focus on your next visit.
                 </p>
                 <p className="upcoming-note">
-                  Patient sign-in and online booking are on the way.
+                  Appointment management and online booking are on the way.
                 </p>
               </div>
               <a

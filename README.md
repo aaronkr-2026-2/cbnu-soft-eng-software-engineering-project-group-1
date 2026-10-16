@@ -10,8 +10,9 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 A separate Next.js frontend is being prepared in `next/` using Yarn; see its
 [setup and current limitations](next/README.md). Its root landing page uses MUI,
 shared brand styles, and public GraphQL clinic/doctor discovery with search and
-retry states. Sign-in and booking screens remain pending; real API/browser data
-integration is not yet verified.
+retry states. `/auth` provides email/password sign-in and patient signup in one
+page, with in-memory sessions; Google sign-in and booking remain pending. Real
+API/database integration is not yet verified.
 
 ## Contents
 
@@ -61,7 +62,12 @@ integration is not yet verified.
 - **Next.js landing page:** `next/` provides a responsive root page, clinic search,
   doctor previews, a care guide, and upcoming-portal information. Public discovery
   uses existing GraphQL operations; successful real API integration is unverified.
-  Sign-in and booking are marked coming soon. See [Next.js setup](next/README.md).
+  Booking is marked coming soon. See [Next.js setup](next/README.md).
+- **Next.js sign-in and signup:** `/auth` switches forms in place, validates patient
+  signup, provides password eye controls, and calls the existing REST endpoints.
+  Client sessions stay in memory until reload/expiry; local sign-out is available.
+  Google is a disabled placeholder. Browser flows were checked with a local fixture;
+  real Nest/database integration and persistent sessions remain unverified/pending.
 
 Update this list whenever a new feature is added. Keep entries aligned with the
 implemented behavior, and revise them when features change or are removed.

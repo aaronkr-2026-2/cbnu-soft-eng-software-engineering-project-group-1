@@ -87,7 +87,7 @@ function DoctorsDialog({
           ))}
         </ul>
         <p className="availability-note">
-          Online sign-in and booking are coming soon. Appointment times are not
+          Online booking is coming soon. Appointment times are not
           available on this page.
         </p>
       </DialogContent>

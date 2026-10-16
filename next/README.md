@@ -29,13 +29,21 @@ From the repository root:
 ```bash
 cd next
 yarn install
-cp .env.example .env.local
 yarn dev
 ```
 
 Open [the landing page](http://localhost:3000). Yarn uses `node_modules/`; the
 generated `yarn.lock` is included. Do not use `npm install` for this application.
 
+Add public API settings to your existing `.env` or `.env.local`:
+
+```dotenv
+NEXT_PUBLIC_API_URL=http://localhost:3333
+NEXT_PUBLIC_GRAPHQL_URL=http://localhost:3333/graphql
+```
+
+`NEXT_PUBLIC_API_URL` is the Nest REST base URL. If omitted, authentication derives
+the base from the existing GraphQL URL by removing its final `/graphql` path.
 `NEXT_PUBLIC_GRAPHQL_URL` is the public Nest GraphQL URL, normally
 `http://localhost:3333/graphql` for local development. Only public URLs belong in
 this setting. Start the backend separately and allow `http://localhost:3000` in
@@ -61,8 +69,9 @@ the returned records; the backend currently limits each discovery query to 100.
 Clinic timezone is displayed when supplied. Initials/icons stand in for profile
 images until image URL handling is established.
 
-Sign-in, signup, booking, and appointment-management screens are not implemented.
-The sign-in control is disabled and those flows are labeled coming soon. The hero
+The header Sign in link opens `/auth`, which switches between email/password
+sign-in and patient signup in place. Booking and appointment-management screens
+remain upcoming. The hero
 appointment is illustrative, not a patient record or a confirmed booking. Doctor
 previews do not claim live appointment availability.
 
@@ -71,6 +80,39 @@ previews do not claim live appointment availability.
 to place Emotion styles in the document head. The theme uses
 [native CSS color variables](https://mui.com/material-ui/customization/css-theme-variables/native-color/)
 from the existing Sass-derived tokens, keeping one brand palette.
+
+## Sign in and patient signup
+
+`pages/auth.tsx` composes `components/auth/AuthPage.tsx`. Sign in and Sign up switch
+forms without changing the route. Non-password fields are retained when switching;
+passwords, visibility state, and validation errors reset. Each password input has
+an accessible eye button. Signup collects nickname, email, international phone,
+password/confirmation, and optional full name; the request fixes `memberType` to
+`USER` and omits confirmation. Doctor/clinic registration UI is not included.
+
+`libs/api/auth.ts` posts JSON to `/member/login` or `/member/signup`, matching the
+Nest DTOs. It omits cookies, disables caching, limits requests to 15 seconds, and
+normalizes errors without exposing server payloads. Submission cannot overlap;
+requests are canceled on unmount and never automatically retried. Login preserves
+the backend's 1–128-character legacy password compatibility; new passwords require
+8–100 characters. Patient phone numbers use the backend's international format.
+
+After success, `libs/auth-session.ts` keeps the public member and access token in
+client memory and navigates home through the Next router. The header then offers
+Sign out. Reloading or access-token expiry ends this local session. Refresh tokens
+are discarded; persistent sessions and automatic refresh remain pending. Local
+sign-out does not revoke the server session, and client session state grants no
+backend authorization. No tokens are written to browser storage or page props.
+
+`components/auth/GoogleSignIn.tsx` reserves a disabled Google button and logo with
+“Coming soon.” No OAuth script, handler, nonce request, or Google credential call
+is loaded. Future integration can use the same auth-result/session boundary.
+
+Auth QA: typecheck/production build and 15 mocked transport/session checks passed.
+Chrome checks covered same-route mode switching, independent password visibility,
+validation, retained email/cleared passwords, and sign-in/signup redirects plus
+local sign-out using a temporary local fixture. Desktop and 400px layouts were
+inspected. No real Nest/database account creation or OAuth flow was exercised.
 
 ## Scripts and styling
 
@@ -157,8 +199,9 @@ generated from the backend's source resolvers and DTOs using installed backend
 tooling. That check was offline. Apollo Client 4.3.3 is now installed, but no authenticated
 Apollo client/provider has been configured.
 
-An authenticated Apollo client/provider, cache/session state, token refresh, and
-appointment-page integration remain pending. Future appointment calls must send
+An authenticated Apollo client/provider, persistent sessions, token refresh, and
+appointment-page integration remain pending. Email/password auth currently uses
+the separate REST helper and in-memory session described above. Future appointment calls must send
 `Authorization: Bearer <accessToken>` to the backend's `/graphql` endpoint.
 Signup, login, Google sign-in, and refresh remain REST operations. No admin or
 subscription documents are included because the backend has no such resolvers.
@@ -176,6 +219,7 @@ The default frontend port is 3000; configure the backend separately.
   Webpack preview showed no fresh hydration warning; the absent API produced the
   expected directory error state. Successful clinic/doctor browser integration,
   menu interactions, and real Nest/database responses remain unverified.
-- No authentication or booking requests were sent. No deployment was performed.
+- Auth requests were exercised only against a temporary local fixture; no real
+  authentication, booking, or Google requests were sent. No deployment was performed.
 - A lint script is not configured. No sprint record covers October 16, 2026;
   the latest recorded sprint ended October 15.

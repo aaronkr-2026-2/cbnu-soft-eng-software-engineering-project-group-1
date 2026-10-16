@@ -91,11 +91,22 @@ which delegates HTTP and GraphQL error handling to
 and no shared cache. MemberResolver delegates to MemberService's public projections;
 the backend owns account filtering and doctor affiliation approval. Search filters
 only the returned public records. Requests are canceled on unmount and bounded
-by a ten-second timeout. No Next server API, direct database access, or authentication
-store was introduced. Pages are rendered by Next locally; no new hosting is verified.
+by a ten-second timeout. No Next server API or direct database access was introduced. Pages are rendered by Next locally; no new hosting is verified.
 Builds, mocked transport checks, and desktop/mobile layout inspection passed;
-successful browser-to-Nest/database discovery remains unverified. Patient sign-in
-and booking screens remain pending.
+successful browser-to-Nest/database discovery remains unverified. Booking screens
+remain pending.
+
+The Next.js `/auth` route composes `components/auth/AuthPage.tsx` and posts through
+`libs/api/auth.ts` to existing REST login/signup endpoints. The backend still owns
+password verification, signup writes, rate limits, roles, and token issuance. The
+patient signup form sends USER only; the client does not grant permissions. The
+`libs/auth-session.ts` module stores member/access-token state in browser memory
+only, expires it using the access token’s exp claim for UI timing, and clears it
+on local sign-out. No refresh token is retained and no automatic refresh or server
+revocation is implemented. Client-side navigation home preserves that temporary
+state; a reload clears it. Google remains a disabled isolated component without
+OAuth handlers. Build/type checks and temporary-fixture browser auth passed; real
+Nest/database auth integration remains unverified.
 
 ## APIs and request flows
 
