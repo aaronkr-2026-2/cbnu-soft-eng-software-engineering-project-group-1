@@ -81,6 +81,16 @@ to place Emotion styles in the document head. The theme uses
 [native CSS color variables](https://mui.com/material-ui/customization/css-theme-variables/native-color/)
 from the existing Sass-derived tokens, keeping one brand palette.
 
+## Reusable clinic card
+
+`components/clinics/ClinicCard.tsx` accepts a `clinic: PublicMember` and optional
+`onViewDoctors(clinic)` callback. It displays `memberImage`, the clinic name,
+address, and noninteractive empty stars labeled “Ratings coming soon.” Missing
+or failed images use `/images/clinics/defaultClinic.png`; absent addresses show explicit fallback
+text. Image values should be browser-loadable URLs or public paths. The component
+does not fetch data or calculate ratings. Shared SCSS is already loaded globally.
+The landing directory is unchanged; `/clinics` and backend ratings remain pending.
+
 ## Sign in and patient signup
 
 `pages/auth.tsx` composes `components/auth/AuthPage.tsx`. Sign in and Sign up switch

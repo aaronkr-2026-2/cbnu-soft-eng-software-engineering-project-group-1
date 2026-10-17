@@ -5,6 +5,7 @@ export interface PublicMember {
   _id: string;
   memberNick: string;
   memberFullName?: string | null;
+  memberImage?: string | null;
   memberAddress?: string | null;
   memberDesc?: string | null;
   clinicName?: string | null;

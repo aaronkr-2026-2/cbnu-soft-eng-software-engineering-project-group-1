@@ -199,3 +199,83 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. An edit patch needed updated context before applying; no partial edit was applied. Chrome's unavailable page-capture surface limited visual verification and was not treated as an application failure.
 
 **One decision I can explain without AI:** I include credentials on both Google endpoints because the server compares Google's nonce claim with its HttpOnly browser-binding cookie before creating a MedConnect session.
+
+## Frontend end-of-week sprint instructions — 2026-10-16
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, source/path and whitespace checks.
+
+**What I asked for:** Save the reusable Next.js end-of-week sprint prompt in AGENTS.md, following the backend example.
+
+**Pre-planning:** I reviewed the Next.js instructions and continuity logs and the backend sprint workflow. The frontend instructions still routed sprint records into backend/.
+
+**Planning:** I kept frontend sprint records under next/, preserved backend history, and deferred the first sprint file until the requested end-of-week review.
+
+**Implementation process:** I saved the prompt, corrected conflicting sprint routing, and updated session context. Instruction consistency, source paths, whitespace, and absence of frontend sprint files passed checks. Application tests were not run for this documentation-only change.
+
+**What I kept as-is:** I preserved application code, backend instructions, existing sprint history, and README links until a frontend sprint file exists.
+
+**What I changed or rejected, and why:** I replaced backend-only routing and required explicit dates and evidence-based reporting so frontend reviews can stand on their own without duplicating backend delivery claims.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I keep frontend sprint records beside the frontend and reference backend records for shared dependencies.
+
+## Next.js architecture and product review prompts — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, source/path and whitespace checks.
+
+**What I asked for:** Add backend-style architecture and product prompts for Next.js, using separate -next.md files in the existing documentation folders.
+
+**Pre-planning:** I inspected both instruction files and the existing architecture, personas, and gap-map records. The repository uses docs/, and the frontend instructions previously required shared product records only.
+
+**Planning:** I adapted the backend review requirements to frontend boundaries and user flows, preserving shared grounding and IDs while defining separate Next.js output paths.
+
+**Implementation process:** I added reusable architecture/product prompts, corrected conflicting routing, and updated session context. Backend-workflow comparison, folder references, prompt coverage, deferred-file behavior, and whitespace checks passed. No application tests were run for this instruction-only change.
+
+**What I kept as-is:** I preserved application code, existing documentation, backend instructions, sprint alignment, and unrelated changes.
+
+**What I changed or rejected, and why:** I defined -next.md outputs and separate frontend feature IDs while reusing persona/story IDs, so frontend evidence can be reviewed without overwriting backend records. I deferred actual review files until requested.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I keep frontend documentation in the existing docs/ folders with clear suffixes so the two implementations remain easy to compare.
+
+## Reusable clinic card — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, Yarn, local HTTP preview, and computer-use browser discovery.
+
+**What I asked for:** Create the clinic card first so the clinics page can use it later.
+
+**Pre-planning:** I reviewed the Next instructions, session context, lessons index, API fields, MUI setup, shared styles, installed Next guidance, and the reference project's ProductCard.
+
+**Planning:** I kept the card independent of API calls and routing, used existing member fields, and deferred ratings to the backend.
+
+**Implementation process:** I created the MUI card and shared SCSS, added memberImage to the public TypeScript type, and documented usage. Yarn typecheck and production build passed. A temporary three-card preview returned HTTP 200 with expected card/fallback/action markup; I removed it afterward. Browser inventory was empty, so visual and interaction checks remain unverified.
+
+**What I kept as-is:** I preserved the landing directory, backend, routes, dependencies, and existing log edits.
+
+**What I changed or rejected, and why:** I used a missing/broken-image placeholder, explicit address fallback, and empty stars labeled “Ratings coming soon” rather than inventing ratings. The optional doctor callback lets the future page control behavior.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I pass clinic data into the card so multiple screens can reuse it without triggering duplicate API requests.
+
+## Default clinic fallback image — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, Yarn TypeScript and Sass checks.
+
+**What I asked for:** Use the existing defaultClinic.png in public/images/clinics for the clinic-card fallback.
+
+**Pre-planning:** I checked the card, styles, session context, and exact asset path.
+
+**Planning:** I used the public URL for both missing and failed clinic images and removed the replaced icon placeholder.
+
+**Implementation process:** I updated CardMedia source selection and alt text, removed unused styles, and updated README guidance. Asset existence, Yarn typecheck, Sass compilation, and whitespace checks passed. Browser checks were not run; browser access was unavailable during the preceding task.
+
+**What I kept as-is:** I preserved the supplied image, other card fields, API calls, and routes.
+
+**What I changed or rejected, and why:** I replaced the icon with the supplied default image and disabled error handling once the fallback is displayed to avoid repeated fallback attempts.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Files under public are referenced from the site root, so the image URL is /images/clinics/defaultClinic.png.
