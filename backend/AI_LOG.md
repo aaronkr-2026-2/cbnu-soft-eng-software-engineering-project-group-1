@@ -439,3 +439,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Replaced the hard-coded instruction to always edit Sprint 01 with the matching numbered sprint. Did not claim full browser OAuth completion, measured hours, peer review, or historical check-ins.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** Record delivery in the sprint covering its actual date and preserve incomplete integration work, so sprint history stays accurate.
+
+## Apply saved doctor-directory API — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, Git patch/source checks, npm/Nest build, and Jest/Supertest.
+
+**What I asked for:** Add the previously saved backend implementation on the backend branch.
+
+**Pre-planning:** I checked the branch, Git state, backend continuity/lessons and current member service/resolver against the preserved patch. This branch lacks the shared projection and clinic-discovery methods used as patch context.
+
+**Planning:** I adapted the saved doctor query to this branch, sharing getMember's unchanged public allowlist and applying the saved doctor tests without adding unrelated clinic endpoints.
+
+**Implementation process:** I added getDoctors/listDoctors and shared publicFields, applied two focused tests and their fixture, and updated README/architecture documentation. Backend build and all 13 focused member GraphQL tests passed with mocked persistence; whitespace passed. Live database and browser integration were not run.
+
+**What I kept as-is:** I preserved existing member lookup, authentication, private-field exclusions, frontend handoff files, and closed sprint history.
+
+**What I changed or rejected, and why:** I adapted the patch instead of assuming identical branch contents. The query returns up to 100 active, approved, nondeleted doctors in deterministic name/ID order.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. The patch compatibility check identified branch differences before application, which the AI handled explicitly.
+
+**One decision I can explain without AI:** I share the existing public-field allowlist so member lookup and the doctor directory expose the same approved profile fields.

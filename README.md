@@ -37,6 +37,9 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   checks for protected appointment operations.
 - **Public member profiles:** GraphQL lookup for active USER, DOCTOR, and CLINIC
   members, with private contact and credential fields excluded.
+- **Public doctor directory:** GraphQL `getDoctors` returns up to 100 active,
+  approved, nondeleted doctors, using public fields and name/ID ordering.
+  Focused tests use mocked persistence; live database integration is unverified.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
   creating a PENDING appointment for a fixed 30-minute slot.
 - **Booking validation:** Approved doctor affiliation, active clinic/doctor checks,
@@ -349,6 +352,29 @@ Signup defaults to `USER` when `memberType` is omitted; those accounts are also
 returned by this query. Resolver execution logs include
 `MemberResolver.getMember` and `GraphQL Query.getMember` start/completion/failure
 messages without logging GraphQL arguments, query text, or response data.
+
+### Public doctor directory
+
+Call `getDoctors` at `POST /graphql` without an access token:
+
+```graphql
+query GetDoctors {
+  getDoctors {
+    _id
+    memberNick
+    memberFullName
+    memberImage
+    memberDesc
+    doctorSpecializations
+  }
+}
+```
+
+Returns active, nondeleted DOCTOR accounts with `APPROVED` clinic affiliation,
+sorted by full name then ID and limited to 100. Uses the same public-field
+allowlist as `getMember`, excluding private contact and credential fields.
+Clinic details are not populated; pagination and ratings remain pending.
+GraphQL application errors use the `errors` array; responses use `Cache-Control: no-store`.
 
 ## Get an appointment
 

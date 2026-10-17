@@ -75,25 +75,44 @@ export class MemberService {
         memberStatus: MemberStatus.ACTIVE,
         deletedAt: null,
       })
-      .select({
-        _id: 1,
-        memberType: 1,
-        memberStatus: 1,
-        memberNick: 1,
-        memberFullName: 1,
-        memberImage: 1,
-        memberAddress: 1,
-        memberDesc: 1,
-        clinicId: 1,
-        clinicName: 1,
-        clinicTimezone: 1,
-        doctorClinicStatus: 1,
-        doctorSpecializations: 1,
-      })
+      .select(this.publicFields)
       .lean()
       .exec();
     if (!member) throw new NotFoundException('Member not found');
     return member;
+  }
+
+  private readonly publicFields = {
+    _id: 1,
+    memberType: 1,
+    memberStatus: 1,
+    memberNick: 1,
+    memberFullName: 1,
+    memberImage: 1,
+    memberAddress: 1,
+    memberDesc: 1,
+    clinicId: 1,
+    clinicName: 1,
+    clinicTimezone: 1,
+    doctorClinicStatus: 1,
+    doctorSpecializations: 1,
+  };
+
+  async listDoctors(): Promise<MemberProfile[]> {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    return this.members
+      .find({
+        memberType: MemberType.DOCTOR,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+        doctorClinicStatus: DoctorClinicStatus.APPROVED,
+      })
+      .select(this.publicFields)
+      .sort({ memberFullName: 1, _id: 1 })
+      .limit(100)
+      .lean()
+      .exec();
   }
 
   async authenticateAccessToken(token: string): Promise<MemberPrincipal> {
