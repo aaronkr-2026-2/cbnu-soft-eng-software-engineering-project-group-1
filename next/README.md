@@ -102,8 +102,8 @@ show “Specialization not listed.” Image values should be browser-loadable UR
 public paths. The profile button appears only when its callback is provided.
 
 The card owns presentation only; API requests and navigation stay with its caller.
-Shared styles are loaded globally. It is not yet used by a route or dialog;
-the doctors page and backend ratings remain pending. Typecheck/build and a
+Shared styles are loaded globally. It is used by `/doctors`;
+backend ratings remain pending. Typecheck/build and a
 server-render smoke check passed. Visual layout, image-error transitions, and
 callback interaction were not verified in a browser.
 
@@ -126,6 +126,32 @@ page, preserving its mobile menu and sign-in/sign-out behavior.
 Typecheck/build, eight mocked rendering scenarios, and production HTTP checks for
 the route, homepage links, and default image passed. Browser visual/interaction
 checks were unavailable; successful live Nest/database integration is unverified.
+
+## Doctors page
+
+`pages/doctors.tsx` composes `components/doctors/DoctorsPage.tsx`. Open
+[/doctors](http://localhost:3000/doctors) or use Find a doctor in desktop/mobile
+navigation. It renders `DoctorCard` in a responsive three/two/one-column grid,
+using `useMembers(undefined, 'doctors')` and the public `getDoctors` GraphQL query.
+Search matches full names, nicknames, and readable specialization names in the
+returned list. Loading skeletons, empty/no-match states, clear search, and error
+retry are included. Ratings remain a labeled placeholder. No profile/booking
+button is supplied because those routes are pending.
+
+The required `getDoctors` backend query is pending work on the backend branch.
+With the current backend, the page displays its directory error/retry state.
+The saved implementation and tests are in
+[`backend-handoff/get-doctors.patch`](backend-handoff/get-doctors.patch), with
+[reapplication notes](backend-handoff/README.md). The intended contract returns
+up to 100 active, approved, nondeleted doctors using public fields, without
+populating clinic names. Cards therefore omit clinic names. Existing clinic and
+clinic-doctor queries are unchanged.
+
+Next typecheck/build, mocked rendering/transport, and production HTTP checks
+passed during page development. Validation of all seven operations and 13 backend
+tests passed against the deferred implementation before it was removed; these do
+not establish compatibility with the current backend. Browser interactions and
+live database integration remain unverified.
 
 ## Sign in and patient signup
 
@@ -269,6 +295,7 @@ The exports match the current Nest resolvers and DTOs:
 |---|---|---|
 | `GET_MEMBER` | `{ id }` | Public |
 | `GET_CLINICS` | None | Public |
+| `GET_DOCTORS` | None | Public |
 | `GET_CLINIC_DOCTORS` | `{ clinicId }` | Public |
 | `GET_APPOINTMENT` | `{ id }` | Authenticated participant |
 | `MY_APPOINTMENTS` | None | Authenticated member |
@@ -283,9 +310,9 @@ GraphQL date outputs are serialized ISO strings.
 The manifest declares Apollo Client 4, GraphQL 16 (matching the backend major),
 and RxJS, following [Apollo's installation guidance](https://www.apollographql.com/docs/react/get-started).
 Public discovery queries are imported by the landing-page fetch helper.
-All six documents, including their fragments, were validated against a schema
-generated from the backend's source resolvers and DTOs using installed backend
-tooling. That check was offline. Apollo Client 4.3.3 is now installed, but no authenticated
+All seven documents were validated offline against the backend schema with the
+now-deferred getDoctors implementation. The current backend supports the six
+existing documents; GET_DOCTORS remains pending on the backend branch. Apollo Client 4.3.3 is now installed, but no authenticated
 Apollo client/provider has been configured.
 
 An authenticated Apollo client/provider, persistent sessions, token refresh, and

@@ -20,6 +20,15 @@ export const GET_CLINICS = gql`
   ${MEMBER_FIELDS}
 `;
 
+export const GET_DOCTORS = gql`
+  query GetDoctors {
+    getDoctors {
+      ...MemberFields
+    }
+  }
+  ${MEMBER_FIELDS}
+`;
+
 export const GET_CLINIC_DOCTORS = gql`
   query GetClinicDoctors($clinicId: ID!) {
     getClinicDoctors(clinicId: $clinicId) {

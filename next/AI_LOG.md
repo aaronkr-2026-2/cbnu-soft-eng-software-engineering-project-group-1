@@ -319,3 +319,23 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** I keep API requests out of the card so the future doctors page and other screens can supply data without duplicate fetches.
+
+## Doctors page and public directory query — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, Yarn, npm/Nest/Jest, temporary React/transport/schema harnesses, and local production HTTP checks.
+
+**What I asked for:** Create the doctors page using the existing doctor card.
+
+**Pre-planning:** I traced the shared layout, card, hook and fetch helper through GraphQL member resolver/service and checked both projects' instructions, continuity/lessons, manifests and reference doctor-list implementations. Only clinic-specific doctor discovery existed.
+
+**Planning:** I added a dedicated public getDoctors query following current member discovery conventions and reused the existing frontend transport with an explicit doctors mode. I kept backend pagination, ratings and profile routes pending.
+
+**Implementation process:** I added /doctors and its responsive styles, name/nickname/specialization search and request states, shared navigation links, getDoctors resolver/service/query, and two backend eligibility/projection/cap tests. Backend build and 13 focused mocked-persistence GraphQL tests passed after sandbox loopback escalation. Next typecheck/build, eight mocked rendering scenarios, five mocked transport scenarios, all seven operations against the source-generated schema, and production HTTP page/navigation/asset checks passed. Browser visual/interaction and live database checks remain unverified. Documentation and continuity were updated; preview stopped.
+
+**What I kept as-is:** I preserved existing clinic queries and caller behavior, authentication, public-field allowlists, data ownership, the doctor dialog, and card image/rating fallbacks.
+
+**What I changed or rejected, and why:** I used one global doctor query rather than requesting each clinic's doctors. I displayed the 100-result limitation, omitted unpopulated clinic names, and supplied no profile action without an implemented destination.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. The sandbox listener restriction was resolved with an authorized escalated test run and was not treated as an application defect.
+
+**One decision I can explain without AI:** I enforce approved, active doctor visibility in Nest so public clients receive the same filtered directory regardless of how they render it.

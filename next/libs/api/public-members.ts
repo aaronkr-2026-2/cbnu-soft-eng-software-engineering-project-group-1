@@ -1,5 +1,9 @@
 import { print } from 'graphql';
-import { GET_CLINICS, GET_CLINIC_DOCTORS } from '../../apollo/user/query';
+import {
+  GET_CLINICS,
+  GET_CLINIC_DOCTORS,
+  GET_DOCTORS,
+} from '../../apollo/user/query';
 
 export interface PublicMember {
   _id: string;
@@ -21,11 +25,12 @@ export function memberName(member: PublicMember) {
 export async function fetchMembers(
   clinicId: string | undefined,
   signal: AbortSignal,
+  directory: 'clinics' | 'doctors' = 'clinics',
 ): Promise<PublicMember[]> {
   const endpoint = process.env.NEXT_PUBLIC_GRAPHQL_URL?.trim();
   if (!endpoint)
     throw new Error(
-      'Clinic information is temporarily unavailable. Please try again later.',
+      'Directory information is temporarily unavailable. Please try again later.',
     );
 
   const controller = new AbortController();
@@ -41,7 +46,13 @@ export async function fetchMembers(
       cache: 'no-store',
       signal: controller.signal,
       body: JSON.stringify({
-        query: print(clinicId ? GET_CLINIC_DOCTORS : GET_CLINICS),
+        query: print(
+          clinicId
+            ? GET_CLINIC_DOCTORS
+            : directory === 'doctors'
+              ? GET_DOCTORS
+              : GET_CLINICS,
+        ),
         variables: clinicId ? { clinicId } : {},
       }),
     });
@@ -49,7 +60,9 @@ export async function fetchMembers(
     const result = await response.json();
     const members: unknown = clinicId
       ? result.data?.getClinicDoctors
-      : result.data?.getClinics;
+      : directory === 'doctors'
+        ? result.data?.getDoctors
+        : result.data?.getClinics;
     if (result.errors?.length || !Array.isArray(members))
       throw new Error('GraphQL error');
     return members.filter(

@@ -70,6 +70,12 @@ API/database integration is not yet verified.
   public GraphQL queries. Ratings are marked coming soon. The current API returns
   at most 100 clinics; search covers those results. Mocked rendering and production
   HTTP checks passed; browser interaction and live backend integration are unverified.
+- **Next.js doctors page:** `/doctors` renders doctor cards with name/specialization
+  search, photo fallback, and loading/empty/error states. Its `getDoctors` backend
+  query is pending implementation on the backend branch, so live doctor listing
+  is unavailable with the current backend. Ratings, profile pages, and pagination
+  remain pending. Frontend mocked checks and production page HTTP checks passed;
+  browser interaction and live database integration are unverified.
 - **Next.js sign-in and signup:** `/auth` switches forms in place, validates patient
   signup, provides password eye controls, and calls the existing REST endpoints.
   Client sessions stay in memory until reload/expiry; local sign-out is available.

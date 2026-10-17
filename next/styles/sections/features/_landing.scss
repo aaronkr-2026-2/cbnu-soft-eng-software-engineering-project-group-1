@@ -758,6 +758,18 @@
       max-width: 31ch;
     }
   }
+  @media (min-width: 48.001rem) and (max-width: 64rem) {
+    .header-inner {
+      gap: 0.75rem;
+    }
+    .desktop-navigation {
+      gap: 0.6rem;
+      a {
+        font-size: 0.8rem;
+        white-space: nowrap;
+      }
+    }
+  }
   @media (max-width: 48rem) {
     .header-inner {
       min-height: 74px;
