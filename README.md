@@ -1,14 +1,21 @@
 # MedConnect
 
+<p align="center">
+  <img src="next/public/logo.png" alt="MedConnect logo" width="480" />
+</p>
+
 MedConnect is a healthcare appointment platform for patients, doctors, and clinics.
 It brings booking information and appointment statuses into one place, reducing
 reliance on phone calls and scattered messages.
 
-The backend uses NestJS, TypeScript, MongoDB/Mongoose, and GraphQL, with REST for
-member authentication and existing appointment routes. A React/Vite frontend lives
-in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
+The backend lives in `backend/` and uses NestJS, TypeScript, MongoDB/Mongoose, and
+GraphQL, with REST for member authentication and existing appointment routes.
+See this README's [backend setup](#requirements-and-quick-start) and
+[API documentation](#api-documentation-and-status) for backend instructions.
+A React/Vite frontend lives in `frontend/`; see its [README](frontend/README.md)
+for frontend instructions.
 A separate Next.js frontend is being prepared in `next/` using Yarn; see its
-[setup and current limitations](next/README.md). Its root landing page uses MUI,
+[README](next/README.md) for setup and current limitations. Its root landing page uses MUI,
 shared brand styles, and public GraphQL clinic/doctor discovery with search and
 retry states. `/auth` provides email/password sign-in and patient signup in one
 page, with in-memory sessions and a Google Identity Services callback flow. Booking

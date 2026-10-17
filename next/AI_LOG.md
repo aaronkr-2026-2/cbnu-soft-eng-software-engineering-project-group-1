@@ -339,3 +339,24 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. The sandbox listener restriction was resolved with an authorized escalated test run and was not treated as an application defect.
 
 **One decision I can explain without AI:** I enforce approved, active doctor visibility in Nest so public clients receive the same filtered directory regardless of how they render it.
+
+
+## Root README logo — 2026-10-18
+
+**Tool(s) used:** Codex, shell/Python checks, and apply_patch.
+
+**What I asked for:** Add the project logo shown in the Next.js README to the root README.
+
+**Pre-planning:** I checked the existing README logo markup, source asset, repository state, and Next.js documentation instructions.
+
+**Planning:** I reused the centered 480px presentation with a path relative to the root README.
+
+**Implementation process:** I added the image to `README.md` and updated the continuity records. Markup comparison, image-path existence, PNG signature, and whitespace checks passed. Application tests were not run for this documentation-only change.
+
+**What I kept as-is:** I preserved the existing logo asset, Next.js README, and application code.
+
+**What I changed or rejected, and why:** I changed the image path to `next/public/logo.png` so it resolves from the repository root.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I reused the existing image instead of duplicating it so both READMEs share the same logo.
