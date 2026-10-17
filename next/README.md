@@ -91,6 +91,22 @@ text. Image values should be browser-loadable URLs or public paths. The componen
 does not fetch data or calculate ratings. Shared SCSS is already loaded globally.
 The card is used by `/clinics`; backend ratings remain pending.
 
+## Reusable doctor card
+
+`components/doctors/DoctorCard.tsx` accepts `doctor: PublicMember`, optional
+`clinicName` supplied by the caller, and optional `onViewProfile(doctor)`. It shows
+the doctor's full name (falling back to nickname), photo, readable specializations,
+optional clinic name and bio, and empty stars labeled “Ratings coming soon.”
+Missing or failed photos use `/images/users/defaultUser.svg`; absent specializations
+show “Specialization not listed.” Image values should be browser-loadable URLs or
+public paths. The profile button appears only when its callback is provided.
+
+The card owns presentation only; API requests and navigation stay with its caller.
+Shared styles are loaded globally. It is not yet used by a route or dialog;
+the doctors page and backend ratings remain pending. Typecheck/build and a
+server-render smoke check passed. Visual layout, image-error transitions, and
+callback interaction were not verified in a browser.
+
 ## Clinics page
 
 `pages/clinics.tsx` composes `components/clinics/ClinicsPage.tsx`. Open

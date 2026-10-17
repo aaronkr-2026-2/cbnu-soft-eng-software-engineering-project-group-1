@@ -299,3 +299,23 @@
 **Something the AI got wrong that I had to catch:** The AI's source review caught duplicate component props and an invalid anchor prop introduced by its extraction script; it corrected them before successful typecheck/build. An initial HTTP-check assertion also assumed a title tag without Next-generated attributes; parsing the tag fixed the harness. No owner correction was recorded.
 
 **One decision I can explain without AI:** I keep public API fetching in the existing hook and helper while the page handles search and layout, so the card stays reusable.
+
+## Reusable doctor card — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, Yarn, and a temporary in-memory React server-render smoke check.
+
+**What I asked for:** Create the doctor card first and leave the doctors page for later.
+
+**Pre-planning:** I reviewed Next instructions and continuity, current clinic-card/API fields and styles, available default images, installed Next public-file guidance, and the reference DoctorCard.
+
+**Planning:** I followed the clinic-card presentation pattern, used existing doctor fields and defaultUser.svg, and left fetching/navigation with future callers.
+
+**Implementation process:** I added DoctorCard, globally loaded scoped SCSS, and README usage. Typecheck and production build passed. Server rendering passed for populated/minimal doctor data, name precedence, specialization formatting, fallback image, and optional-action markup. Browser visuals, image-error transitions, and callback interactions remain unverified; preceding browser discovery was empty.
+
+**What I kept as-is:** I preserved existing routes, the doctor dialog, backend/API contracts, dependencies, and image assets.
+
+**What I changed or rejected, and why:** I used the doctor's full name or nickname instead of the clinic-oriented name helper, accepted clinic name as caller context, and kept ratings as a labeled placeholder. I included an optional profile callback without inventing a destination route.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I keep API requests out of the card so the future doctors page and other screens can supply data without duplicate fetches.
