@@ -65,6 +65,11 @@ API/database integration is not yet verified.
   doctor previews, a care guide, and upcoming-portal information. Public discovery
   uses existing GraphQL operations; successful real API integration is unverified.
   Booking is marked coming soon. See [Next.js setup](next/README.md).
+- **Next.js clinics page:** `/clinics` displays reusable image/name/address cards,
+  local search, loading/empty/error states, and doctor previews through existing
+  public GraphQL queries. Ratings are marked coming soon. The current API returns
+  at most 100 clinics; search covers those results. Mocked rendering and production
+  HTTP checks passed; browser interaction and live backend integration are unverified.
 - **Next.js sign-in and signup:** `/auth` switches forms in place, validates patient
   signup, provides password eye controls, and calls the existing REST endpoints.
   Client sessions stay in memory until reload/expiry; local sign-out is available.

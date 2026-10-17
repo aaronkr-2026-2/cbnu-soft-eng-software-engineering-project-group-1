@@ -89,7 +89,27 @@ address, and noninteractive empty stars labeled “Ratings coming soon.” Missi
 or failed images use `/images/clinics/defaultClinic.png`; absent addresses show explicit fallback
 text. Image values should be browser-loadable URLs or public paths. The component
 does not fetch data or calculate ratings. Shared SCSS is already loaded globally.
-The landing directory is unchanged; `/clinics` and backend ratings remain pending.
+The card is used by `/clinics`; backend ratings remain pending.
+
+## Clinics page
+
+`pages/clinics.tsx` composes `components/clinics/ClinicsPage.tsx`. Open
+[/clinics](http://localhost:3000/clinics) or use the site's Find a clinic links.
+The page reuses `useMembers` and the existing public `getClinics` GraphQL query,
+rendering a responsive three/two/one-column card grid. Search matches clinic names
+and addresses in the returned records. Loading skeletons, empty/no-match states,
+clear-search and retry controls are included. View doctors opens the shared
+`DoctorsDialog`, which calls `getClinicDoctors` for that clinic.
+
+The existing backend returns at most 100 clinics; a notice appears when the
+returned list reaches that limit. Search only covers that returned list. Backend
+pagination and rating support remain pending. No sample clinics are shipped.
+`components/layout/SiteHeader.tsx` and `SiteFooter.tsx` are shared with the landing
+page, preserving its mobile menu and sign-in/sign-out behavior.
+
+Typecheck/build, eight mocked rendering scenarios, and production HTTP checks for
+the route, homepage links, and default image passed. Browser visual/interaction
+checks were unavailable; successful live Nest/database integration is unverified.
 
 ## Sign in and patient signup
 

@@ -1,20 +1,17 @@
-import { useState } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
-import { clearSession, useSession } from '../../libs/auth-session';
-import { Button, Chip, Collapse, IconButton } from '@mui/material';
+import { Button, Chip } from '@mui/material';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import ArrowOutwardRounded from '@mui/icons-material/ArrowOutwardRounded';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import CheckRounded from '@mui/icons-material/CheckRounded';
-import CloseRounded from '@mui/icons-material/CloseRounded';
 import EventAvailableOutlined from '@mui/icons-material/EventAvailableOutlined';
 import FavoriteBorderRounded from '@mui/icons-material/FavoriteBorderRounded';
 import LocalHospitalOutlined from '@mui/icons-material/LocalHospitalOutlined';
-import MenuRounded from '@mui/icons-material/MenuRounded';
 import PeopleOutlineRounded from '@mui/icons-material/PeopleOutlineRounded';
 import ScheduleRounded from '@mui/icons-material/ScheduleRounded';
 import { ClinicDirectory } from './ClinicDirectory';
+import { SiteHeader } from '../layout/SiteHeader';
+import { SiteFooter } from '../layout/SiteFooter';
 
 const steps = [
   {
@@ -36,20 +33,6 @@ const steps = [
     text: 'Create your patient account and keep exploring. Online appointment booking is coming soon.',
   },
 ];
-
-function Brand() {
-  return (
-    <a className="brand" href="#top" aria-label="MedConnect home">
-      <Image
-        src="/logo.png"
-        alt="MedConnect"
-        width={200}
-        height={74}
-        priority
-      />
-    </a>
-  );
-}
 
 function AppointmentIllustration() {
   return (
@@ -125,81 +108,12 @@ function AppointmentIllustration() {
 }
 
 export function LandingPage() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const session = useSession();
   return (
     <div className="landing site-shell" id="top">
       <a className="skip-link" href="#main">
         Skip to content
       </a>
-      <header className="landing-header">
-        <div className="container header-inner">
-          <Brand />
-          <nav className="desktop-navigation" aria-label="Main navigation">
-            <a href="#clinics">Find a clinic</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#your-care">Your care</a>
-          </nav>
-          <div className="header-actions">
-            <span className="sign-in-wrap">
-              {session ? (
-                <Button onClick={clearSession}>Sign out</Button>
-              ) : (
-                <Button component={Link} href="/auth">
-                  Sign in
-                </Button>
-              )}
-            </span>
-            <Button
-              variant="contained"
-              href="#clinics"
-              endIcon={<ArrowOutwardRounded />}
-            >
-              Find care
-            </Button>
-          </div>
-          <IconButton
-            className="mobile-menu-toggle"
-            aria-label={menuOpen ? 'Close navigation' : 'Open navigation'}
-            aria-expanded={menuOpen}
-            aria-controls="mobile-navigation"
-            onClick={() => setMenuOpen(!menuOpen)}
-          >
-            {menuOpen ? <CloseRounded /> : <MenuRounded />}
-          </IconButton>
-        </div>
-        <Collapse in={menuOpen}>
-          <nav
-            id="mobile-navigation"
-            className="mobile-navigation"
-            aria-label="Mobile navigation"
-          >
-            <a href="#clinics" onClick={() => setMenuOpen(false)}>
-              Find a clinic
-            </a>
-            <a href="#how-it-works" onClick={() => setMenuOpen(false)}>
-              How it works
-            </a>
-            <a href="#your-care" onClick={() => setMenuOpen(false)}>
-              Your care
-            </a>
-            {session ? (
-              <Button
-                onClick={() => {
-                  clearSession();
-                  setMenuOpen(false);
-                }}
-              >
-                Sign out
-              </Button>
-            ) : (
-              <Link href="/auth" onClick={() => setMenuOpen(false)}>
-                Sign in
-              </Link>
-            )}
-          </nav>
-        </Collapse>
-      </header>
+      <SiteHeader />
       <main id="main">
         <section className="landing-hero" aria-labelledby="hero-title">
           <div className="container hero-grid">
@@ -222,7 +136,8 @@ export function LandingPage() {
               </p>
               <div className="hero-actions">
                 <Button
-                  href="#clinics"
+                  component={Link}
+                  href="/clinics"
                   variant="contained"
                   endIcon={<ArrowForwardRounded />}
                 >
@@ -320,13 +235,13 @@ export function LandingPage() {
                   Appointment management and online booking are on the way.
                 </p>
               </div>
-              <a
-                href="#clinics"
+              <Link
+                href="/clinics"
                 className="care-panel-link"
                 aria-label="Explore clinics"
               >
                 <ArrowOutwardRounded />
-              </a>
+              </Link>
             </div>
           </div>
         </section>
@@ -336,7 +251,8 @@ export function LandingPage() {
             <h2>Let’s find your connection.</h2>
             <Button
               variant="contained"
-              href="#clinics"
+              component={Link}
+              href="/clinics"
               endIcon={<ArrowForwardRounded />}
             >
               Explore clinics
@@ -344,23 +260,7 @@ export function LandingPage() {
           </div>
         </section>
       </main>
-      <footer className="landing-footer">
-        <div className="container footer-main">
-          <div>
-            <Brand />
-            <p>Connecting people with their next step in care.</p>
-          </div>
-          <nav aria-label="Footer navigation">
-            <a href="#clinics">Clinics</a>
-            <a href="#how-it-works">How it works</a>
-            <a href="#your-care">Your care</a>
-          </nav>
-        </div>
-        <div className="container footer-bottom">
-          <span>© {new Date().getFullYear()} MedConnect</span>
-          <span>Care starts with a connection.</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

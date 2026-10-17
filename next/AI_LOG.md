@@ -279,3 +279,23 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** Files under public are referenced from the site root, so the image URL is /images/clinics/defaultClinic.png.
+
+## Clinics page — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, Yarn, temporary Node/React rendering harness, production HTTP checks, and browser discovery.
+
+**What I asked for:** Develop the clinics page using the clinic card.
+
+**Pre-planning:** I reviewed the Next instructions/session context, existing directory, API hook/query behavior, shared styles, router documentation, and the reference project's clinics route.
+
+**Planning:** I reused the existing public API flow and doctor dialog, shared the current navigation/footer, and kept backend ratings/pagination pending while making the 100-record cap visible.
+
+**Implementation process:** I added /clinics, its feature component and responsive styles, extracted shared header/footer and doctor dialog, and connected navigation. Typecheck/build, eight mocked rendering scenarios, and production HTTP checks for the page, homepage links, and default image passed. Browser discovery returned no browsers, so visual/interaction and live backend integration checks remain unverified. I stopped the preview server and updated both READMEs.
+
+**What I kept as-is:** I preserved backend queries, authentication/session behavior, the landing directory, existing card fallbacks, and dependencies.
+
+**What I changed or rejected, and why:** I made name/address search apply to returned clinics and showed a notice at 100 results instead of claiming the API provides unlimited records. Shared components keep navigation and doctor previews consistent.
+
+**Something the AI got wrong that I had to catch:** The AI's source review caught duplicate component props and an invalid anchor prop introduced by its extraction script; it corrected them before successful typecheck/build. An initial HTTP-check assertion also assumed a title tag without Next-generated attributes; parsing the tag fixed the harness. No owner correction was recorded.
+
+**One decision I can explain without AI:** I keep public API fetching in the existing hook and helper while the page handles search and layout, so the card stays reusable.
