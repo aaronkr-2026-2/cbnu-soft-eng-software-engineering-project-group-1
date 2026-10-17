@@ -20,6 +20,30 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
   const logger = { log: jest.fn(), error: jest.fn() };
   const id = new Types.ObjectId();
   let member: Record<string, unknown>;
+  let directoryMembers: Record<string, unknown>[];
+  const selectPublicFields = jest.fn();
+  const find = jest.fn((filter: Record<string, unknown>) => {
+    let fields: Record<string, number> = {};
+    let limit = Infinity;
+    const chain = {
+      select: (projection: Record<string, number>) => {
+        selectPublicFields(projection);
+        fields = projection;
+        return chain;
+      },
+      sort: () => chain,
+      limit: (value: number) => {
+        limit = value;
+        return chain;
+      },
+      lean: () => chain,
+      exec: async () => directoryMembers
+        .filter((record) => Object.entries(filter).every(([key, value]) => (value instanceof Types.ObjectId ? value.equals(record[key] as Types.ObjectId) : record[key] === value)))
+        .slice(0, limit)
+        .map((record) => Object.fromEntries(Object.entries(record).filter(([key]) => fields[key] === 1))),
+    };
+    return chain;
+  });
   const findOne = jest.fn((filter: Record<string, unknown>) => {
     const types = filter.memberType as { $in: string[] };
     const matches =
@@ -55,7 +79,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
         MemberService,
         GoogleAuthService,
         MemberResolver,
-        { provide: getModelToken(MEMBER), useValue: { findOne } },
+        { provide: getModelToken(MEMBER), useValue: { findOne, find } },
       ],
     }).compile();
     app = fixture.createNestApplication();
@@ -72,6 +96,8 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
 
   beforeEach(() => {
     findOne.mockClear();
+    find.mockClear();
+    selectPublicFields.mockClear();
     logger.log.mockClear();
     logger.error.mockClear();
     member = {
@@ -95,6 +121,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       deletedAt: null,
       __v: 0,
     };
+    directoryMembers = [member];
   });
   afterAll(async () => app.close());
 
@@ -178,6 +205,86 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
   it('does not expose a REST member lookup route', async () => {
     await request(app.getHttpServer()).get(`/member/${id}`).expect(404);
     expect(findOne).not.toHaveBeenCalled();
+  });
+
+  it('lists only active approved nondeleted doctors with public fields', async () => {
+    directoryMembers.push(
+      { ...member, memberType: 'USER' },
+      { ...member, memberType: 'CLINIC' },
+      { ...member, memberType: 'ADMIN' },
+      { ...member, memberStatus: 'SUSPENDED' },
+      { ...member, memberStatus: 'DELETED' },
+      { ...member, deletedAt: new Date() },
+      { ...member, doctorClinicStatus: 'PENDING' },
+      { ...member, doctorClinicStatus: 'REJECTED' },
+      { ...member, doctorClinicStatus: 'REMOVED' },
+    );
+    const result = await request(app.getHttpServer()).post('/graphql').send({
+      query: '{ getDoctors { _id memberNick memberFullName memberImage doctorSpecializations } }',
+    }).expect(200);
+    expect(result.body.errors).toBeUndefined();
+    expect(result.body.data.getDoctors).toEqual([{
+      _id: String(id),
+      memberNick: 'doctor',
+      memberFullName: 'Example Doctor',
+      memberImage: '',
+      doctorSpecializations: ['DENTIST'],
+    }]);
+    expect(find).toHaveBeenCalledWith({
+      memberType: 'DOCTOR', memberStatus: 'ACTIVE', deletedAt: null,
+      doctorClinicStatus: 'APPROVED',
+    });
+    for (const field of ['memberPassword', 'memberEmail', 'memberPhone', 'professionalLicenseNumber']) {
+      expect(selectPublicFields.mock.calls[0][0]).not.toHaveProperty(field);
+    }
+    expect(result.headers['cache-control']).toBe('no-store');
+  });
+
+  it('preserves clinic discovery alongside the doctor directory', async () => {
+    const clinic = { ...member, _id: new Types.ObjectId(), memberType: 'CLINIC', clinicName: 'Example Clinic' };
+    directoryMembers.push(clinic, { ...clinic, memberStatus: 'SUSPENDED' }, { ...clinic, deletedAt: new Date() });
+    const result = await request(app.getHttpServer()).post('/graphql').send({
+      query: '{ getClinics { _id clinicName } getDoctors { _id } }',
+    }).expect(200);
+    expect(result.body.errors).toBeUndefined();
+    expect(result.body.data.getClinics).toEqual([{ _id: String(clinic._id), clinicName: 'Example Clinic' }]);
+    expect(result.body.data.getDoctors).toEqual([{ _id: String(id) }]);
+  });
+
+  it('preserves approved doctor filtering by clinic', async () => {
+    directoryMembers.push(
+      { ...member, clinicId: new Types.ObjectId() },
+      { ...member, doctorClinicStatus: 'PENDING' },
+      { ...member, memberStatus: 'SUSPENDED' },
+      { ...member, deletedAt: new Date() },
+    );
+    const result = await request(app.getHttpServer()).post('/graphql').send({
+      query: 'query($clinicId: ID!) { getClinicDoctors(clinicId: $clinicId) { _id } }',
+      variables: { clinicId: String(member.clinicId) },
+    }).expect(200);
+    expect(result.body.errors).toBeUndefined();
+    expect(result.body.data.getClinicDoctors).toEqual([{ _id: String(id) }]);
+    expect(find).toHaveBeenCalledWith({
+      memberType: 'DOCTOR', memberStatus: 'ACTIVE', deletedAt: null,
+      doctorClinicStatus: 'APPROVED', clinicId: new Types.ObjectId(String(member.clinicId)),
+    });
+  });
+
+  it('rejects invalid clinic IDs before querying persistence', async () => {
+    const result = await request(app.getHttpServer()).post('/graphql').send({
+      query: '{ getClinicDoctors(clinicId: "invalid-id") { _id } }',
+    }).expect(200);
+    expect(result.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
+    expect(find).not.toHaveBeenCalled();
+  });
+
+  it('caps the public doctor directory at 100 records', async () => {
+    directoryMembers = Array.from({ length: 101 }, () => ({ ...member, _id: new Types.ObjectId() }));
+    const result = await request(app.getHttpServer()).post('/graphql').send({
+      query: '{ getDoctors { _id } }',
+    }).expect(200);
+    expect(result.body.errors).toBeUndefined();
+    expect(result.body.data.getDoctors).toHaveLength(100);
   });
 
   it('does not expose private fields in the GraphQL schema', async () => {

@@ -20,4 +20,9 @@ export class MemberResolver {
   getClinicDoctors(@Args('clinicId', { type: () => ID }) clinicId: string) {
     return this.memberService.listClinicDoctors(clinicId);
   }
+
+  @Query(() => [Member])
+  getDoctors() {
+    return this.memberService.listDoctors();
+  }
 }

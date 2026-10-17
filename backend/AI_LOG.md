@@ -487,3 +487,34 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** I documented implemented frontend wiring separately from unverified provider/database completion, without claiming a successful live login.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. Native Chrome page capture limited verification; it was not classified as a backend defect.
 **One decision I can explain without AI:** I kept Google ID tokens distinct from MedConnect access tokens so only the backend's session authorizes application requests.
+## Apply saved doctor-directory API — 2026-10-17
+
+**Tool(s) used:** Codex, shell/Python, apply_patch, Git patch/source checks, npm/Nest build, and Jest/Supertest.
+
+**What I asked for:** Add the previously saved backend implementation on the backend branch.
+
+**Pre-planning:** I checked the branch, Git state, backend continuity/lessons and current member service/resolver against the preserved patch. This branch lacks the shared projection and clinic-discovery methods used as patch context.
+
+**Planning:** I adapted the saved doctor query to this branch, sharing getMember's unchanged public allowlist and applying the saved doctor tests without adding unrelated clinic endpoints.
+
+**Implementation process:** I added getDoctors/listDoctors and shared publicFields, applied two focused tests and their fixture, and updated README/architecture documentation. Backend build and all 13 focused member GraphQL tests passed with mocked persistence; whitespace passed. Live database and browser integration were not run.
+
+**What I kept as-is:** I preserved existing member lookup, authentication, private-field exclusions, frontend handoff files, and closed sprint history.
+
+**What I changed or rejected, and why:** I adapted the patch instead of assuming identical branch contents. The query returns up to 100 active, approved, nondeleted doctors in deterministic name/ID order.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. The patch compatibility check identified branch differences before application, which the AI handled explicitly.
+
+**One decision I can explain without AI:** I share the existing public-field allowlist so member lookup and the doctor directory expose the same approved profile fields.
+
+## Resolve main/backend discovery merge — 2026-10-18
+
+**Tool(s) used:** Codex, Git, shell/Python, Nest build, Jest/Supertest.
+**What I asked for:** Resolve the merge conflicts blocking the main/backend merge.
+**Pre-planning:** The ongoing merge conflicted in the member resolver, service, and this log; main added clinic discovery while backend added the doctor directory.
+**Planning:** Preserve both discovery APIs, the shared public projection, and both branches' historical log entries.
+**Implementation process:** Combined getClinics/getClinicDoctors with getDoctors and their service methods, retained both log histories, and corrected the README's outdated pending-doctor-API statement. Added three merge regression cases for combined discovery, clinic-scoped doctor filtering, and invalid clinic IDs; adapted the fixture to compare ObjectIds by value. Backend build and all 16 focused member GraphQL tests passed with mocked persistence. Live database/browser integration was not run. No sprint covers October 18; closed sprint records were preserved.
+**What I kept as-is:** Existing authentication, public projections, clinic ID validation, directory filters, sorting, limits, and unrelated merged changes.
+**What I changed or rejected, and why:** Kept both branches' independent APIs rather than choosing one side and losing discovery behavior.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Clinic-specific and global doctor discovery serve different callers, so both queries must survive the merge.

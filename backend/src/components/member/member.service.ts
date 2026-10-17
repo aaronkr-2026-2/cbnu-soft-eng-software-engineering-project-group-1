@@ -148,6 +148,23 @@ export class MemberService {
       .exec();
   }
 
+  async listDoctors(): Promise<MemberProfile[]> {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    return this.members
+      .find({
+        memberType: MemberType.DOCTOR,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+        doctorClinicStatus: DoctorClinicStatus.APPROVED,
+      })
+      .select(this.publicFields)
+      .sort({ memberFullName: 1, _id: 1 })
+      .limit(100)
+      .lean()
+      .exec();
+  }
+
   async authenticateAccessToken(token: string): Promise<MemberPrincipal> {
     let subject: string;
     try {
