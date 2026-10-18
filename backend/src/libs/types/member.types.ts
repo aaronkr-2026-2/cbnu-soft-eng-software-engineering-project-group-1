@@ -35,7 +35,10 @@ export interface GoogleIdentity {
   picture?: string;
 }
 
-export type MemberPrincipal = Pick<MemberEntity, '_id' | 'memberType' | 'authVersion'>;
+export type MemberPrincipal = Pick<
+  MemberEntity,
+  '_id' | 'memberType' | 'authVersion'
+>;
 
 export type MemberProfile = Pick<
   MemberEntity,
@@ -55,8 +58,13 @@ export type MemberProfile = Pick<
   | 'doctorSpecializations'
 >;
 
+export type MemberSelfProfile = MemberProfile &
+  Pick<MemberEntity, 'memberPhone' | 'memberEmail'> & {
+    canChangePassword: boolean;
+  };
+
 export type MemberUpdateResponse = {
-  member: MemberProfile & Pick<MemberEntity, 'memberPhone' | 'memberEmail'>;
+  member: MemberSelfProfile;
   requiresLogin: boolean;
   imageCleanupPending: boolean;
 };

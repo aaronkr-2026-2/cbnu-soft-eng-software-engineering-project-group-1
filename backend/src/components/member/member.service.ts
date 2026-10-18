@@ -27,6 +27,7 @@ import {
 import type {
   MemberAuthResponse,
   MemberUpdateResponse,
+  MemberSelfProfile,
   MemberDocument,
   MemberEntity,
   MemberPrincipal,
@@ -104,6 +105,45 @@ export class MemberService {
     doctorClinicStatus: 1,
     doctorSpecializations: 1,
   };
+
+  async myProfile(principal: MemberPrincipal): Promise<MemberSelfProfile> {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const member = await this.members
+      .findOne({
+        _id: principal._id,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select({
+        ...this.publicFields,
+        memberEmail: 1,
+        memberPhone: 1,
+        authProvider: 1,
+        authVersion: 1,
+      })
+      .lean()
+      .exec();
+    if (!member || (member.authVersion ?? 0) !== (principal.authVersion ?? 0))
+      throw new UnauthorizedException('Invalid access token');
+    return this.selfProfile(member);
+  }
+
+  private async selfProfile(member: MemberEntity): Promise<MemberSelfProfile> {
+    const profile = Object.fromEntries(
+      (Object.keys(this.publicFields) as (keyof MemberProfile)[]).map((key) => [
+        key,
+        member[key],
+      ]),
+    ) as MemberProfile;
+    const [hydrated] = await this.hydrateLocations([profile]);
+    return {
+      ...hydrated,
+      memberPhone: member.memberPhone ?? undefined,
+      memberEmail: member.memberEmail ?? undefined,
+      canChangePassword: member.authProvider === AuthProvider.EMAIL,
+    };
+  }
 
   async listDoctors(): Promise<MemberProfile[]> {
     if (!this.members)
@@ -350,16 +390,8 @@ export class MemberService {
         imageCleanupPending = true;
       }
     }
-    const profile = Object.fromEntries(
-      Object.keys(this.publicFields).map((key) => [key, saved.get(key)]),
-    ) as MemberProfile;
-    const [hydrated] = await this.hydrateLocations([profile]);
     return {
-      member: {
-        ...hydrated,
-        memberPhone: saved.memberPhone ?? undefined,
-        memberEmail: saved.memberEmail ?? undefined,
-      },
+      member: await this.selfProfile(saved),
       requiresLogin: changePassword,
       imageCleanupPending,
     };

@@ -162,6 +162,17 @@ no live database or frontend workplace-change workflow was exercised.
 
 ## Authenticated member updates
 
+`MemberResolver.myProfile(): MemberSelf!` is a guarded read for settings pages.
+It takes no target ID: MemberService reads the authenticated member's active,
+nondeleted record, rechecks authVersion, selects an explicit profile/contact allowlist,
+and hydrates doctor city from the current clinic. A shared selfProfile mapper supplies
+both this query and updateMember.member. Only MemberSelf exposes email/phone and
+canChangePassword (EMAIL provider); public Member schema/projections are unchanged.
+The capability flag is a UI hint; updateMember retains server-side enforcement.
+No password hash/provider identifiers/authVersion are returned. Existing GraphQL
+context sets no-store. Next.js may load settings with this query without expanding
+its basic identity session. Actual frontend wiring remains outside this backend task.
+
 `MemberResolver.updateMember(input: MemberUpdateInput!)` uses MemberAccessGuard and
 the authenticated principal, never a caller-supplied account ID. Input lives in
 `backend/src/libs/dto/member/member-update.input.ts`; MemberService owns profile,

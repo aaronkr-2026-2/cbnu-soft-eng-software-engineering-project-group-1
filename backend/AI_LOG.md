@@ -511,3 +511,16 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Excluded account ID/role/status/provider/email/clinic affiliation from generic edits. Only clinics edit clinic name/city. One member write applies all changes; authentication version invalidates old access and refresh credentials without a multi-collection transaction. Old owned attached files are deleted only after success; hidden markers remain to prevent retired-path reuse. Unused uploads, uncertain image claims, cleanup retries and frontend Save UI remain deferred.
 **Something the AI got wrong that I had to catch:** Build caught an initial service return type using the GraphQL DTO's string ID instead of the persistence ObjectId; introduced a service response type. Review also caught that the existing city validator needed the trusted query filter's memberType for update validation. Both were corrected before the passing final checks (B-005/B-006).
 **One decision I can explain without AI:** Store the new image path successfully before deleting the old file, so a rejected Save cannot remove the currently displayed image.
+
+
+## Add myProfile for Next.js settings — 2026-10-19
+
+**Tool(s) used:** Codex; repository inspection, apply_patch, Nest build, Oxlint, Jest/Supertest, Prettier, Git diff checks.
+**What I asked for:** Add authenticated myProfile with private contact information and canChangePassword for the Next.js settings page, preserving public member fields.
+**Pre-planning:** MemberSelf already served private update responses; public Member intentionally excludes email/phone. The update API allows password changes only for EMAIL accounts. Prior updateMember implementation was committed before this task.
+**Planning:** Reuse MemberSelf and a shared response mapper; derive the queried ID from the access guard, select only allowed profile/contact data plus internal capability/version inputs, and preserve existing doctor-city hydration.
+**Implementation process:** Added guarded no-argument myProfile, current-account/version recheck and private projection. Added canChangePassword to MemberSelf and persistence-aware service types; reused mapping for query/update responses. Updated README with the complete frontend query and architecture boundaries. Build passed; lint passed with existing empty config.ts warning; 73 focused profile/update E2E tests passed. Tests use simulated persistence; no live database/frontend check or full-suite rerun. No sprint covers October 19; closed history unchanged.
+**What I kept as-is:** Public Member/getMember/getDoctors fields, credential privacy, authentication/session checks, clinic-derived doctor city, and server-side password-change enforcement.
+**What I changed or rejected, and why:** Added an authenticated self-query instead of expanding public query contact fields or relying on stale frontend session identity. Capability is computed from the account provider and is a UI hint, not authorization.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Resolve the user from the authenticated token instead of accepting an ID, so the private profile endpoint cannot select someone else's account.

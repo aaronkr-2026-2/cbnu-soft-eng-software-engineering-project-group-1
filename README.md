@@ -19,6 +19,7 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - [Member authentication](#member-authentication-rest)
 - [Member profiles](#get-a-user-doctor-or-clinic-member)
 - [Image uploads](#image-uploads-graphql)
+- [My private profile](#my-private-profile-graphql)
 - [Update your member information](#update-your-member-information-graphql)
 - [Appointment lookup](#get-an-appointment)
 - [Appointment booking](#book-an-appointment)
@@ -43,6 +44,9 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   checks for protected appointment operations.
 - **Public member profiles:** GraphQL lookup for active USER, DOCTOR, and CLINIC
   members, with private contact and credential fields excluded.
+- **Private current-member profile:** Authenticated `myProfile` returns your profile,
+  email, phone, and `canChangePassword` for settings screens. Public queries retain
+  their existing fields.
 - **Clinic and doctor cities:** Clinics must select a city from MediBridge’s 10-city
   `Location` enum during signup. Doctor cities are derived from their current clinic
   in auth responses and public profiles, including the doctor directory.
@@ -448,6 +452,50 @@ curl http://localhost:3333/graphql \
 - Uploading returns URLs only; Save calls `updateMember` with the new `memberImage`.
   Browser upload/profile integration is pending. Upload only public images;
   these URLs are publicly readable and are not suitable for private medical records.
+
+## My private profile (GraphQL)
+
+The Next.js settings page can load the current account with a Bearer access token;
+no member ID argument is accepted:
+
+```graphql
+query MyProfile {
+  myProfile {
+    _id
+    memberType
+    memberStatus
+    memberNick
+    memberFullName
+    memberEmail
+    memberPhone
+    memberImage
+    memberAddress
+    memberDesc
+    clinicId
+    clinicName
+    clinicTimezone
+    doctorClinicStatus
+    doctorSpecializations
+    location
+    canChangePassword
+  }
+}
+```
+
+`myProfile: MemberSelf!` derives identity from the authenticated account and reads
+fresh profile data from the database. Doctor city remains derived from the current
+active clinic. Optional missing fields return `null`. `canChangePassword` is true
+for EMAIL accounts and false for Google/other providers, matching updateMember's
+password-change rule. The frontend can use it to show password controls; the server
+still enforces the rule during Save.
+
+Load this query when opening settings and refresh the displayed profile after Save.
+`updateMember.member` returns the same MemberSelf fields, including canChangePassword,
+so the frontend can also use that response immediately. Expired/revoked tokens and
+inactive/deleted accounts are rejected. Responses use `Cache-Control: no-store`.
+Public `getMember`/`getDoctors` do not expose email, phone, or canChangePassword.
+Neither self-profile operation exposes password hashes, provider IDs, authVersion,
+or tokens. Frontend wiring and live database integration were not verified here.
 
 ## Update your member information (GraphQL)
 

@@ -27,11 +27,12 @@ export class Member {
   doctorSpecializations?: DoctorSpecialization[];
 }
 
-// Contact fields are available only through the authenticated update response.
+// Private fields are available only through authenticated self-profile operations.
 @ObjectType()
 export class MemberSelf extends Member {
   @Field(() => String, { nullable: true }) memberPhone?: string;
   @Field(() => String, { nullable: true }) memberEmail?: string;
+  @Field(() => Boolean) canChangePassword: boolean;
 }
 
 @ObjectType()

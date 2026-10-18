@@ -5,12 +5,22 @@ import {
   type AuthenticatedRequest,
 } from '../auth/guards/member-access.guard.js';
 import { MemberUpdateInput } from '../../libs/dto/member/member-update.input.js';
-import { Member, MemberUpdateResult } from '../../libs/dto/member/member.js';
+import {
+  Member,
+  MemberSelf,
+  MemberUpdateResult,
+} from '../../libs/dto/member/member.js';
 import { MemberService } from './member.service.js';
 
 @Resolver(() => Member)
 export class MemberResolver {
   constructor(private readonly memberService: MemberService) {}
+
+  @UseGuards(MemberAccessGuard)
+  @Query(() => MemberSelf)
+  myProfile(@Context('req') request: AuthenticatedRequest) {
+    return this.memberService.myProfile(request.member);
+  }
 
   @UseGuards(MemberAccessGuard)
   @Mutation(() => MemberUpdateResult)

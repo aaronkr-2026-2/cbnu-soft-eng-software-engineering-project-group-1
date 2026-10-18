@@ -209,13 +209,11 @@ describe('updateMember GraphQL', () => {
     sessions.clear();
     conflict = false;
     updateWrite.mockClear();
-    token = await app
-      .get(JwtService)
-      .signAsync({
-        sub: String(owner._id),
-        tokenType: 'access',
-        authVersion: 0,
-      });
+    token = await app.get(JwtService).signAsync({
+      sub: String(owner._id),
+      tokenType: 'access',
+      authVersion: 0,
+    });
   });
   afterEach(async () => {
     jest.restoreAllMocks();
@@ -260,6 +258,147 @@ describe('updateMember GraphQL', () => {
     newPassword: nextPassword,
     confirmPassword: nextPassword,
   };
+
+  const myProfile = (
+    accessToken = token,
+    selection = '_id memberEmail memberPhone memberFullName memberNick memberImage memberAddress memberDesc location clinicId clinicName clinicTimezone doctorClinicStatus doctorSpecializations canChangePassword',
+  ) => {
+    let req = request(app.getHttpServer()).post('/graphql');
+    if (accessToken) req = req.set('Authorization', `Bearer ${accessToken}`);
+    return req.send({ query: `query { myProfile { ${selection} } }` });
+  };
+
+  it('loads only the authenticated account private profile and fresh saved fields', async () => {
+    rows.push(
+      new Member({
+        memberEmail: 'other@example.com',
+        memberPhone: '+821099998888',
+        memberNick: 'other',
+      }),
+    );
+    const response = await myProfile().expect(200);
+    expect(response.body.errors).toBeUndefined();
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.body.data.myProfile).toMatchObject({
+      _id: String(owner._id),
+      memberEmail: 'owner@example.com',
+      memberPhone: '+821012345678',
+      canChangePassword: true,
+    });
+    const saved = await update(
+      { memberFullName: 'Saved Name', memberPhone: '+821011112222' },
+      token,
+      'member { memberFullName memberPhone canChangePassword } requiresLogin',
+    );
+    expect(saved.body.errors).toBeUndefined();
+    expect(saved.body.data.updateMember.member.canChangePassword).toBe(true);
+    const fresh = await myProfile();
+    expect(fresh.body.data.myProfile).toMatchObject({
+      memberFullName: 'Saved Name',
+      memberPhone: '+821011112222',
+    });
+    const profile = await app
+      .get(MemberService)
+      .myProfile({
+        _id: owner._id,
+        memberType: owner.memberType,
+        authVersion: 0,
+      });
+    for (const key of [
+      'memberPassword',
+      'authProvider',
+      'authVersion',
+      'googleId',
+      'professionalLicenseNumber',
+    ])
+      expect(profile).not.toHaveProperty(key);
+    expect(updateWrite).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns false for Google password capability and nullable missing contacts', async () => {
+    owner.authProvider = AuthProvider.GOOGLE;
+    owner.memberPhone = undefined;
+    const response = await myProfile();
+    expect(response.body.errors).toBeUndefined();
+    expect(response.body.data.myProfile).toMatchObject({
+      memberPhone: null,
+      canChangePassword: false,
+    });
+    const saved = await update(
+      { memberFullName: 'Google Name' },
+      token,
+      'member { canChangePassword }',
+    );
+    expect(saved.body.errors).toBeUndefined();
+    expect(saved.body.data.updateMember.member.canChangePassword).toBe(false);
+  });
+
+  it.each(['missing', 'invalid', 'expired', 'revoked', 'suspended', 'deleted'])(
+    'protects myProfile against %s authentication',
+    async (condition) => {
+      let accessToken = token;
+      if (condition === 'missing') accessToken = '';
+      if (condition === 'invalid') accessToken = 'invalid';
+      if (condition === 'expired')
+        accessToken = await app
+          .get(JwtService)
+          .signAsync(
+            { sub: String(owner._id), tokenType: 'access', authVersion: 0 },
+            { expiresIn: -60 },
+          );
+      if (condition === 'revoked') owner.authVersion = 1;
+      if (condition === 'suspended')
+        owner.memberStatus = 'SUSPENDED' as MemberDocument['memberStatus'];
+      if (condition === 'deleted') owner.deletedAt = new Date();
+      expect(errorCode(await myProfile(accessToken))).toBe('UNAUTHENTICATED');
+      expect(updateWrite).not.toHaveBeenCalled();
+    },
+  );
+
+  it('hydrates a doctor private profile city from the current clinic', async () => {
+    const clinic = new Member({
+      memberType: 'CLINIC',
+      clinicName: 'Clinic',
+      location: 'BUSAN',
+    });
+    rows.push(clinic);
+    owner.memberType = MemberType.DOCTOR;
+    owner.clinicId = clinic._id;
+    owner.location = Location.SEOUL; // Ignore a stale independent doctor city.
+    expect((await myProfile()).body.data.myProfile.location).toBe('BUSAN');
+    clinic.location = Location.JEJU;
+    expect((await myProfile()).body.data.myProfile.location).toBe('JEJU');
+  });
+
+  it.each(['getMember(id: "507f1f77bcf86cd799439011")', 'getDoctors'])(
+    'keeps private fields out of public %s',
+    async (field) => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({
+          query: `query { ${field} { memberEmail memberPhone canChangePassword } }`,
+        });
+      expect(errorCode(response)).toBe('GRAPHQL_VALIDATION_FAILED');
+    },
+  );
+
+  it('does not accept a target ID or expose credentials through myProfile', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        query: 'query { myProfile(id: "507f1f77bcf86cd799439011") { _id } }',
+      });
+    expect(errorCode(response)).toBe('GRAPHQL_VALIDATION_FAILED');
+    expect(
+      errorCode(
+        await myProfile(
+          token,
+          'memberPassword authProvider authVersion googleId',
+        ),
+      ),
+    ).toBe('GRAPHQL_VALIDATION_FAILED');
+  });
 
   it('updates only the authenticated member and returns private self fields', async () => {
     const other = new Member({ memberNick: 'other' });
@@ -402,13 +541,11 @@ describe('updateMember GraphQL', () => {
     expect(
       errorCode(await update({ memberFullName: 'Legacy' }, legacy)),
     ).toBeUndefined();
-    const malformed = await app
-      .get(JwtService)
-      .signAsync({
-        sub: String(owner._id),
-        tokenType: 'access',
-        authVersion: '0',
-      });
+    const malformed = await app.get(JwtService).signAsync({
+      sub: String(owner._id),
+      tokenType: 'access',
+      authVersion: '0',
+    });
     expect(
       errorCode(await update({ memberFullName: 'Changed' }, malformed)),
     ).toBe('UNAUTHENTICATED');
@@ -443,13 +580,11 @@ describe('updateMember GraphQL', () => {
       __v: 0,
     });
     rows.push(owner);
-    token = await app
-      .get(JwtService)
-      .signAsync({
-        sub: String(owner._id),
-        tokenType: 'access',
-        authVersion: 0,
-      });
+    token = await app.get(JwtService).signAsync({
+      sub: String(owner._id),
+      tokenType: 'access',
+      authVersion: 0,
+    });
     const doctor = await update({ memberFullName: 'Doctor Name' });
     expect(doctor.body.errors).toBeUndefined();
     expect(doctor.body.data.updateMember.member.location).toBe('BUSAN');
