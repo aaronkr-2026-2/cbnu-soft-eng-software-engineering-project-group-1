@@ -15,6 +15,7 @@ interface Props {
   helperText?: string;
   disabled?: boolean;
   maxLength: number;
+  required?: boolean;
 }
 
 export function PasswordField(props: Props) {
@@ -24,7 +25,7 @@ export function PasswordField(props: Props) {
     <TextField
       {...field}
       name={props.id}
-      required
+      required={props.required ?? true}
       fullWidth
       type={visible ? 'text' : 'password'}
       slotProps={{
@@ -35,7 +36,9 @@ export function PasswordField(props: Props) {
               <IconButton
                 edge="end"
                 disabled={props.disabled}
-                aria-label={`${visible ? 'Hide' : 'Show'} ${props.label.toLowerCase()}`}
+                aria-label={`${
+                  visible ? 'Hide' : 'Show'
+                } ${props.label.toLowerCase()}`}
                 aria-pressed={visible}
                 aria-controls={props.id}
                 onMouseDown={(event) => event.preventDefault()}

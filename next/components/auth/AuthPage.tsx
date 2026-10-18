@@ -197,6 +197,9 @@ export function AuthPage() {
           Back to home
         </Link>
         <div className="auth-form-container">
+          {router.query.passwordChanged === '1' && (
+            <Alert severity="success">Password updated. Please sign in with your new password.</Alert>
+          )}
           <span className="auth-eyebrow">
             {signup ? 'YOUR CARE JOURNEY STARTS HERE' : 'GOOD TO SEE YOU AGAIN'}
           </span>

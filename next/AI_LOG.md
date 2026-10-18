@@ -339,3 +339,23 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. The sandbox listener restriction was resolved with an authorized escalated test run and was not treated as an application defect.
 
 **One decision I can explain without AI:** I enforce approved, active doctor visibility in Nest so public clients receive the same filtered directory regardless of how they render it.
+
+## Inline My Page profile editing — 2026-10-19
+
+**Tool(s) used:** Codex, local source inspection, TypeScript, Next.js Webpack build, Node test runner, Nest GraphQL schema factory, and Chrome computer use.
+
+**What I asked for:** Recheck the newly added backend profile support and implement the proposed My Page flow if compatible.
+
+**Pre-planning:** I verified the backend branch's guarded myProfile, MemberSelf contact fields/canChangePassword, updateMember password/session rules, and authenticated multipart imageUploader. The Next branch's backend copy remains older. MediBridge PersonalInfo supplied the inline draft/edit interaction pattern.
+
+**Planning:** I kept the existing Pages Router, MUI styles, memory-only sessions, and fetch transport. Private profile documents stay separate from public member discovery. Password verification remains in Nest; images upload only on Save.
+
+**Implementation process:** I added /mypage, profile UI/form validation, private GraphQL documents and transport, desktop/mobile navigation, optional password controls, session-display updates, and a password-change sign-in notice. Save sends changed fields; Cancel resets drafts/passwords/images. Added ten focused tests and updated both READMEs. Typecheck and production builds passed, including a final build without fixture API settings. All three operations validated against the backend source-generated schema. Chrome with a disposable local fixture confirmed read-only/edit states, save with empty passwords, cancellation, bottom image controls, and reload sign-out. Fixture/preview servers were stopped and the temporary dependency symlink removed. Live Nest/database/storage, password-change browser submission, and mobile interaction remain unverified. No frontend sprint covers this date; no sprint was invented.
+
+**What I kept as-is:** Backend/frontend source, API ownership, public profile projections, Google sign-in, and session persistence/refresh scope. No dependencies, commits, or deployment were added.
+
+**What I changed or rejected, and why:** I used the backend's three password fields rather than MediBridge's separate login verification and password mutation shape. I added !/next/ to the Next worktree's root .gitignore because a shared local Git exclude hid all new Next source files; specific local-context/dependency ignores remain effective.
+
+**Something the AI got wrong that I had to catch:** TypeScript caught a missing JSX brace in the initial Avatar slotProps; it was fixed before verification. An older reference formatter could not parse the pre-existing satisfies expression in AuthPage; that file was left with its existing formatting. Initial checks from the repository root and sandbox-local server binding failed; checks were rerun from the package and previews ran with approved escalation.
+
+**One decision I can explain without AI:** I load private contact details through authenticated myProfile instead of adding them to public getMember, so the profile screen can edit account details without exposing them through discovery queries.
