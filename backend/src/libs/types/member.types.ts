@@ -35,7 +35,7 @@ export interface GoogleIdentity {
   picture?: string;
 }
 
-export type MemberPrincipal = Pick<MemberEntity, '_id' | 'memberType'>;
+export type MemberPrincipal = Pick<MemberEntity, '_id' | 'memberType' | 'authVersion'>;
 
 export type MemberProfile = Pick<
   MemberEntity,
@@ -54,3 +54,9 @@ export type MemberProfile = Pick<
   | 'doctorClinicStatus'
   | 'doctorSpecializations'
 >;
+
+export type MemberUpdateResponse = {
+  member: MemberProfile & Pick<MemberEntity, 'memberPhone' | 'memberEmail'>;
+  requiresLogin: boolean;
+  imageCleanupPending: boolean;
+};

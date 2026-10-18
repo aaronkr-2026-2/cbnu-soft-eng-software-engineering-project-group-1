@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MemberModule } from '../member/member.module.js';
 import { UploadResolver } from './upload.resolver.js';
-import { UploadService } from './upload.service.js';
+import { UploadStorageModule } from './upload-storage.module.js';
 
 @Module({
-  imports: [MemberModule],
-  providers: [UploadResolver, UploadService],
+  imports: [MemberModule, UploadStorageModule],
+  providers: [UploadResolver],
 })
 export class UploadModule {}

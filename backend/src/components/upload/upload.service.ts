@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, rename, rm } from 'node:fs/promises';
+import { lstat, mkdir, open, rename, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -23,14 +23,18 @@ export class UploadService {
   async imageUploader(
     file: Promise<FileUpload>,
     target: string,
+    ownerId: string,
   ): Promise<string> {
-    return (await this.imagesUploader([file], target))[0];
+    return (await this.imagesUploader([file], target, ownerId))[0];
   }
 
   async imagesUploader(
     files: Promise<FileUpload>[],
     target: string,
+    ownerId: string,
   ): Promise<string[]> {
+    if (!/^[a-f0-9]{24}$/.test(ownerId))
+      throw new BadRequestException('Invalid upload owner');
     if (!['member', 'clinic'].includes(target))
       throw new BadRequestException('Invalid upload target');
     if (!files.length || files.length > MAX_UPLOAD_FILES)
@@ -38,7 +42,8 @@ export class UploadService {
     const saved: string[] = [];
     try {
       // Sequential writes bound memory and allow complete cleanup on failure.
-      for (const file of files) saved.push(await this.save(await file, target));
+      for (const file of files)
+        saved.push(await this.save(await file, target, ownerId));
       return saved;
     } catch (error) {
       await Promise.all(
@@ -52,13 +57,73 @@ export class UploadService {
     }
   }
 
-  private async save(file: FileUpload, target: string): Promise<string> {
+  private ownedPath(
+    url: string,
+    ownerId: string,
+    target: string,
+  ): string | undefined {
+    const match =
+      /^\/uploads\/(member|clinic)\/([a-f0-9]{24})\/([a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.(?:png|jpg|webp))$/.exec(
+        url,
+      );
+    if (!match || match[1] !== target || match[2] !== ownerId) return undefined;
+    return resolve(uploadDirectory(), match[1], match[2], match[3]);
+  }
+
+  private marker(path: string): string {
+    const index = path.lastIndexOf('/');
+    return path.slice(0, index + 1) + '.' + path.slice(index + 1) + '.attached';
+  }
+
+  async claimProfileImage(
+    url: string,
+    ownerId: string,
+    target: string,
+  ): Promise<() => Promise<void>> {
+    const path = this.ownedPath(url, ownerId, target);
+    if (!path)
+      throw new BadRequestException('Choose an image uploaded by this account');
+    try {
+      if (!(await lstat(path)).isFile()) throw new Error('Not a file');
+      // An exclusive persistent marker prevents adoption/deletion races and reuse of retired images.
+      const handle = await open(this.marker(path), 'wx', 0o600);
+      await handle.close();
+    } catch {
+      throw new BadRequestException(
+        'Image is missing or has already been saved',
+      );
+    }
+    return () => rm(this.marker(path), { force: true });
+  }
+
+  async deletePreviousProfileImage(
+    url: string,
+    ownerId: string,
+    target: string,
+  ): Promise<void> {
+    const path = this.ownedPath(url, ownerId, target);
+    if (!path) return; // External URLs and legacy uploads have no proven ownership.
+    try {
+      await lstat(this.marker(path));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+    await rm(path, { force: true });
+    // Keep the hidden marker: this retired URL must never be claimed again.
+  }
+
+  private async save(
+    file: FileUpload,
+    target: string,
+    ownerId: string,
+  ): Promise<string> {
     const extension = Object.hasOwn(extensions, file.mimetype)
       ? extensions[file.mimetype]
       : undefined;
     if (!file.filename || !extension)
       throw new BadRequestException('Provide a PNG, JPEG, or WebP image');
-    const directory = resolve(uploadDirectory(), target);
+    const directory = resolve(uploadDirectory(), target, ownerId);
     await mkdir(directory, { recursive: true });
     const name = randomUUID() + extension;
     const destination = resolve(directory, name);
@@ -100,7 +165,7 @@ export class UploadService {
           'Image content does not match its format',
         );
       await rename(temporary, destination);
-      return `/uploads/${target}/${name}`;
+      return `/uploads/${target}/${ownerId}/${name}`;
     } catch (error) {
       await rm(temporary, { force: true });
       if (

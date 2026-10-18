@@ -19,6 +19,7 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - [Member authentication](#member-authentication-rest)
 - [Member profiles](#get-a-user-doctor-or-clinic-member)
 - [Image uploads](#image-uploads-graphql)
+- [Update your member information](#update-your-member-information-graphql)
 - [Appointment lookup](#get-an-appointment)
 - [Appointment booking](#book-an-appointment)
 - [GraphQL appointments](#graphql-appointments)
@@ -31,6 +32,10 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - **Member registration and login:** REST signup for USER, DOCTOR, and CLINIC
   accounts, password hashing, input validation, and JWT access tokens.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
+- **Member editing:** Authenticated GraphQL `updateMember` edits your profile/contact
+  fields, changes passwords with current-password verification and confirmation, and
+  saves uploaded profile images. Password changes invalidate existing sessions;
+  successful image replacement deletes the previous owned image.
 - **Google sign-in API:** Nonce-bound Google ID-token verification, automatic USER
   registration without phone/password, Google-name or unique fallback nicknames,
   and the existing access/refresh session contract. Browser UI integration is pending.
@@ -247,7 +252,8 @@ and stable across restarts. Startup rejects missing or short secrets.
   uses one batched clinic query. Legacy doctor city values are ignored.
   Missing/inactive/deleted clinics and legacy clinics without a city resolve to no
   city (`null` in GraphQL, omitted in auth JSON). No data migration, workplace-change
-  endpoint, city editing API, or browser integration is included in this change.
+  endpoint or browser integration is included. Clinics can edit their own city through
+  `updateMember`; doctors continue to inherit it.
 - `POST /member/login` accepts `memberEmail` and `memberPassword`, returning 200. Unknown accounts, wrong passwords, non-email accounts, and suspended or
   deleted accounts return the same 401 response. Email is trimmed and lowercased;
   passwords are preserved exactly.
@@ -432,14 +438,102 @@ curl http://localhost:3333/graphql \
   and file signatures are checked; this does not perform full image decoding or malware scanning.
 - Limits: 10 MB per file and 1–5 files per batch/request. Failed batches remove
   files already saved by that batch; failed writes remove temporary files.
-- Returned values are public relative URLs such as `/uploads/member/<uuid>.png`.
-  Fetch them from the API origin. Original filenames are not used as storage paths.
+- Returned values are public relative URLs such as `/uploads/member/<member-id>/<uuid>.png`.
+  The owner ID comes from authentication. Fetch them from the API origin. Original
+  filenames are not used as storage paths. Older flat upload URLs remain readable,
+  but cannot be newly assigned or automatically deleted without proven ownership.
 - Files are stored beneath `UPLOAD_DIR` (default `backend/uploads` when started
   from `backend/`). Temporary files are hidden from static serving. Persist this
   directory across releases; object storage and deletion/retention APIs are not implemented.
-- Uploading returns URLs only; it does not update `memberImage` or clinic records.
-  Profile editing/browser upload integration is pending. Upload only public images;
+- Uploading returns URLs only; Save calls `updateMember` with the new `memberImage`.
+  Browser upload/profile integration is pending. Upload only public images;
   these URLs are publicly readable and are not suitable for private medical records.
+
+## Update your member information (GraphQL)
+
+Use one authenticated mutation for profile edits and optional password changes:
+
+```graphql
+mutation UpdateMember($input: MemberUpdateInput!) {
+  updateMember(input: $input) {
+    member {
+      _id
+      memberFullName
+      memberNick
+      memberPhone
+      memberImage
+      location
+    }
+    requiresLogin
+    imageCleanupPending
+  }
+}
+```
+
+Send a Bearer access token. Example variables for a profile edit:
+
+```json
+{
+  "input": {
+    "memberFullName": "Example Name",
+    "memberPhone": "+821012345678"
+  }
+}
+```
+
+All fields are optional; omitted fields remain unchanged. Empty updates and explicit
+`null` values are rejected. Allowed fields are `memberFullName` (1–100 characters),
+`memberNick` (2–40, unique), `memberPhone` (international format, unique), `memberImage`,
+`memberAddress` (up to 300), and `memberDesc` (up to 2,000). Clinics may additionally
+edit `clinicName` (1–150) and `location` (Location enum). Empty address/description
+strings clear those fields. Account IDs, roles/status, email/provider, clinic affiliation,
+and approval fields are not editable. The authenticated account determines ownership.
+Phone changes update the stored contact; SMS verification is not implemented.
+
+To change an EMAIL account's password, include all three fields together, optionally
+alongside profile edits:
+
+```json
+{
+  "input": {
+    "currentPassword": "your current password",
+    "newPassword": "your replacement password",
+    "confirmPassword": "your replacement password"
+  }
+}
+```
+
+The current password is verified, the new pair must match, and the new password must
+be 8–100 characters. Password whitespace is preserved. Only its salted hash is stored;
+confirmation/current-password values are not saved. Google-only accounts can edit
+profiles but cannot set a local password here. Successful password changes increment
+the member's internal authentication version: existing access tokens and refresh
+sessions become unusable immediately. `requiresLogin: true` tells the frontend to
+clear its local session and show login. The API does not issue replacement tokens.
+Legacy credentials without a version remain valid only while the member version is zero.
+
+Image flow: choose → validate → `imageUploader` → Save through `updateMember`.
+Send the returned owner-scoped URL unchanged (`member` target for users/doctors,
+`clinic` for clinics). The backend checks ownership/file existence and claims the
+pending image before the database write. After successful Save it deletes only the
+previously attached owned local image. An unchanged URL keeps the current image;
+`memberImage: ""` removes it. External Google images and unowned legacy files are
+never deleted automatically. Hidden persistent attachment markers prevent reuse of
+retired URLs and are stored alongside the files; persist the entire `UPLOAD_DIR`.
+
+Validation failures save none of the requested member fields. One conditional MongoDB
+update applies profile/password changes; duplicate phone/nickname or concurrent saves
+return GraphQL `CONFLICT`. Known failed saves release the new image claim for retry
+and retain the old image. An unknown database write outcome conservatively retains
+the claim. If old-file deletion fails after Save, the member edit stays successful
+and `imageCleanupPending` is true. Unused uploads, retained markers, and cleanup retries
+are left for the deferred cleanup tool; no background cleanup/retry job is implemented.
+
+The response's `member` is an authenticated self-profile, including phone/email and
+clinic-derived doctor city. Public `getMember`/`getDoctors` continue to exclude contact
+and credential fields. Integration tests use real GraphQL validation, password helpers,
+and filesystem writes with simulated persistence; live database/browser flows remain
+unverified.
 
 ## Get an appointment
 

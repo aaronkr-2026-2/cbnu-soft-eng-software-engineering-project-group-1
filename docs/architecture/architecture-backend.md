@@ -44,7 +44,7 @@ flowchart TD
   Client[Axios API clients - integration incomplete]
   REST[Nest REST controllers]
   GQL[Apollo GraphQL resolvers]
-  Guard[MemberAccessGuard - protected appointments and uploads]
+  Guard[MemberAccessGuard - protected appointments, uploads and member edits]
   Upload[UploadService - public member and clinic images]
   Images[(Local upload directory)]
   Member[MemberService]
@@ -59,13 +59,15 @@ flowchart TD
   UI -->|In-process calls: auth payloads| Client
   Session -->|In-process read: access token| Client
   Client -->|HTTP REST: JSON and Bearer token; some paths mismatched| REST
-  GQL -->|In-process context: appointment or upload Bearer token| Guard
+  GQL -->|In-process context: appointment, upload or member edit Bearer token| Guard
   GQL -->|In-process call: validated upload streams and target| Upload
   Upload -->|Node filesystem streams: image bytes| Images
   REST -->|In-process request: appointment Bearer token| Guard
   Guard -->|In-process call: verify token and load principal| Member
   REST -->|In-process calls: signup, login, refresh| Member
   GQL -->|In-process call: public profile ID| Member
+  GQL -->|In-process call: own-account update input and principal| Member
+  Member -->|In-process call: claim new image and delete previous owned file after save| Upload
   REST -->|In-process call: issue sign-in nonce| Google
   Member -->|In-process call: verify Google ID token and browser nonce| Google
   Google -->|HTTPS: fetch public signing keys for local JWT verification| Provider
@@ -153,13 +155,56 @@ there is no city cache or duplicate city value to synchronize. A missing/unavail
 clinic or legacy clinic without a city yields an absent city (GraphQL null). Clinic
 responses use the clinic's stored city; USER responses do not expose legacy city data.
 
-No migration, workplace-change endpoint, city editing API, or directory city filter
+Clinics can edit their city through updateMember; doctor responses reflect it on the
+next read. No migration, workplace-change endpoint, or directory city filter
 is implemented. Tests change simulated persistence to verify affiliation/city changes;
 no live database or frontend workplace-change workflow was exercised.
 
+## Authenticated member updates
+
+`MemberResolver.updateMember(input: MemberUpdateInput!)` uses MemberAccessGuard and
+the authenticated principal, never a caller-supplied account ID. Input lives in
+`backend/src/libs/dto/member/member-update.input.ts`; MemberService owns profile,
+password, and session-version writes. The response is MemberUpdateResult with an
+authenticated MemberSelf (private contact fields), requiresLogin, and
+imageCleanupPending. Public Member fields remain unchanged.
+
+Allowed edits are name, nickname, phone, image, address and description; clinic name
+and city are clinic-only. Affiliation, approval, email/provider and role/status changes
+are outside this API. Password changes require currentPassword, newPassword and
+confirmPassword together, matching confirmation, existing length constraints and
+successful current-password verification. Google-only accounts cannot set a password.
+Only the new salted hash persists; logging excludes arguments and response data.
+
+All requested member changes use one conditional findOneAndUpdate with explicit
+allowlisted $set fields, runValidators, and an incremented __v. Snapshot/version
+conflicts and unique-index collisions return CONFLICT. The clinic-city schema validator
+reads the trusted memberType filter when running in Mongoose query context.
+Password changes also atomically increment hidden member authVersion; signed access
+tokens and refresh-session records carry the version. Current-member guard/refresh
+checks reject mismatches, including outstanding tokens/sessions. Missing legacy
+versions mean zero. The frontend must sign in again when requiresLogin is true.
+
+Image writes remain owned by UploadService. UploadStorageModule exports storage to
+MemberModule and UploadModule without an authentication dependency/circular import.
+Uploads use authenticated owner directories. Before saving, MemberService claims an
+owned pending image with an exclusive hidden attachment marker. Conditional-write
+failures release the marker when the failure is known; uncertain database outcomes
+retain it for later reconciliation. A successful database write precedes deletion of
+the old owned attached file. Markers remain after deletion to prevent reattachment
+races. External/unowned legacy files are never deleted. Failed deletion preserves
+the successful update and sets imageCleanupPending; no automatic retry exists.
+Pending uploads, orphan claims, and retired markers await the deferred cleanup tool.
+
+Update/ownership/concurrency/session tests use real GraphQL, Mongoose document
+validation, password helpers and filesystem operations with simulated database writes.
+Actual MongoDB concurrent writes/indexes, browser Save integration and deployment
+remain unverified.
+
 ## Public image uploads
 
-`UploadModule` imports `MemberModule` for its exported access guard. `UploadResolver`
+`UploadModule` imports `MemberModule` for its exported access guard and
+`UploadStorageModule` for filesystem operations. `UploadResolver`
 exposes MediBridge-compatible `imageUploader(file: Upload!, target: String!): String!`
 and `imagesUploader(files: [Upload!]!, target: String!): [String!]!` mutations.
 `MemberAccessGuard` verifies the token and current account through `MemberService`;
@@ -167,14 +212,16 @@ and `imagesUploader(files: [Upload!]!, target: String!): [String!]!` mutations.
 `upload.http.ts` registers graphql-upload-ts multipart middleware at `/graphql`
 and Express static serving at `/uploads`; `main.ts` calls it before listening.
 
-Targets are restricted to member/clinic images. UploadService generates UUID names,
+Targets are restricted to member/clinic images, stored below authenticated owner IDs.
+UploadService generates UUID names,
 checks MIME types and PNG/JPEG/WebP signatures, streams to hidden temporary files,
 then publishes by rename. Limits are 10 MB/file and five files/request; failed writes
 and batches are cleaned up. Apollo CSRF protection stays enabled; clients send
 `Apollo-Require-Preflight: true`, which is allowed by CORS. These are public images,
 not protected medical documents. Signatures are checked without full decoding or
 malware scanning. `UPLOAD_DIR` defaults to `uploads` relative to the backend working
-directory. Persistent disk provisioning, quotas, retention/deletion, object storage,
+directory. Save-time deletion of previously attached owned profile images is implemented;
+persistent disk provisioning, quotas, unused-file cleanup/retry jobs, object storage,
 and browser/profile editing integration remain unimplemented.
 
 Upload HTTP tests use real multipart parsing and disk writes with mocked current-member

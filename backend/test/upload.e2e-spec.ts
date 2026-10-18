@@ -46,7 +46,7 @@ describe('GraphQL image uploads', () => {
             authenticateAccessToken: async (token: string) => {
               if (token !== 'valid')
                 throw new UnauthorizedException('Invalid access token');
-              return { _id: 'test-member', memberType: 'USER' };
+              return { _id: '507f1f77bcf86cd799439011', memberType: 'USER' };
             },
           },
         },
@@ -105,16 +105,16 @@ describe('GraphQL image uploads', () => {
     const response = await upload().expect(200);
     expect(response.body.errors).toBeUndefined();
     expect(response.body.data.imageUploader).toMatch(
-      /^\/uploads\/member\/[a-f0-9-]+\.png$/,
+      /^\/uploads\/member\/507f1f77bcf86cd799439011\/[a-f0-9-]+\.png$/,
     );
-    expect(await readdir(join(directory, 'member'))).toHaveLength(1);
+    expect(await readdir(join(directory, 'member', '507f1f77bcf86cd799439011'))).toHaveLength(1);
     const fetched = await request(app.getHttpServer())
       .get(response.body.data.imageUploader)
       .expect(200);
     expect(fetched.body).toEqual(png);
-    await writeFile(join(directory, 'member', '.pending.tmp'), png);
+    await writeFile(join(directory, 'member', '507f1f77bcf86cd799439011', '.pending.tmp'), png);
     await request(app.getHttpServer())
-      .get('/uploads/member/.pending.tmp')
+      .get('/uploads/member/507f1f77bcf86cd799439011/.pending.tmp')
       .expect(404);
   });
   it('preserves batch order and cleans all files when any image fails', async () => {
@@ -135,7 +135,7 @@ describe('GraphQL image uploads', () => {
       true,
     ).expect(200);
     expect(bad.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
-    expect(await readdir(join(directory, 'member'))).toEqual([]);
+    expect(await readdir(join(directory, 'member', '507f1f77bcf86cd799439011'))).toEqual([]);
   });
   it.each(['', 'invalid'])('rejects unauthorized token %j', async (token) => {
     const response = await upload([png], 'member', token).expect(200);
@@ -160,7 +160,7 @@ describe('GraphQL image uploads', () => {
   it('rejects oversized uploads and removes partial files', async () => {
     const response = await upload([Buffer.alloc(MAX_UPLOAD_SIZE + 1)]);
     expect(response.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
-    expect(await readdir(join(directory, 'member'))).toEqual([]);
+    expect(await readdir(join(directory, 'member', '507f1f77bcf86cd799439011'))).toEqual([]);
   });
   it('rejects more than five files', async () => {
     await upload(

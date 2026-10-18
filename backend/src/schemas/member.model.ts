@@ -23,6 +23,9 @@ const MemberSchema = new Schema({
     default: MemberStatus.ACTIVE,
   },
 
+  // Increment on password changes to invalidate access and refresh credentials.
+  authVersion: { type: Number, default: 0, min: 0, select: false },
+
   authProvider: {
     type: String,
     enum: Object.values(AuthProvider),
@@ -99,11 +102,11 @@ const MemberSchema = new Schema({
     },
     validate: {
       validator: function (
-        this: { memberType?: MemberType },
+        this: { memberType?: MemberType; getFilter?: () => { memberType?: MemberType } },
         value: string | null | undefined,
       ) {
         return value === undefined || (
-          (this.memberType === MemberType.CLINIC) &&
+          (this.memberType ?? this.getFilter?.().memberType) === MemberType.CLINIC &&
           Object.values(Location).includes(value as Location)
         );
       },

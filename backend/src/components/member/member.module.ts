@@ -18,6 +18,8 @@ import { MemberService } from './member.service.js';
 import { MemberResolver } from './member.resolver.js';
 import { GoogleAuthService } from '../auth/google-auth.service.js';
 
+import { UploadStorageModule } from '../upload/upload-storage.module.js';
+
 const mongoUri =
   process.env.MONGO_URI ??
   (process.env.NODE_ENV === 'production'
@@ -26,6 +28,7 @@ const mongoUri =
 
 @Module({
   imports: [
+    UploadStorageModule,
     ...(mongoUri
       ? [
           MongooseModule.forFeature([

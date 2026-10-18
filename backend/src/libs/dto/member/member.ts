@@ -26,3 +26,17 @@ export class Member {
   @Field(() => [DoctorSpecialization], { nullable: true })
   doctorSpecializations?: DoctorSpecialization[];
 }
+
+// Contact fields are available only through the authenticated update response.
+@ObjectType()
+export class MemberSelf extends Member {
+  @Field(() => String, { nullable: true }) memberPhone?: string;
+  @Field(() => String, { nullable: true }) memberEmail?: string;
+}
+
+@ObjectType()
+export class MemberUpdateResult {
+  @Field(() => MemberSelf) member: MemberSelf;
+  @Field(() => Boolean) requiresLogin: boolean;
+  @Field(() => Boolean) imageCleanupPending: boolean;
+}
