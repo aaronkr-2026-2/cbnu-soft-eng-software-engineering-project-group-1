@@ -17,6 +17,7 @@ import {
   MemberStatus,
   MemberType,
 } from '../../libs/enum/member.enum.js';
+import { Location } from '../../libs/enum/location.enum.js';
 import { MEMBER } from '../../schemas/member.model.js';
 import {
   MEMBER_SESSION,
@@ -79,7 +80,7 @@ export class MemberService {
       .lean()
       .exec();
     if (!member) throw new NotFoundException('Member not found');
-    return member;
+    return (await this.hydrateLocations([member]))[0];
   }
 
   private readonly publicFields = {
@@ -91,6 +92,7 @@ export class MemberService {
     memberImage: 1,
     memberAddress: 1,
     memberDesc: 1,
+    location: 1,
     clinicId: 1,
     clinicName: 1,
     clinicTimezone: 1,
@@ -101,7 +103,7 @@ export class MemberService {
   async listDoctors(): Promise<MemberProfile[]> {
     if (!this.members)
       throw new ServiceUnavailableException('Member lookup is unavailable');
-    return this.members
+    const doctors = await this.members
       .find({
         memberType: MemberType.DOCTOR,
         memberStatus: MemberStatus.ACTIVE,
@@ -113,6 +115,49 @@ export class MemberService {
       .limit(100)
       .lean()
       .exec();
+    return this.hydrateLocations(doctors);
+  }
+
+  // Clinics own cities. Resolve doctor cities from current affiliations in one query.
+  private async hydrateLocations<
+    T extends Pick<MemberProfile, 'memberType' | 'clinicId' | 'location'>,
+  >(records: T[]): Promise<T[]> {
+    const clinicIds = [
+      ...new Map(
+        records
+          .filter(
+            (record) =>
+              record.memberType === MemberType.DOCTOR && record.clinicId,
+          )
+          .map((record) => [String(record.clinicId), record.clinicId!]),
+      ).values(),
+    ];
+    const cities = new Map<string, Location | undefined>();
+    if (clinicIds.length) {
+      if (!this.members)
+        throw new ServiceUnavailableException('Member lookup is unavailable');
+      const clinics = await this.members
+        .find({
+          _id: { $in: clinicIds },
+          memberType: MemberType.CLINIC,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+        })
+        .select({ _id: 1, location: 1 })
+        .lean()
+        .exec();
+      for (const clinic of clinics)
+        cities.set(String(clinic._id), clinic.location ?? undefined);
+    }
+    return records.map((record) => ({
+      ...record,
+      location:
+        record.memberType === MemberType.DOCTOR
+          ? cities.get(String(record.clinicId))
+          : record.memberType === MemberType.CLINIC
+            ? record.location
+            : undefined,
+    }));
   }
 
   async authenticateAccessToken(token: string): Promise<MemberPrincipal> {
@@ -163,6 +208,15 @@ export class MemberService {
     ) {
       throw new BadRequestException('Invalid member type');
     }
+    if (input.location !== undefined && memberType !== MemberType.CLINIC)
+      throw new BadRequestException(
+        'Only clinics can choose a location; doctors inherit their clinic city',
+      );
+    if (
+      memberType === MemberType.CLINIC &&
+      !Object.values(Location).includes(input.location as Location)
+    )
+      throw new BadRequestException('A supported clinic location is required');
     if (
       memberType !== MemberType.CLINIC &&
       (input.clinicName !== undefined || input.clinicTimezone !== undefined)
@@ -201,6 +255,7 @@ export class MemberService {
         ...(memberType === MemberType.CLINIC
           ? {
               clinicName: input.clinicName,
+              location: input.location,
               clinicTimezone: input.clinicTimezone ?? 'Asia/Seoul',
             }
           : {}),
@@ -365,19 +420,24 @@ export class MemberService {
     refreshToken: string,
   ): Promise<MemberAuthResponse> {
     return {
-      member: {
-        _id: member._id,
-        memberEmail: member.memberEmail,
-        memberNick: member.memberNick,
-        memberType: member.memberType,
-        memberStatus: member.memberStatus,
-        memberFullName: member.memberFullName,
-        memberImage: member.memberImage,
-        clinicId: member.clinicId,
-        clinicName: member.clinicName,
-        clinicTimezone: member.clinicTimezone,
-        doctorClinicStatus: member.doctorClinicStatus,
-      },
+      member: (
+        await this.hydrateLocations([
+          {
+            _id: member._id,
+            memberEmail: member.memberEmail,
+            memberNick: member.memberNick,
+            memberType: member.memberType,
+            memberStatus: member.memberStatus,
+            memberFullName: member.memberFullName,
+            memberImage: member.memberImage,
+            location: member.location,
+            clinicId: member.clinicId,
+            clinicName: member.clinicName,
+            clinicTimezone: member.clinicTimezone,
+            doctorClinicStatus: member.doctorClinicStatus,
+          },
+        ])
+      )[0],
       accessToken: await this.jwt.signAsync({
         sub: member._id.toString(),
         tokenType: 'access',

@@ -472,3 +472,29 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Restricted reference targets to member/clinic because product/article features do not exist here; reject and clean failed batches instead of returning a partial success list. Images remain publicly readable; private records, object storage, quotas/retention and profile editing are outside this implementation.
 **Something the AI got wrong that I had to catch:** Codex review found a plain-object MIME lookup could select inherited properties; it added an own-property check before delivery. See local B-002. The status test failures are pre-existing/unmodified behavior, not an uploader regression fix.
 **One decision I can explain without AI:** Return a generated public URL without writing memberImage, so file storage has one clear responsibility and profile changes can enforce their own account ownership rules.
+
+
+## Integrate MediBridge clinic and doctor cities — 2026-10-18
+
+**Tool(s) used:** Codex; local reference/source inspection, Python enum comparison, Nest build, Oxlint, Jest/Supertest, Prettier for the new enum, Git diff checks.
+**What I asked for:** Integrate MediBridge cities for clinic and doctor accounts.
+**Pre-planning:** MediBridge defines a ten-value Location enum in appointment.enum.ts and exposes optional location in member DTOs; our member schema/signup/public projections had no city field. Existing uploader work was already committed in the backend branch when this task began.
+**Planning:** Reuse exact names/values in a dedicated location.enum.ts. Make location optional to preserve existing signup/accounts, restrict writes to CLINIC/DOCTOR, and expose it through existing auth/profile contracts. Each account stores its own city without affiliation-derived copying.
+**Implementation process:** Added Location enum, signup enum validation, service role check/storage, schema constraints, GraphQL nullable field, response projections/types, and README/architecture documentation. Exact enum names/values/order match all ten reference entries. Build passed; lint passed with pre-existing empty config.ts warning; both focused E2E suites passed 70/70. Tests cover all ten cities, schema rejection, invalid/null/USER input, doctor signup/login/refresh, public profiles/directory, and legacy doctor with no city. Persistence is simulated; no live MongoDB or browser checks/full-suite rerun. No sprint covers October 18; closed history unchanged.
+**What I kept as-is:** Existing auth/appointment/upload interfaces, optional legacy data, public-field privacy allowlists, and clinic affiliation rules.
+**What I changed or rejected, and why:** Used the reference location field instead of adding separate clinicCity/doctorCity properties. City editing, filtering, automatic doctor-city inheritance, and migration were outside this request.
+**Something the AI got wrong that I had to catch:** The first directory test query included location but its exact response assertion omitted the new field. Automated testing caught this; the expectation was corrected and both suites rerun successfully.
+**One decision I can explain without AI:** Keep location optional so adding a city list does not break existing accounts or invent a city for records without one.
+
+
+## Derive doctor city from their clinic — 2026-10-18
+
+**Tool(s) used:** Codex; local source inspection, Nest build, Oxlint, Jest/Supertest, Prettier for MemberService, Git diff checks.
+**What I asked for:** Require clinic city at signup and derive doctor city from the chosen clinic, reflecting workplace changes.
+**Pre-planning:** The initial city implementation allowed independent doctor cities. The clarified requirement makes clinic location authoritative; no workplace-change API currently exists.
+**Planning:** Require city on CLINIC signup and schema validation, reject doctor/user city input, and hydrate doctor output from clinicId on every read. Reuse one helper for auth/profile/directory and batch clinic lookups for directory results; do not migrate live data or build an unrequested affiliation-change API.
+**Implementation process:** Revised DTO/service/schema rules and response hydration; updated persistence mocks and tests for required clinic city, rejected doctor city, absent doctor city storage, signup/login/refresh responses, changed clinicId/city, ignored stale doctor values, unavailable/legacy/null clinic city, and batched projections. Build passed; lint passed with existing empty config.ts warning; 79 member E2E tests passed. Tests use simulated persistence; no live database/workplace UI tested. Updated README and architecture. No sprint covers October 18; closed sprint history preserved.
+**What I kept as-is:** Doctor signup requires an active clinic and pending affiliation; existing auth/booking/upload behavior and privacy allowlists remain. GraphQL location stays nullable for legacy/unavailable clinic data.
+**What I changed or rejected, and why:** Replaced independent doctor city storage with current-clinic lookup so affiliation/city changes need no duplicate-data synchronization. Legacy stored doctor cities are ignored; removal/backfill was not executed. Workplace changes are simulated in tests, not exposed through a new endpoint.
+**Something the AI got wrong that I had to catch:** The build caught that Mongoose clinic location can be null while the hydration map accepted only Location/undefined. Codex normalized null to undefined and added a null-city test; build and 79 tests then passed. This is distinct from the clarified product requirement.
+**One decision I can explain without AI:** A doctor's city belongs to the workplace, so read it from the current clinic instead of copying it during signup.

@@ -5,6 +5,7 @@ import {
   MemberStatus,
   MemberType,
 } from '../../enum/member.enum.js';
+import { Location } from '../../enum/location.enum.js';
 
 @ObjectType()
 export class Member {
@@ -16,6 +17,7 @@ export class Member {
   @Field(() => String, { nullable: true }) memberImage?: string;
   @Field(() => String, { nullable: true }) memberAddress?: string;
   @Field(() => String, { nullable: true }) memberDesc?: string;
+  @Field(() => Location, { nullable: true }) location?: Location;
   @Field(() => ID, { nullable: true }) clinicId?: string;
   @Field(() => String, { nullable: true }) clinicName?: string;
   @Field(() => String, { nullable: true }) clinicTimezone?: string;

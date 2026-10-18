@@ -38,6 +38,9 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   checks for protected appointment operations.
 - **Public member profiles:** GraphQL lookup for active USER, DOCTOR, and CLINIC
   members, with private contact and credential fields excluded.
+- **Clinic and doctor cities:** Clinics must select a city from MediBridge’s 10-city
+  `Location` enum during signup. Doctor cities are derived from their current clinic
+  in auth responses and public profiles, including the doctor directory.
 - **Public doctor directory:** GraphQL `getDoctors` returns up to 100 active,
   approved, nondeleted doctors, using public fields and name/ID ordering.
   Focused tests use mocked persistence; live database integration is unverified.
@@ -233,6 +236,18 @@ and stable across restarts. Startup rejects missing or short secrets.
   active clinic, a nonempty `doctorSpecializations` enum array, and
   `professionalLicenseNumber`. Doctors start with `PENDING` clinic affiliation.
   Public signup cannot create `ADMIN` accounts or set approval/status fields.
+- `CLINIC` signup requires `location`, for example `"location": "SEOUL"`.
+  Supported values match MediBridge: `SEOUL`, `INCHEON`, `BUSAN`, `JEJU`, `DAEGU`,
+  `DAEJEON`, `GWANGJU`, `ULSAN`, `SUWON`, `SEJONG`. Missing/unsupported/null values
+  are rejected. DOCTOR and USER signup must omit `location`.
+- Clinics own city storage. Doctors choose a clinic with `clinicId`; their `location`
+  is derived from that current clinic in signup/login/refresh responses, `getMember`,
+  and `getDoctors`. Changing the affiliation or the clinic's city is reflected on
+  the next response without copying a city onto doctor records. Directory hydration
+  uses one batched clinic query. Legacy doctor city values are ignored.
+  Missing/inactive/deleted clinics and legacy clinics without a city resolve to no
+  city (`null` in GraphQL, omitted in auth JSON). No data migration, workplace-change
+  endpoint, city editing API, or browser integration is included in this change.
 - `POST /member/login` accepts `memberEmail` and `memberPassword`, returning 200. Unknown accounts, wrong passwords, non-email accounts, and suspended or
   deleted accounts return the same 401 response. Email is trimmed and lowercased;
   passwords are preserved exactly.
@@ -335,13 +350,15 @@ query GetMember($id: ID!) {
     clinicTimezone
     doctorClinicStatus
     doctorSpecializations
+    location
   }
 }
 ```
 
 Variables: `{ "id": "<member-id>" }`. Doctor profiles include their clinic ID,
 affiliation status, and specializations; clinic profiles include their name and
-timezone. Optional GraphQL fields return `null` when absent. This lookup does not
+timezone. Both expose optional `location` as a GraphQL `Location` enum. Optional
+GraphQL fields return `null` when absent. This lookup does not
 require approved doctor affiliation; check `doctorClinicStatus` before offering
 booking. It does not populate the related clinic or list a clinic's doctors.
 
@@ -371,6 +388,7 @@ query GetDoctors {
     memberImage
     memberDesc
     doctorSpecializations
+    location
   }
 }
 ```

@@ -6,6 +6,7 @@ import {
   MemberStatus,
   MemberType,
 } from '../libs/enum/member.enum.js';
+import { Location } from '../libs/enum/location.enum.js';
 
 export const MEMBER = 'Member';
 
@@ -88,6 +89,26 @@ const MemberSchema = new Schema({
 
   memberAddress: {
     type: String,
+  },
+
+  location: {
+    type: String,
+    enum: Object.values(Location),
+    required: function (this: { memberType?: MemberType }) {
+      return this.memberType === MemberType.CLINIC;
+    },
+    validate: {
+      validator: function (
+        this: { memberType?: MemberType },
+        value: string | null | undefined,
+      ) {
+        return value === undefined || (
+          (this.memberType === MemberType.CLINIC) &&
+          Object.values(Location).includes(value as Location)
+        );
+      },
+      message: 'Location must be a supported city stored on a clinic',
+    },
   },
 
   memberDesc: {

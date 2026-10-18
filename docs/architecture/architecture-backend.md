@@ -137,6 +137,26 @@ Here, shared services include reusable in-process capabilities and external prov
 
 Google verification is behind GoogleAuthService; account/session writes remain in MemberService. When adding email or another external API, keep provider SDK calls and credentials behind a backend adapter/service. Expose explicit application methods to features, define who owns identity/notification data, and document failure/retry behavior. Email and additional external API adapters are proposed boundaries, not existing components.
 
+## Clinic and doctor cities
+
+As of 2026-10-18, clinic signup requires `location` from MediBridge's ten-value
+`Location` enum in `backend/src/libs/enum/location.enum.ts`. SignupDto and
+MemberService validate required clinic cities; the service rejects location supplied
+by doctors/users, and the Mongoose schema requires city storage on clinics only.
+Doctors select `clinicId` at signup and never store their own city.
+
+MemberService hydrates the location response field from each doctor's current active,
+nondeleted clinic for getMember, getDoctors, and signup/login/refresh. The directory
+uses one batched clinic query, selecting only clinic ID and location. Existing stored
+doctor cities are ignored. Changing clinicId or the clinic city affects the next read;
+there is no city cache or duplicate city value to synchronize. A missing/unavailable
+clinic or legacy clinic without a city yields an absent city (GraphQL null). Clinic
+responses use the clinic's stored city; USER responses do not expose legacy city data.
+
+No migration, workplace-change endpoint, city editing API, or directory city filter
+is implemented. Tests change simulated persistence to verify affiliation/city changes;
+no live database or frontend workplace-change workflow was exercised.
+
 ## Public image uploads
 
 `UploadModule` imports `MemberModule` for its exported access guard. `UploadResolver`
