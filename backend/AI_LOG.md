@@ -459,3 +459,16 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. The patch compatibility check identified branch differences before application, which the AI handled explicitly.
 
 **One decision I can explain without AI:** I share the existing public-field allowlist so member lookup and the doctor directory expose the same approved profile fields.
+
+
+## Adapt MediBridge image uploads — 2026-10-18
+
+**Tool(s) used:** Codex; local reference/source inspection; graphql-upload-ts official GitHub documentation; npm, Nest build, Oxlint, Jest/Supertest, Prettier, Git diff checks.
+**What I asked for:** Adapt MediBridge's file uploader into this backend.
+**Pre-planning:** MediBridge exposes authenticated imageUploader/imagesUploader mutations with local static URLs, 10 MB/file and five files/request. This backend already has a current-member guard but no uploader. Local session/bug registers were absent.
+**Planning:** Preserve the reference mutation names and supported image formats, place filesystem logic in its own feature service, reuse MemberAccessGuard, and limit targets to this app's member/clinic features. Keep uploads independent of profile database writes.
+**Implementation process:** Added upload resolver/service/module and shared multipart/static HTTP configuration; installed graphql-upload-ts with lockfile; allowed Apollo's preflight header in CORS; ignored uploaded files. Added UUID naming, signature/size/target validation, hidden temporary writes and cleanup. Updated README and architecture diagrams/contracts. Build passed; lint passed with a pre-existing empty config.ts warning. Full E2E: 112 passed, 2 existing status-page/assets 404 failures; all 12 uploader tests passed. Local listening tests required sandbox escalation. No live MongoDB/deployment/browser upload checks performed. No sprint covers October 18; Sprint 02 ended October 15 and was preserved.
+**What I kept as-is:** REST authentication, public member reads, appointment behavior, Apollo CSRF protection, and profile persistence contracts.
+**What I changed or rejected, and why:** Restricted reference targets to member/clinic because product/article features do not exist here; reject and clean failed batches instead of returning a partial success list. Images remain publicly readable; private records, object storage, quotas/retention and profile editing are outside this implementation.
+**Something the AI got wrong that I had to catch:** Codex review found a plain-object MIME lookup could select inherited properties; it added an own-property check before delivery. See local B-002. The status test failures are pre-existing/unmodified behavior, not an uploader regression fix.
+**One decision I can explain without AI:** Return a generated public URL without writing memberImage, so file storage has one clear responsibility and profile changes can enforce their own account ownership rules.

@@ -1,12 +1,12 @@
 # MedConnect backend architecture
 
-Source inspection date: 2026-10-15 (Asia/Seoul). This document describes the current implementation, not a verified live deployment. Paths below are relative to the repository root. This is the single architecture document for the backend, including component responsibilities, diagrams, integration status, and concerns.
+Source inspection date: 2026-10-15; uploader update: 2026-10-18 (Asia/Seoul). This document describes the current implementation, not a verified live deployment. Paths below are relative to the repository root. This is the single architecture document for the backend, including component responsibilities, diagrams, integration status, and concerns.
 
 ## Purpose and structure
 
 The backend is a single NestJS application serving member authentication, public member profiles, appointment booking/lookup, and operational health endpoints. Feature modules run in the same Node.js process; they are not independent microservices. MongoDB stores application records and refresh sessions.
 
-`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, and health modules.
+`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, and upload modules.
 
 | Layer | Responsibility | Source |
 | --- | --- | --- |
@@ -44,7 +44,9 @@ flowchart TD
   Client[Axios API clients - integration incomplete]
   REST[Nest REST controllers]
   GQL[Apollo GraphQL resolvers]
-  Guard[MemberAccessGuard - protected appointments]
+  Guard[MemberAccessGuard - protected appointments and uploads]
+  Upload[UploadService - public member and clinic images]
+  Images[(Local upload directory)]
   Member[MemberService]
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
@@ -57,7 +59,9 @@ flowchart TD
   UI -->|In-process calls: auth payloads| Client
   Session -->|In-process read: access token| Client
   Client -->|HTTP REST: JSON and Bearer token; some paths mismatched| REST
-  GQL -->|In-process context: appointment Bearer token| Guard
+  GQL -->|In-process context: appointment or upload Bearer token| Guard
+  GQL -->|In-process call: validated upload streams and target| Upload
+  Upload -->|Node filesystem streams: image bytes| Images
   REST -->|In-process request: appointment Bearer token| Guard
   Guard -->|In-process call: verify token and load principal| Member
   REST -->|In-process calls: signup, login, refresh| Member
@@ -133,6 +137,29 @@ Here, shared services include reusable in-process capabilities and external prov
 
 Google verification is behind GoogleAuthService; account/session writes remain in MemberService. When adding email or another external API, keep provider SDK calls and credentials behind a backend adapter/service. Expose explicit application methods to features, define who owns identity/notification data, and document failure/retry behavior. Email and additional external API adapters are proposed boundaries, not existing components.
 
+## Public image uploads
+
+`UploadModule` imports `MemberModule` for its exported access guard. `UploadResolver`
+exposes MediBridge-compatible `imageUploader(file: Upload!, target: String!): String!`
+and `imagesUploader(files: [Upload!]!, target: String!): [String!]!` mutations.
+`MemberAccessGuard` verifies the token and current account through `MemberService`;
+`UploadService` owns file writes and has no MongoDB/profile write responsibility.
+`upload.http.ts` registers graphql-upload-ts multipart middleware at `/graphql`
+and Express static serving at `/uploads`; `main.ts` calls it before listening.
+
+Targets are restricted to member/clinic images. UploadService generates UUID names,
+checks MIME types and PNG/JPEG/WebP signatures, streams to hidden temporary files,
+then publishes by rename. Limits are 10 MB/file and five files/request; failed writes
+and batches are cleaned up. Apollo CSRF protection stays enabled; clients send
+`Apollo-Require-Preflight: true`, which is allowed by CORS. These are public images,
+not protected medical documents. Signatures are checked without full decoding or
+malware scanning. `UPLOAD_DIR` defaults to `uploads` relative to the backend working
+directory. Persistent disk provisioning, quotas, retention/deletion, object storage,
+and browser/profile editing integration remain unimplemented.
+
+Upload HTTP tests use real multipart parsing and disk writes with mocked current-member
+authentication. No live MongoDB or deployment was exercised for this addition.
+
 ## Security and configuration
 
 The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor excludes bodies, tokens, GraphQL arguments/query text, and response data, but records request paths and exception messages/stacks; this is not a universal redaction service.
@@ -161,6 +188,7 @@ flowchart LR
   subgraph Host[Backend host - README records Hostinger VPS]
     API[Single Node.js process: Nest REST and Apollo GraphQL]
     File[Local JSON-line log file]
+    Images[Local public upload directory]
   end
   DB[(External MongoDB / Atlas-compatible database)]
   Google[Google identity provider and public signing keys]
@@ -169,6 +197,9 @@ flowchart LR
   Status -->|HTTP fetch: API info and health JSON| API
   API -->|MongoDB wire protocol: application records; production SRV/TLS requirement| DB
   API -->|Node filesystem append: log events| File
+  React -->|HTTP multipart GraphQL: images and Bearer token; browser integration pending| API
+  API -->|Node filesystem streams: public image files| Images
+  API -->|HTTP GET /uploads: public image bytes| React
   API -->|HTTPS: retrieve Google public signing keys| Google
 ```
 

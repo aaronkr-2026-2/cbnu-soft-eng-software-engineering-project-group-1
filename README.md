@@ -18,6 +18,7 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - [Architecture](#architecture)
 - [Member authentication](#member-authentication-rest)
 - [Member profiles](#get-a-user-doctor-or-clinic-member)
+- [Image uploads](#image-uploads-graphql)
 - [Appointment lookup](#get-an-appointment)
 - [Appointment booking](#book-an-appointment)
 - [GraphQL appointments](#graphql-appointments)
@@ -40,6 +41,8 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - **Public doctor directory:** GraphQL `getDoctors` returns up to 100 active,
   approved, nondeleted doctors, using public fields and name/ID ordering.
   Focused tests use mocked persistence; live database integration is unverified.
+- **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
+  for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
   creating a PENDING appointment for a fixed 30-minute slot.
 - **Booking validation:** Approved doctor affiliation, active clinic/doctor checks,
@@ -119,6 +122,7 @@ The backend loads `.env` from its working directory before loading application m
 | `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_DEV` is unset; use `mongodb+srv://` |
 | `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Expected Google web client ID for sign-in verification | Required only for Google sign-in; absent configuration returns 503 |
+| `UPLOAD_DIR` | Local public image storage directory | `uploads`, relative to the backend working directory; persist this directory in deployment |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
 
 **Current database configuration limitation:** Startup validation recognizes
@@ -193,6 +197,7 @@ backend/src/
       member-rate-limit.ts
     health/               # controller, module
     member/               # controller, service, module, resolver
+    upload/               # image resolver, service, HTTP setup, module
   database/
   libs/
     dto/
@@ -375,6 +380,48 @@ sorted by full name then ID and limited to 100. Uses the same public-field
 allowlist as `getMember`, excluding private contact and credential fields.
 Clinic details are not populated; pagination and ratings remain pending.
 GraphQL application errors use the `errors` array; responses use `Cache-Control: no-store`.
+
+## Image uploads (GraphQL)
+
+Adapted from MediBridge's `imageUploader` and `imagesUploader` mutations using
+[`graphql-upload-ts`](https://github.com/meabed/graphql-upload-ts). Send a multipart
+POST to `/graphql` with a current Bearer access token and the
+`Apollo-Require-Preflight: true` header. Keep Apollo's CSRF protection enabled.
+
+```graphql
+mutation UploadImage($file: Upload!, $target: String!) {
+  imageUploader(file: $file, target: $target)
+}
+
+mutation UploadImages($files: [Upload!]!, $target: String!) {
+  imagesUploader(files: $files, target: $target)
+}
+```
+
+Copyable single-file request (replace the token and image path):
+
+```bash
+curl http://localhost:3333/graphql \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN' \
+  -H 'Apollo-Require-Preflight: true' \
+  -F 'operations={"query":"mutation($file: Upload!, $target: String!) { imageUploader(file: $file, target: $target) }","variables":{"file":null,"target":"member"}}' \
+  -F 'map={"0":["variables.file"]}' \
+  -F '0=@/path/to/photo.png;type=image/png'
+```
+
+- Targets: `member` (including doctor profile images) and `clinic`.
+- Allowed formats: PNG, JPEG (`image/jpeg` or `image/jpg`), and WebP. MIME types
+  and file signatures are checked; this does not perform full image decoding or malware scanning.
+- Limits: 10 MB per file and 1–5 files per batch/request. Failed batches remove
+  files already saved by that batch; failed writes remove temporary files.
+- Returned values are public relative URLs such as `/uploads/member/<uuid>.png`.
+  Fetch them from the API origin. Original filenames are not used as storage paths.
+- Files are stored beneath `UPLOAD_DIR` (default `backend/uploads` when started
+  from `backend/`). Temporary files are hidden from static serving. Persist this
+  directory across releases; object storage and deletion/retention APIs are not implemented.
+- Uploading returns URLs only; it does not update `memberImage` or clinic records.
+  Profile editing/browser upload integration is pending. Upload only public images;
+  these URLs are publicly readable and are not suitable for private medical records.
 
 ## Get an appointment
 
