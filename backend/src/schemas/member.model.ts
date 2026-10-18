@@ -6,6 +6,7 @@ import {
   MemberStatus,
   MemberType,
 } from '../libs/enum/member.enum.js';
+import { Location } from '../libs/enum/location.enum.js';
 
 export const MEMBER = 'Member';
 
@@ -21,6 +22,9 @@ const MemberSchema = new Schema({
     enum: Object.values(MemberStatus),
     default: MemberStatus.ACTIVE,
   },
+
+  // Increment on password changes to invalidate access and refresh credentials.
+  authVersion: { type: Number, default: 0, min: 0, select: false },
 
   authProvider: {
     type: String,
@@ -88,6 +92,26 @@ const MemberSchema = new Schema({
 
   memberAddress: {
     type: String,
+  },
+
+  location: {
+    type: String,
+    enum: Object.values(Location),
+    required: function (this: { memberType?: MemberType }) {
+      return this.memberType === MemberType.CLINIC;
+    },
+    validate: {
+      validator: function (
+        this: { memberType?: MemberType; getFilter?: () => { memberType?: MemberType } },
+        value: string | null | undefined,
+      ) {
+        return value === undefined || (
+          (this.memberType ?? this.getFilter?.().memberType) === MemberType.CLINIC &&
+          Object.values(Location).includes(value as Location)
+        );
+      },
+      message: 'Location must be a supported city stored on a clinic',
+    },
   },
 
   memberDesc: {

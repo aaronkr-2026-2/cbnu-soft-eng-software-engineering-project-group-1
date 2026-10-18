@@ -7,6 +7,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
+import { configureUploads } from './components/upload/upload.http.js';
 
 function loadEnvironment(): void {
   try {
@@ -57,7 +58,7 @@ async function bootstrap() {
     origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) =>
       callback(null, !origin || allowedOrigins.includes(origin)),
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Apollo-Require-Preflight'],
     credentials: true,
   });
   app.use((_request: Request, response: Response, next: NextFunction) => {
@@ -66,6 +67,7 @@ async function bootstrap() {
     response.setHeader('Referrer-Policy', 'no-referrer');
     next();
   });
+  configureUploads(app);
   const port = Number(process.env.PORT_API ?? process.env.PORT ?? 3000);
   const swaggerConfig = new DocumentBuilder()
     .setTitle('MedConnect API')

@@ -38,6 +38,7 @@
     "express-rate-limit": "^8.7.0",
     "google-auth-library": "^11.3.0",
     "graphql": "^16.14.2",
+    "graphql-upload-ts": "^2.2.0",
     "mongodb": "^7.6.0",
     "mongoose": "^9.10.0",
     "reflect-metadata": "^0.2.2",

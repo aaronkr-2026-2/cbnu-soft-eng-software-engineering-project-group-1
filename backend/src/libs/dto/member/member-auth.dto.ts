@@ -17,6 +17,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { DoctorSpecialization, MemberType } from '../../enum/member.enum.js';
+import { Location } from '../../enum/location.enum.js';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -90,6 +91,16 @@ export class SignupDto {
   @Length(1, 150)
   @ApiPropertyOptional({ description: 'Required when memberType is CLINIC.' })
   clinicName?: string;
+
+  @ValidateIf((data: SignupDto) =>
+    data.memberType === MemberType.CLINIC || data.location !== undefined,
+  )
+  @IsEnum(Location)
+  @ApiPropertyOptional({
+    enum: Location,
+    description: 'Required for CLINIC accounts. DOCTOR accounts inherit their clinic city and must omit this field.',
+  })
+  location?: Location;
 
   @IsOptional()
   @IsTimeZone()

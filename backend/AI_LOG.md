@@ -518,3 +518,80 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Kept both branches' independent APIs rather than choosing one side and losing discovery behavior.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** Clinic-specific and global doctor discovery serve different callers, so both queries must survive the merge.
+
+## Adapt MediBridge image uploads — 2026-10-18
+
+**Tool(s) used:** Codex; local reference/source inspection; graphql-upload-ts official GitHub documentation; npm, Nest build, Oxlint, Jest/Supertest, Prettier, Git diff checks.
+**What I asked for:** Adapt MediBridge's file uploader into this backend.
+**Pre-planning:** MediBridge exposes authenticated imageUploader/imagesUploader mutations with local static URLs, 10 MB/file and five files/request. This backend already has a current-member guard but no uploader. Local session/bug registers were absent.
+**Planning:** Preserve the reference mutation names and supported image formats, place filesystem logic in its own feature service, reuse MemberAccessGuard, and limit targets to this app's member/clinic features. Keep uploads independent of profile database writes.
+**Implementation process:** Added upload resolver/service/module and shared multipart/static HTTP configuration; installed graphql-upload-ts with lockfile; allowed Apollo's preflight header in CORS; ignored uploaded files. Added UUID naming, signature/size/target validation, hidden temporary writes and cleanup. Updated README and architecture diagrams/contracts. Build passed; lint passed with a pre-existing empty config.ts warning. Full E2E: 112 passed, 2 existing status-page/assets 404 failures; all 12 uploader tests passed. Local listening tests required sandbox escalation. No live MongoDB/deployment/browser upload checks performed. No sprint covers October 18; Sprint 02 ended October 15 and was preserved.
+**What I kept as-is:** REST authentication, public member reads, appointment behavior, Apollo CSRF protection, and profile persistence contracts.
+**What I changed or rejected, and why:** Restricted reference targets to member/clinic because product/article features do not exist here; reject and clean failed batches instead of returning a partial success list. Images remain publicly readable; private records, object storage, quotas/retention and profile editing are outside this implementation.
+**Something the AI got wrong that I had to catch:** Codex review found a plain-object MIME lookup could select inherited properties; it added an own-property check before delivery. See local B-002. The status test failures are pre-existing/unmodified behavior, not an uploader regression fix.
+**One decision I can explain without AI:** Return a generated public URL without writing memberImage, so file storage has one clear responsibility and profile changes can enforce their own account ownership rules.
+
+
+## Integrate MediBridge clinic and doctor cities — 2026-10-18
+
+**Tool(s) used:** Codex; local reference/source inspection, Python enum comparison, Nest build, Oxlint, Jest/Supertest, Prettier for the new enum, Git diff checks.
+**What I asked for:** Integrate MediBridge cities for clinic and doctor accounts.
+**Pre-planning:** MediBridge defines a ten-value Location enum in appointment.enum.ts and exposes optional location in member DTOs; our member schema/signup/public projections had no city field. Existing uploader work was already committed in the backend branch when this task began.
+**Planning:** Reuse exact names/values in a dedicated location.enum.ts. Make location optional to preserve existing signup/accounts, restrict writes to CLINIC/DOCTOR, and expose it through existing auth/profile contracts. Each account stores its own city without affiliation-derived copying.
+**Implementation process:** Added Location enum, signup enum validation, service role check/storage, schema constraints, GraphQL nullable field, response projections/types, and README/architecture documentation. Exact enum names/values/order match all ten reference entries. Build passed; lint passed with pre-existing empty config.ts warning; both focused E2E suites passed 70/70. Tests cover all ten cities, schema rejection, invalid/null/USER input, doctor signup/login/refresh, public profiles/directory, and legacy doctor with no city. Persistence is simulated; no live MongoDB or browser checks/full-suite rerun. No sprint covers October 18; closed history unchanged.
+**What I kept as-is:** Existing auth/appointment/upload interfaces, optional legacy data, public-field privacy allowlists, and clinic affiliation rules.
+**What I changed or rejected, and why:** Used the reference location field instead of adding separate clinicCity/doctorCity properties. City editing, filtering, automatic doctor-city inheritance, and migration were outside this request.
+**Something the AI got wrong that I had to catch:** The first directory test query included location but its exact response assertion omitted the new field. Automated testing caught this; the expectation was corrected and both suites rerun successfully.
+**One decision I can explain without AI:** Keep location optional so adding a city list does not break existing accounts or invent a city for records without one.
+
+
+## Derive doctor city from their clinic — 2026-10-18
+
+**Tool(s) used:** Codex; local source inspection, Nest build, Oxlint, Jest/Supertest, Prettier for MemberService, Git diff checks.
+**What I asked for:** Require clinic city at signup and derive doctor city from the chosen clinic, reflecting workplace changes.
+**Pre-planning:** The initial city implementation allowed independent doctor cities. The clarified requirement makes clinic location authoritative; no workplace-change API currently exists.
+**Planning:** Require city on CLINIC signup and schema validation, reject doctor/user city input, and hydrate doctor output from clinicId on every read. Reuse one helper for auth/profile/directory and batch clinic lookups for directory results; do not migrate live data or build an unrequested affiliation-change API.
+**Implementation process:** Revised DTO/service/schema rules and response hydration; updated persistence mocks and tests for required clinic city, rejected doctor city, absent doctor city storage, signup/login/refresh responses, changed clinicId/city, ignored stale doctor values, unavailable/legacy/null clinic city, and batched projections. Build passed; lint passed with existing empty config.ts warning; 79 member E2E tests passed. Tests use simulated persistence; no live database/workplace UI tested. Updated README and architecture. No sprint covers October 18; closed sprint history preserved.
+**What I kept as-is:** Doctor signup requires an active clinic and pending affiliation; existing auth/booking/upload behavior and privacy allowlists remain. GraphQL location stays nullable for legacy/unavailable clinic data.
+**What I changed or rejected, and why:** Replaced independent doctor city storage with current-clinic lookup so affiliation/city changes need no duplicate-data synchronization. Legacy stored doctor cities are ignored; removal/backfill was not executed. Workplace changes are simulated in tests, not exposed through a new endpoint.
+**Something the AI got wrong that I had to catch:** The build caught that Mongoose clinic location can be null while the hydration map accepted only Location/undefined. Codex normalized null to undefined and added a null-city test; build and 79 tests then passed. This is distinct from the clarified product requirement.
+**One decision I can explain without AI:** A doctor's city belongs to the workplace, so read it from the current clinic instead of copying it during signup.
+
+
+## Add updateMember and save-time image replacement — 2026-10-18
+
+**Tool(s) used:** Codex; local MediBridge/source inspection, Nest build, Oxlint, Jest/Supertest, Prettier, Git diff checks.
+**What I asked for:** Implement one authenticated updateMember API for profile/phone/name/image and optional password change with confirmation; delete the old owned image after Save, leaving unused-upload cleanup for later.
+**Pre-planning:** MediBridge updates an authenticated member with an allowlist, hashed password and validated MongoDB update. Our API had no editing mutation, session revocation version, or upload ownership tracking. Prior city changes were already committed when work began.
+**Planning:** Keep one mutation with optional fields and an all-or-nothing password trio. Use a private self-profile result, atomic conditional member writes and authVersion checks. Reuse existing password helpers/city hydration. Add owner directories plus exclusive hidden image attachment markers; defer background cleanup and browser implementation.
+**Implementation process:** Added input/self/result DTOs and guarded resolver; implemented allowed updates, unique conflict handling, current-password/confirmation rules, Google password restriction, __v concurrency checks and authVersion on JWT/session paths. Split exported storage wiring from guarded upload transport to avoid a module cycle. New owner-scoped paths and attachment claims protect adoption/deletion; save failure preserves the old image, post-save deletion failures report imageCleanupPending, and external/legacy files are skipped. Updated README/architecture and local records. Build passed; lint passed with existing empty config.ts warning. Full E2E: 175 passed, 2 existing status-page/assets 404 failures. Tests use real GraphQL, validation, hashing and disk with simulated persistence; no live MongoDB/browser/deployment checked. No sprint covers October 18; closed history preserved.
+**What I kept as-is:** REST signup/login/refresh, public-profile privacy, clinic-owned city hydration, booking rules, upload format/size/count limits and Apollo CSRF protection. Existing credentials without authVersion map to zero.
+**What I changed or rejected, and why:** Excluded account ID/role/status/provider/email/clinic affiliation from generic edits. Only clinics edit clinic name/city. One member write applies all changes; authentication version invalidates old access and refresh credentials without a multi-collection transaction. Old owned attached files are deleted only after success; hidden markers remain to prevent retired-path reuse. Unused uploads, uncertain image claims, cleanup retries and frontend Save UI remain deferred.
+**Something the AI got wrong that I had to catch:** Build caught an initial service return type using the GraphQL DTO's string ID instead of the persistence ObjectId; introduced a service response type. Review also caught that the existing city validator needed the trusted query filter's memberType for update validation. Both were corrected before the passing final checks (B-005/B-006).
+**One decision I can explain without AI:** Store the new image path successfully before deleting the old file, so a rejected Save cannot remove the currently displayed image.
+
+
+## Add myProfile for Next.js settings — 2026-10-19
+
+**Tool(s) used:** Codex; repository inspection, apply_patch, Nest build, Oxlint, Jest/Supertest, Prettier, Git diff checks.
+**What I asked for:** Add authenticated myProfile with private contact information and canChangePassword for the Next.js settings page, preserving public member fields.
+**Pre-planning:** MemberSelf already served private update responses; public Member intentionally excludes email/phone. The update API allows password changes only for EMAIL accounts. Prior updateMember implementation was committed before this task.
+**Planning:** Reuse MemberSelf and a shared response mapper; derive the queried ID from the access guard, select only allowed profile/contact data plus internal capability/version inputs, and preserve existing doctor-city hydration.
+**Implementation process:** Added guarded no-argument myProfile, current-account/version recheck and private projection. Added canChangePassword to MemberSelf and persistence-aware service types; reused mapping for query/update responses. Updated README with the complete frontend query and architecture boundaries. Build passed; lint passed with existing empty config.ts warning; 73 focused profile/update E2E tests passed. Tests use simulated persistence; no live database/frontend check or full-suite rerun. No sprint covers October 19; closed history unchanged.
+**What I kept as-is:** Public Member/getMember/getDoctors fields, credential privacy, authentication/session checks, clinic-derived doctor city, and server-side password-change enforcement.
+**What I changed or rejected, and why:** Added an authenticated self-query instead of expanding public query contact fields or relying on stale frontend session identity. Capability is computed from the account provider and is a UI hint, not authorization.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Resolve the user from the authenticated token instead of accepting an ID, so the private profile endpoint cannot select someone else's account.
+
+
+## Resolve main/backend profile and upload merge — 2026-10-19
+
+**Tool(s) used:** Codex; Git conflict/status/diff inspection, source editing, npm ci from local cache, Nest build, Oxlint, Jest/Supertest.
+**What I asked for:** Help with the failed main/backend merge and the unmerged-files error preventing another merge.
+**Pre-planning:** The outer main checkout was already merging backend commit 6153660. Five files conflicted: .gitignore, AI_LOG, MemberService, member tests and architecture. Main had clinic discovery; backend added uploader, clinic cities, member editing and private myProfile.
+**Planning:** Resolve the existing merge in place, retain both feature sets and log histories, combine test fixture ObjectId/batched-clinic handling, and verify auto-merged projections as well as marked conflicts. Leave the result staged for the final merge commit.
+**Implementation process:** Preserved both ignore rules/history/architecture flows, clinic discovery and backend profile methods. Restored the shared projection in getMember and hydrated cities for getClinicDoctors; strengthened existing clinic discovery tests to request city fields. Installed the merged lockfile dependencies offline after the outer checkout lacked graphql-upload-ts. Final build passed; lint passed with the existing empty config.ts warning; all seven E2E suites and 192 tests passed in the outer checkout. No live DB/browser/deployment checks. No sprint covers October 19; closed records unchanged. No merge commit or push performed.
+**What I kept as-is:** Both branches' APIs, public/private profile boundaries, session invalidation, image ownership, clinic filters, and unrelated automatically merged files.
+**What I changed or rejected, and why:** Combined the conflicting additions instead of selecting a whole branch; the clinic-specific doctor query also needs the new clinic-derived city rule. No merge abort, branch reset, deployment, or worktree synchronization was used.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. Initial build/upload-test failures identified a missing local dependency; installing the existing lockfile fixed setup without altering application behavior.
+**One decision I can explain without AI:** Resolve the merge already in progress and preserve both independent features; starting another merge cannot work while Git still has unmerged entries.

@@ -21,6 +21,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
   const id = new Types.ObjectId();
   let member: Record<string, unknown>;
   let directoryMembers: Record<string, unknown>[];
+  let clinics: Record<string, unknown>[];
   const selectPublicFields = jest.fn();
   const find = jest.fn((filter: Record<string, unknown>) => {
     let fields: Record<string, number> = {};
@@ -37,8 +38,11 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
         return chain;
       },
       lean: () => chain,
-      exec: async () => directoryMembers
-        .filter((record) => Object.entries(filter).every(([key, value]) => (value instanceof Types.ObjectId ? value.equals(record[key] as Types.ObjectId) : record[key] === value)))
+      exec: async () => (filter._id ? clinics : directoryMembers)
+        .filter((record) => Object.entries(filter).every(([key, value]) => {
+          if (key === '_id') return (value as { $in: unknown[] }).$in.some(id => String(id) === String(record._id));
+          return value instanceof Types.ObjectId ? value.equals(record[key] as Types.ObjectId) : record[key] === value;
+        }))
         .slice(0, limit)
         .map((record) => Object.fromEntries(Object.entries(record).filter(([key]) => fields[key] === 1))),
     };
@@ -112,6 +116,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       clinicId: new Types.ObjectId(),
       doctorClinicStatus: 'APPROVED',
       doctorSpecializations: ['DENTIST'],
+      location: 'BUSAN',
       memberPassword: 'private-password-hash',
       memberEmail: 'private@example.com',
       memberPhone: '+821012345678',
@@ -122,6 +127,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       __v: 0,
     };
     directoryMembers = [member];
+    clinics = [{ _id: member.clinicId, memberType: 'CLINIC', memberStatus: 'ACTIVE', deletedAt: null, location: 'SEOUL' }];
   });
   afterAll(async () => app.close());
 
@@ -132,7 +138,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
         query: `query($id: ID!) {
         getMember(id: $id) {
           _id memberType memberNick memberFullName memberAddress memberDesc
-          clinicId clinicName clinicTimezone doctorClinicStatus doctorSpecializations
+          clinicId clinicName clinicTimezone location doctorClinicStatus doctorSpecializations
         }
       }`,
         variables: { id: memberId },
@@ -142,7 +148,9 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
     'returns a public %s profile over GraphQL',
     async (type) => {
       member.memberType = type;
+      if (type !== 'USER') member.location = 'SEOUL';
       if (type === 'USER') {
+        delete member.location;
         delete member.clinicId;
         delete member.doctorSpecializations;
         member.doctorClinicStatus = 'NOT_APPLICABLE';
@@ -164,6 +172,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       expect(graphql.body.data.getMember).toMatchObject({
         _id: String(id),
         memberType: type,
+        location: type === 'USER' ? null : 'SEOUL',
         ...(type === 'DOCTOR'
           ? {
               clinicId: String(member.clinicId),
@@ -180,6 +189,49 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       });
     },
   );
+
+  it('derives city from the current clinic, ignoring stale doctor city', async () => {
+    let response = await getGraphql().expect(200);
+    expect(response.body.data.getMember.location).toBe('SEOUL');
+    clinics[0].location = 'JEJU';
+    response = await getGraphql().expect(200);
+    expect(response.body.data.getMember.location).toBe('JEJU');
+    const other = { ...clinics[0], _id: new Types.ObjectId(), location: 'BUSAN' };
+    clinics.push(other);
+    member.clinicId = other._id;
+    response = await getGraphql().expect(200);
+    expect(response.body.data.getMember.location).toBe('BUSAN');
+  });
+
+  it.each(['missing', 'no-city', 'null-city', 'deleted', 'suspended', 'wrong-role'])(
+    'returns null for an unavailable clinic city: %s', async condition => {
+      if (condition === 'missing') clinics = [];
+      if (condition === 'no-city') delete clinics[0].location;
+      if (condition === 'null-city') clinics[0].location = null;
+      if (condition === 'deleted') clinics[0].deletedAt = new Date();
+      if (condition === 'suspended') clinics[0].memberStatus = 'SUSPENDED';
+      if (condition === 'wrong-role') clinics[0].memberType = 'USER';
+      const response = await getGraphql().expect(200);
+      expect(response.body.errors).toBeUndefined();
+      expect(response.body.data.getMember.location).toBeNull();
+    },
+  );
+
+  it('hydrates multiple doctors with one clinic lookup and follows changed affiliations', async () => {
+    const other = { ...clinics[0], _id: new Types.ObjectId(), location: 'JEJU' };
+    clinics.push(other);
+    directoryMembers.push({ ...member, _id: new Types.ObjectId(), clinicId: other._id });
+    const query = '{ getDoctors { _id location } }';
+    let response = await request(app.getHttpServer()).post('/graphql').send({ query }).expect(200);
+    expect(response.body.errors).toBeUndefined();
+    expect(response.body.data.getDoctors.map((doctor: { location: string }) => doctor.location)).toEqual(['SEOUL', 'JEJU']);
+    expect(find).toHaveBeenCalledTimes(2);
+    expect(find.mock.calls[1][0]._id).toEqual({ $in: [member.clinicId, other._id] });
+    expect(selectPublicFields.mock.calls[1][0]).toEqual({ _id: 1, location: 1 });
+    member.clinicId = other._id;
+    response = await request(app.getHttpServer()).post('/graphql').send({ query }).expect(200);
+    expect(response.body.data.getDoctors.map((doctor: { location: string }) => doctor.location)).toEqual(['JEJU', 'JEJU']);
+  });
 
   it.each([
     { memberType: 'ADMIN' },
@@ -220,7 +272,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       { ...member, doctorClinicStatus: 'REMOVED' },
     );
     const result = await request(app.getHttpServer()).post('/graphql').send({
-      query: '{ getDoctors { _id memberNick memberFullName memberImage doctorSpecializations } }',
+      query: '{ getDoctors { _id memberNick memberFullName memberImage location doctorSpecializations } }',
     }).expect(200);
     expect(result.body.errors).toBeUndefined();
     expect(result.body.data.getDoctors).toEqual([{
@@ -228,6 +280,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       memberNick: 'doctor',
       memberFullName: 'Example Doctor',
       memberImage: '',
+      location: 'SEOUL',
       doctorSpecializations: ['DENTIST'],
     }]);
     expect(find).toHaveBeenCalledWith({
@@ -244,10 +297,10 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
     const clinic = { ...member, _id: new Types.ObjectId(), memberType: 'CLINIC', clinicName: 'Example Clinic' };
     directoryMembers.push(clinic, { ...clinic, memberStatus: 'SUSPENDED' }, { ...clinic, deletedAt: new Date() });
     const result = await request(app.getHttpServer()).post('/graphql').send({
-      query: '{ getClinics { _id clinicName } getDoctors { _id } }',
+      query: '{ getClinics { _id clinicName location } getDoctors { _id } }',
     }).expect(200);
     expect(result.body.errors).toBeUndefined();
-    expect(result.body.data.getClinics).toEqual([{ _id: String(clinic._id), clinicName: 'Example Clinic' }]);
+    expect(result.body.data.getClinics).toEqual([{ _id: String(clinic._id), clinicName: 'Example Clinic', location: 'BUSAN' }]);
     expect(result.body.data.getDoctors).toEqual([{ _id: String(id) }]);
   });
 
@@ -259,11 +312,11 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
       { ...member, deletedAt: new Date() },
     );
     const result = await request(app.getHttpServer()).post('/graphql').send({
-      query: 'query($clinicId: ID!) { getClinicDoctors(clinicId: $clinicId) { _id } }',
+      query: 'query($clinicId: ID!) { getClinicDoctors(clinicId: $clinicId) { _id location } }',
       variables: { clinicId: String(member.clinicId) },
     }).expect(200);
     expect(result.body.errors).toBeUndefined();
-    expect(result.body.data.getClinicDoctors).toEqual([{ _id: String(id) }]);
+    expect(result.body.data.getClinicDoctors).toEqual([{ _id: String(id), location: 'SEOUL' }]);
     expect(find).toHaveBeenCalledWith({
       memberType: 'DOCTOR', memberStatus: 'ACTIVE', deletedAt: null,
       doctorClinicStatus: 'APPROVED', clinicId: new Types.ObjectId(String(member.clinicId)),

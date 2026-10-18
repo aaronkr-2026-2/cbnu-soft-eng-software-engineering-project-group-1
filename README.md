@@ -34,6 +34,9 @@ API/database integration is not yet verified.
 - [Architecture](#architecture)
 - [Member authentication](#member-authentication-rest)
 - [Member profiles](#get-a-user-doctor-or-clinic-member)
+- [Image uploads](#image-uploads-graphql)
+- [My private profile](#my-private-profile-graphql)
+- [Update your member information](#update-your-member-information-graphql)
 - [Appointment lookup](#get-an-appointment)
 - [Appointment booking](#book-an-appointment)
 - [GraphQL appointments](#graphql-appointments)
@@ -46,6 +49,10 @@ API/database integration is not yet verified.
 - **Member registration and login:** REST signup for USER, DOCTOR, and CLINIC
   accounts, password hashing, input validation, and JWT access tokens.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
+- **Member editing:** Authenticated GraphQL `updateMember` edits your profile/contact
+  fields, changes passwords with current-password verification and confirmation, and
+  saves uploaded profile images. Password changes invalidate existing sessions;
+  successful image replacement deletes the previous owned image.
 - **Google sign-in API:** Nonce-bound Google ID-token verification, automatic USER
   registration without phone/password, Google-name or unique fallback nicknames,
   and the existing access/refresh session contract. Next.js includes the Google
@@ -54,9 +61,19 @@ API/database integration is not yet verified.
   checks for protected appointment operations.
 - **Public member profiles:** GraphQL lookup for active USER, DOCTOR, and CLINIC
   members, with private contact and credential fields excluded.
+- **Private current-member profile:** Authenticated `myProfile` returns your profile,
+  email, phone, and `canChangePassword` for settings screens. Public queries retain
+  their existing fields.
+  Public clinic discovery remains available through `getClinics` and `getClinicDoctors`;
+  doctor cities are derived from their current clinics in both doctor-directory queries.
+- **Clinic and doctor cities:** Clinics must select a city from MediBridge’s 10-city
+  `Location` enum during signup. Doctor cities are derived from their current clinic
+  in auth responses and public profiles, including the doctor directory.
 - **Public doctor directory:** GraphQL `getDoctors` returns up to 100 active,
   approved, nondeleted doctors, using public fields and name/ID ordering.
   Focused tests use mocked persistence; live database integration is unverified.
+- **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
+  for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
   creating a PENDING appointment for a fixed 30-minute slot.
 - **Booking validation:** Approved doctor affiliation, active clinic/doctor checks,
@@ -156,6 +173,7 @@ The backend loads `.env` from its working directory before loading application m
 | `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_DEV` is unset; use `mongodb+srv://` |
 | `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Expected Google web client ID for sign-in verification | Required only for Google sign-in; absent configuration returns 503 |
+| `UPLOAD_DIR` | Local public image storage directory | `uploads`, relative to the backend working directory; persist this directory in deployment |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
 
 **Current database configuration limitation:** Startup validation recognizes
@@ -230,6 +248,7 @@ backend/src/
       member-rate-limit.ts
     health/               # controller, module
     member/               # controller, service, module, resolver
+    upload/               # image resolver, service, HTTP setup, module
   database/
   libs/
     dto/
@@ -265,6 +284,19 @@ and stable across restarts. Startup rejects missing or short secrets.
   active clinic, a nonempty `doctorSpecializations` enum array, and
   `professionalLicenseNumber`. Doctors start with `PENDING` clinic affiliation.
   Public signup cannot create `ADMIN` accounts or set approval/status fields.
+- `CLINIC` signup requires `location`, for example `"location": "SEOUL"`.
+  Supported values match MediBridge: `SEOUL`, `INCHEON`, `BUSAN`, `JEJU`, `DAEGU`,
+  `DAEJEON`, `GWANGJU`, `ULSAN`, `SUWON`, `SEJONG`. Missing/unsupported/null values
+  are rejected. DOCTOR and USER signup must omit `location`.
+- Clinics own city storage. Doctors choose a clinic with `clinicId`; their `location`
+  is derived from that current clinic in signup/login/refresh responses, `getMember`,
+  and `getDoctors`. Changing the affiliation or the clinic's city is reflected on
+  the next response without copying a city onto doctor records. Directory hydration
+  uses one batched clinic query. Legacy doctor city values are ignored.
+  Missing/inactive/deleted clinics and legacy clinics without a city resolve to no
+  city (`null` in GraphQL, omitted in auth JSON). No data migration, workplace-change
+  endpoint or browser integration is included. Clinics can edit their own city through
+  `updateMember`; doctors continue to inherit it.
 - `POST /member/login` accepts `memberEmail` and `memberPassword`, returning 200. Unknown accounts, wrong passwords, non-email accounts, and suspended or
   deleted accounts return the same 401 response. Email is trimmed and lowercased;
   passwords are preserved exactly.
@@ -368,13 +400,15 @@ query GetMember($id: ID!) {
     clinicTimezone
     doctorClinicStatus
     doctorSpecializations
+    location
   }
 }
 ```
 
 Variables: `{ "id": "<member-id>" }`. Doctor profiles include their clinic ID,
 affiliation status, and specializations; clinic profiles include their name and
-timezone. Optional GraphQL fields return `null` when absent. This lookup does not
+timezone. Both expose optional `location` as a GraphQL `Location` enum. Optional
+GraphQL fields return `null` when absent. This lookup does not
 require approved doctor affiliation; check `doctorClinicStatus` before offering
 booking. It does not populate the related clinic or list a clinic's doctors.
 
@@ -404,6 +438,7 @@ query GetDoctors {
     memberImage
     memberDesc
     doctorSpecializations
+    location
   }
 }
 ```
@@ -413,6 +448,180 @@ sorted by full name then ID and limited to 100. Uses the same public-field
 allowlist as `getMember`, excluding private contact and credential fields.
 Clinic details are not populated; pagination and ratings remain pending.
 GraphQL application errors use the `errors` array; responses use `Cache-Control: no-store`.
+
+## Image uploads (GraphQL)
+
+Adapted from MediBridge's `imageUploader` and `imagesUploader` mutations using
+[`graphql-upload-ts`](https://github.com/meabed/graphql-upload-ts). Send a multipart
+POST to `/graphql` with a current Bearer access token and the
+`Apollo-Require-Preflight: true` header. Keep Apollo's CSRF protection enabled.
+
+```graphql
+mutation UploadImage($file: Upload!, $target: String!) {
+  imageUploader(file: $file, target: $target)
+}
+
+mutation UploadImages($files: [Upload!]!, $target: String!) {
+  imagesUploader(files: $files, target: $target)
+}
+```
+
+Copyable single-file request (replace the token and image path):
+
+```bash
+curl http://localhost:3333/graphql \
+  -H 'Authorization: Bearer REPLACE_WITH_ACCESS_TOKEN' \
+  -H 'Apollo-Require-Preflight: true' \
+  -F 'operations={"query":"mutation($file: Upload!, $target: String!) { imageUploader(file: $file, target: $target) }","variables":{"file":null,"target":"member"}}' \
+  -F 'map={"0":["variables.file"]}' \
+  -F '0=@/path/to/photo.png;type=image/png'
+```
+
+- Targets: `member` (including doctor profile images) and `clinic`.
+- Allowed formats: PNG, JPEG (`image/jpeg` or `image/jpg`), and WebP. MIME types
+  and file signatures are checked; this does not perform full image decoding or malware scanning.
+- Limits: 10 MB per file and 1–5 files per batch/request. Failed batches remove
+  files already saved by that batch; failed writes remove temporary files.
+- Returned values are public relative URLs such as `/uploads/member/<member-id>/<uuid>.png`.
+  The owner ID comes from authentication. Fetch them from the API origin. Original
+  filenames are not used as storage paths. Older flat upload URLs remain readable,
+  but cannot be newly assigned or automatically deleted without proven ownership.
+- Files are stored beneath `UPLOAD_DIR` (default `backend/uploads` when started
+  from `backend/`). Temporary files are hidden from static serving. Persist this
+  directory across releases; object storage and deletion/retention APIs are not implemented.
+- Uploading returns URLs only; Save calls `updateMember` with the new `memberImage`.
+  Browser upload/profile integration is pending. Upload only public images;
+  these URLs are publicly readable and are not suitable for private medical records.
+
+## My private profile (GraphQL)
+
+The Next.js settings page can load the current account with a Bearer access token;
+no member ID argument is accepted:
+
+```graphql
+query MyProfile {
+  myProfile {
+    _id
+    memberType
+    memberStatus
+    memberNick
+    memberFullName
+    memberEmail
+    memberPhone
+    memberImage
+    memberAddress
+    memberDesc
+    clinicId
+    clinicName
+    clinicTimezone
+    doctorClinicStatus
+    doctorSpecializations
+    location
+    canChangePassword
+  }
+}
+```
+
+`myProfile: MemberSelf!` derives identity from the authenticated account and reads
+fresh profile data from the database. Doctor city remains derived from the current
+active clinic. Optional missing fields return `null`. `canChangePassword` is true
+for EMAIL accounts and false for Google/other providers, matching updateMember's
+password-change rule. The frontend can use it to show password controls; the server
+still enforces the rule during Save.
+
+Load this query when opening settings and refresh the displayed profile after Save.
+`updateMember.member` returns the same MemberSelf fields, including canChangePassword,
+so the frontend can also use that response immediately. Expired/revoked tokens and
+inactive/deleted accounts are rejected. Responses use `Cache-Control: no-store`.
+Public `getMember`/`getDoctors` do not expose email, phone, or canChangePassword.
+Neither self-profile operation exposes password hashes, provider IDs, authVersion,
+or tokens. Frontend wiring and live database integration were not verified here.
+
+## Update your member information (GraphQL)
+
+Use one authenticated mutation for profile edits and optional password changes:
+
+```graphql
+mutation UpdateMember($input: MemberUpdateInput!) {
+  updateMember(input: $input) {
+    member {
+      _id
+      memberFullName
+      memberNick
+      memberPhone
+      memberImage
+      location
+    }
+    requiresLogin
+    imageCleanupPending
+  }
+}
+```
+
+Send a Bearer access token. Example variables for a profile edit:
+
+```json
+{
+  "input": {
+    "memberFullName": "Example Name",
+    "memberPhone": "+821012345678"
+  }
+}
+```
+
+All fields are optional; omitted fields remain unchanged. Empty updates and explicit
+`null` values are rejected. Allowed fields are `memberFullName` (1–100 characters),
+`memberNick` (2–40, unique), `memberPhone` (international format, unique), `memberImage`,
+`memberAddress` (up to 300), and `memberDesc` (up to 2,000). Clinics may additionally
+edit `clinicName` (1–150) and `location` (Location enum). Empty address/description
+strings clear those fields. Account IDs, roles/status, email/provider, clinic affiliation,
+and approval fields are not editable. The authenticated account determines ownership.
+Phone changes update the stored contact; SMS verification is not implemented.
+
+To change an EMAIL account's password, include all three fields together, optionally
+alongside profile edits:
+
+```json
+{
+  "input": {
+    "currentPassword": "your current password",
+    "newPassword": "your replacement password",
+    "confirmPassword": "your replacement password"
+  }
+}
+```
+
+The current password is verified, the new pair must match, and the new password must
+be 8–100 characters. Password whitespace is preserved. Only its salted hash is stored;
+confirmation/current-password values are not saved. Google-only accounts can edit
+profiles but cannot set a local password here. Successful password changes increment
+the member's internal authentication version: existing access tokens and refresh
+sessions become unusable immediately. `requiresLogin: true` tells the frontend to
+clear its local session and show login. The API does not issue replacement tokens.
+Legacy credentials without a version remain valid only while the member version is zero.
+
+Image flow: choose → validate → `imageUploader` → Save through `updateMember`.
+Send the returned owner-scoped URL unchanged (`member` target for users/doctors,
+`clinic` for clinics). The backend checks ownership/file existence and claims the
+pending image before the database write. After successful Save it deletes only the
+previously attached owned local image. An unchanged URL keeps the current image;
+`memberImage: ""` removes it. External Google images and unowned legacy files are
+never deleted automatically. Hidden persistent attachment markers prevent reuse of
+retired URLs and are stored alongside the files; persist the entire `UPLOAD_DIR`.
+
+Validation failures save none of the requested member fields. One conditional MongoDB
+update applies profile/password changes; duplicate phone/nickname or concurrent saves
+return GraphQL `CONFLICT`. Known failed saves release the new image claim for retry
+and retain the old image. An unknown database write outcome conservatively retains
+the claim. If old-file deletion fails after Save, the member edit stays successful
+and `imageCleanupPending` is true. Unused uploads, retained markers, and cleanup retries
+are left for the deferred cleanup tool; no background cleanup/retry job is implemented.
+
+The response's `member` is an authenticated self-profile, including phone/email and
+clinic-derived doctor city. Public `getMember`/`getDoctors` continue to exclude contact
+and credential fields. Integration tests use real GraphQL validation, password helpers,
+and filesystem writes with simulated persistence; live database/browser flows remain
+unverified.
 
 ## Get an appointment
 

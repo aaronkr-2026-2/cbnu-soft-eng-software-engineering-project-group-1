@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  ForbiddenException,
   NotFoundException,
   Optional,
   ServiceUnavailableException,
@@ -17,6 +18,7 @@ import {
   MemberStatus,
   MemberType,
 } from '../../libs/enum/member.enum.js';
+import { Location } from '../../libs/enum/location.enum.js';
 import { MEMBER } from '../../schemas/member.model.js';
 import {
   MEMBER_SESSION,
@@ -24,6 +26,8 @@ import {
 } from '../../schemas/member-session.model.js';
 import type {
   MemberAuthResponse,
+  MemberUpdateResponse,
+  MemberSelfProfile,
   MemberDocument,
   MemberEntity,
   MemberPrincipal,
@@ -35,6 +39,8 @@ import type {
   SignupDto,
 } from '../../libs/dto/member/member-auth.dto.js';
 import { hashPassword, verifyPassword } from '../auth/member-password.js';
+import { MemberUpdateInput } from '../../libs/dto/member/member-update.input.js';
+import { UploadService } from '../upload/upload.service.js';
 import { GoogleAuthService } from '../auth/google-auth.service.js';
 
 const REFRESH_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
@@ -52,6 +58,7 @@ export class MemberService {
     @Optional()
     @InjectModel(MEMBER_SESSION)
     private readonly sessions?: Model<MemberSessionEntity>,
+    @Optional() private readonly uploads?: UploadService,
   ) {}
 
   private models() {
@@ -75,25 +82,11 @@ export class MemberService {
         memberStatus: MemberStatus.ACTIVE,
         deletedAt: null,
       })
-      .select({
-        _id: 1,
-        memberType: 1,
-        memberStatus: 1,
-        memberNick: 1,
-        memberFullName: 1,
-        memberImage: 1,
-        memberAddress: 1,
-        memberDesc: 1,
-        clinicId: 1,
-        clinicName: 1,
-        clinicTimezone: 1,
-        doctorClinicStatus: 1,
-        doctorSpecializations: 1,
-      })
+      .select(this.publicFields)
       .lean()
       .exec();
     if (!member) throw new NotFoundException('Member not found');
-    return member;
+    return (await this.hydrateLocations([member]))[0];
   }
 
   private readonly publicFields = {
@@ -105,6 +98,7 @@ export class MemberService {
     memberImage: 1,
     memberAddress: 1,
     memberDesc: 1,
+    location: 1,
     clinicId: 1,
     clinicName: 1,
     clinicTimezone: 1,
@@ -133,7 +127,7 @@ export class MemberService {
       throw new BadRequestException('Invalid clinic ID');
     if (!this.members)
       throw new ServiceUnavailableException('Member lookup is unavailable');
-    return this.members
+    const doctors = await this.members
       .find({
         memberType: MemberType.DOCTOR,
         memberStatus: MemberStatus.ACTIVE,
@@ -146,12 +140,52 @@ export class MemberService {
       .limit(100)
       .lean()
       .exec();
+    return this.hydrateLocations(doctors);
+  }
+
+  async myProfile(principal: MemberPrincipal): Promise<MemberSelfProfile> {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const member = await this.members
+      .findOne({
+        _id: principal._id,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select({
+        ...this.publicFields,
+        memberEmail: 1,
+        memberPhone: 1,
+        authProvider: 1,
+        authVersion: 1,
+      })
+      .lean()
+      .exec();
+    if (!member || (member.authVersion ?? 0) !== (principal.authVersion ?? 0))
+      throw new UnauthorizedException('Invalid access token');
+    return this.selfProfile(member);
+  }
+
+  private async selfProfile(member: MemberEntity): Promise<MemberSelfProfile> {
+    const profile = Object.fromEntries(
+      (Object.keys(this.publicFields) as (keyof MemberProfile)[]).map((key) => [
+        key,
+        member[key],
+      ]),
+    ) as MemberProfile;
+    const [hydrated] = await this.hydrateLocations([profile]);
+    return {
+      ...hydrated,
+      memberPhone: member.memberPhone ?? undefined,
+      memberEmail: member.memberEmail ?? undefined,
+      canChangePassword: member.authProvider === AuthProvider.EMAIL,
+    };
   }
 
   async listDoctors(): Promise<MemberProfile[]> {
     if (!this.members)
       throw new ServiceUnavailableException('Member lookup is unavailable');
-    return this.members
+    const doctors = await this.members
       .find({
         memberType: MemberType.DOCTOR,
         memberStatus: MemberStatus.ACTIVE,
@@ -163,10 +197,54 @@ export class MemberService {
       .limit(100)
       .lean()
       .exec();
+    return this.hydrateLocations(doctors);
+  }
+
+  // Clinics own cities. Resolve doctor cities from current affiliations in one query.
+  private async hydrateLocations<
+    T extends Pick<MemberProfile, 'memberType' | 'clinicId' | 'location'>,
+  >(records: T[]): Promise<T[]> {
+    const clinicIds = [
+      ...new Map(
+        records
+          .filter(
+            (record) =>
+              record.memberType === MemberType.DOCTOR && record.clinicId,
+          )
+          .map((record) => [String(record.clinicId), record.clinicId!]),
+      ).values(),
+    ];
+    const cities = new Map<string, Location | undefined>();
+    if (clinicIds.length) {
+      if (!this.members)
+        throw new ServiceUnavailableException('Member lookup is unavailable');
+      const clinics = await this.members
+        .find({
+          _id: { $in: clinicIds },
+          memberType: MemberType.CLINIC,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+        })
+        .select({ _id: 1, location: 1 })
+        .lean()
+        .exec();
+      for (const clinic of clinics)
+        cities.set(String(clinic._id), clinic.location ?? undefined);
+    }
+    return records.map((record) => ({
+      ...record,
+      location:
+        record.memberType === MemberType.DOCTOR
+          ? cities.get(String(record.clinicId))
+          : record.memberType === MemberType.CLINIC
+            ? record.location
+            : undefined,
+    }));
   }
 
   async authenticateAccessToken(token: string): Promise<MemberPrincipal> {
     let subject: string;
+    let version: number;
     try {
       const claims = await this.jwt.verifyAsync<Record<string, unknown>>(
         token,
@@ -184,6 +262,15 @@ export class MemberService {
         claims.exp <= Date.now() / 1000
       )
         throw new Error('Invalid claims');
+      const tokenVersion =
+        claims.authVersion === undefined ? 0 : claims.authVersion;
+      if (
+        typeof tokenVersion !== 'number' ||
+        !Number.isSafeInteger(tokenVersion) ||
+        tokenVersion < 0
+      )
+        throw new Error('Invalid claims');
+      version = tokenVersion;
       subject = claims.sub;
     } catch {
       throw new UnauthorizedException('Invalid access token');
@@ -196,11 +283,155 @@ export class MemberService {
         memberStatus: MemberStatus.ACTIVE,
         deletedAt: null,
       })
-      .select({ _id: 1, memberType: 1 })
+      .select({ _id: 1, memberType: 1, authVersion: 1 })
       .lean()
       .exec();
-    if (!member) throw new UnauthorizedException('Invalid access token');
-    return { _id: member._id, memberType: member.memberType };
+    if (!member || (member.authVersion ?? 0) !== version)
+      throw new UnauthorizedException('Invalid access token');
+    return {
+      _id: member._id,
+      memberType: member.memberType,
+      authVersion: member.authVersion ?? 0,
+    };
+  }
+
+  async updateMember(
+    principal: MemberPrincipal,
+    input: MemberUpdateInput,
+  ): Promise<MemberUpdateResponse> {
+    const { members } = this.models();
+    const member = await members
+      .findOne({
+        _id: principal._id,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select('+memberPassword +authVersion')
+      .exec();
+    if (!member || (member.authVersion ?? 0) !== (principal.authVersion ?? 0))
+      throw new UnauthorizedException('Invalid access token');
+    if (
+      member.memberType !== MemberType.CLINIC &&
+      (input.clinicName !== undefined || input.location !== undefined)
+    )
+      throw new BadRequestException('Clinic fields require a clinic account');
+
+    const changePassword =
+      input.currentPassword !== undefined ||
+      input.newPassword !== undefined ||
+      input.confirmPassword !== undefined;
+    if (changePassword) {
+      if (
+        !input.currentPassword ||
+        !input.newPassword ||
+        !input.confirmPassword ||
+        input.newPassword !== input.confirmPassword
+      )
+        throw new BadRequestException(
+          'Provide the current password and matching new passwords',
+        );
+      if (member.authProvider !== AuthProvider.EMAIL)
+        throw new ForbiddenException(
+          'Password changes require an email account',
+        );
+      if (!(await verifyPassword(input.currentPassword, member.memberPassword)))
+        throw new BadRequestException('Current password is incorrect');
+    }
+    const update: Record<string, unknown> = {};
+    for (const field of [
+      'memberFullName',
+      'memberNick',
+      'memberPhone',
+      'memberImage',
+      'memberAddress',
+      'memberDesc',
+      'clinicName',
+      'location',
+    ] as const) {
+      if (input[field] !== undefined) update[field] = input[field];
+    }
+    if (changePassword)
+      update.memberPassword = await hashPassword(input.newPassword!);
+    if (!Object.keys(update).length)
+      throw new BadRequestException('No fields to update');
+
+    const imageChanged =
+      input.memberImage !== undefined &&
+      input.memberImage !== member.memberImage;
+    const target =
+      member.memberType === MemberType.CLINIC ? 'clinic' : 'member';
+    let releaseImage: (() => Promise<void>) | undefined;
+    if (imageChanged) {
+      if (!this.uploads)
+        throw new ServiceUnavailableException('Image storage is unavailable');
+      if (input.memberImage !== '')
+        releaseImage = await this.uploads.claimProfileImage(
+          input.memberImage!,
+          String(member._id),
+          target,
+        );
+    }
+    let saved: MemberDocument | null;
+    try {
+      // Compare-and-swap prevents concurrent saves/password checks from overwriting newer state.
+      const version = member.get('__v') as number | undefined;
+      saved = await members
+        .findOneAndUpdate(
+          {
+            _id: member._id,
+            memberStatus: MemberStatus.ACTIVE,
+            deletedAt: null,
+            memberType: member.memberType,
+            ...(version === undefined
+              ? { __v: { $exists: false } }
+              : { __v: version }),
+          },
+          {
+            $set: update,
+            $inc: { __v: 1, ...(changePassword ? { authVersion: 1 } : {}) },
+          },
+          { new: true, runValidators: true, context: 'query' },
+        )
+        .select('+authVersion')
+        .exec();
+    } catch (error) {
+      const duplicate =
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 11000;
+      const invalid =
+        error instanceof Error && error.name === 'ValidationError';
+      // Unknown write outcomes retain the claim; cleanup can reconcile them later.
+      if (duplicate || invalid) await releaseImage?.().catch(() => {});
+      if (duplicate)
+        throw new ConflictException(
+          'Phone number or nickname is already in use',
+        );
+      if (invalid) throw new BadRequestException('Invalid member update');
+      throw new ServiceUnavailableException('Member update is unavailable');
+    }
+    if (!saved) {
+      await releaseImage?.().catch(() => {});
+      throw new ConflictException('Member changed; reload before saving again');
+    }
+    let imageCleanupPending = false;
+    if (imageChanged && member.memberImage) {
+      try {
+        await this.uploads!.deletePreviousProfileImage(
+          member.memberImage,
+          String(member._id),
+          target,
+        );
+      } catch {
+        imageCleanupPending = true;
+      }
+    }
+    return {
+      member: await this.selfProfile(saved),
+      requiresLogin: changePassword,
+      imageCleanupPending,
+    };
   }
 
   async signup(input: SignupDto): Promise<MemberAuthResponse> {
@@ -213,6 +444,15 @@ export class MemberService {
     ) {
       throw new BadRequestException('Invalid member type');
     }
+    if (input.location !== undefined && memberType !== MemberType.CLINIC)
+      throw new BadRequestException(
+        'Only clinics can choose a location; doctors inherit their clinic city',
+      );
+    if (
+      memberType === MemberType.CLINIC &&
+      !Object.values(Location).includes(input.location as Location)
+    )
+      throw new BadRequestException('A supported clinic location is required');
     if (
       memberType !== MemberType.CLINIC &&
       (input.clinicName !== undefined || input.clinicTimezone !== undefined)
@@ -251,6 +491,7 @@ export class MemberService {
         ...(memberType === MemberType.CLINIC
           ? {
               clinicName: input.clinicName,
+              location: input.location,
               clinicTimezone: input.clinicTimezone ?? 'Asia/Seoul',
             }
           : {}),
@@ -283,7 +524,7 @@ export class MemberService {
     const { members } = this.models();
     const member = await members
       .findOne({ memberEmail: input.memberEmail.trim().toLowerCase() })
-      .select('+memberPassword')
+      .select('+memberPassword +authVersion')
       .exec();
     const matches = await verifyPassword(
       input.memberPassword,
@@ -309,7 +550,10 @@ export class MemberService {
     const { members } = this.models();
     // Await sparse unique indexes before creating accounts or resolving races.
     await members.init();
-    let member = await members.findOne({ googleId: identity.sub }).exec();
+    let member = await members
+      .findOne({ googleId: identity.sub })
+      .select('+authVersion')
+      .exec();
     if (!member) member = await this.createGoogleMember(identity, members);
     if (member.memberStatus !== MemberStatus.ACTIVE || member.deletedAt)
       throw new UnauthorizedException('Invalid Google sign-in');
@@ -352,6 +596,7 @@ export class MemberService {
           throw error;
         const existing = await members
           .findOne({ googleId: identity.sub })
+          .select('+authVersion')
           .exec();
         if (existing) return existing;
         // Never automatically link or overwrite another account based on email.
@@ -384,11 +629,15 @@ export class MemberService {
       )
       .exec();
     if (!session) throw new UnauthorizedException('Invalid refresh token');
-    const member = await members.findById(session.memberId).exec();
+    const member = await members
+      .findById(session.memberId)
+      .select('+authVersion')
+      .exec();
     if (
       !member ||
       member.memberStatus !== MemberStatus.ACTIVE ||
-      member.deletedAt
+      member.deletedAt ||
+      (member.authVersion ?? 0) !== (session.authVersion ?? 0)
     ) {
       await sessions.deleteOne({ _id: session._id });
       throw new UnauthorizedException('Invalid refresh token');
@@ -404,6 +653,7 @@ export class MemberService {
     const response = await this.response(member, refreshToken);
     await sessions.create({
       memberId: member._id,
+      authVersion: member.authVersion ?? 0,
       refreshTokenHash: tokenHash(refreshToken),
       expiresAt: new Date(Date.now() + REFRESH_LIFETIME_MS),
     });
@@ -415,22 +665,28 @@ export class MemberService {
     refreshToken: string,
   ): Promise<MemberAuthResponse> {
     return {
-      member: {
-        _id: member._id,
-        memberEmail: member.memberEmail,
-        memberNick: member.memberNick,
-        memberType: member.memberType,
-        memberStatus: member.memberStatus,
-        memberFullName: member.memberFullName,
-        memberImage: member.memberImage,
-        clinicId: member.clinicId,
-        clinicName: member.clinicName,
-        clinicTimezone: member.clinicTimezone,
-        doctorClinicStatus: member.doctorClinicStatus,
-      },
+      member: (
+        await this.hydrateLocations([
+          {
+            _id: member._id,
+            memberEmail: member.memberEmail,
+            memberNick: member.memberNick,
+            memberType: member.memberType,
+            memberStatus: member.memberStatus,
+            memberFullName: member.memberFullName,
+            memberImage: member.memberImage,
+            location: member.location,
+            clinicId: member.clinicId,
+            clinicName: member.clinicName,
+            clinicTimezone: member.clinicTimezone,
+            doctorClinicStatus: member.doctorClinicStatus,
+          },
+        ])
+      )[0],
       accessToken: await this.jwt.signAsync({
         sub: member._id.toString(),
         tokenType: 'access',
+        authVersion: member.authVersion ?? 0,
       }),
       refreshToken,
     };

@@ -1,12 +1,12 @@
 # MedConnect backend architecture
 
-Source inspection date: 2026-10-15 (Asia/Seoul). This document describes the current implementation, not a verified live deployment. Paths below are relative to the repository root. This is the single architecture document for the backend, including component responsibilities, diagrams, integration status, and concerns.
+Source inspection date: 2026-10-15; uploader update: 2026-10-18 (Asia/Seoul). This document describes the current implementation, not a verified live deployment. Paths below are relative to the repository root. This is the single architecture document for the backend, including component responsibilities, diagrams, integration status, and concerns.
 
 ## Purpose and structure
 
 The backend is a single NestJS application serving member authentication, public member profiles, appointment booking/lookup, and operational health endpoints. Feature modules run in the same Node.js process; they are not independent microservices. MongoDB stores application records and refresh sessions.
 
-`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, and health modules.
+`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, and upload modules.
 
 | Layer | Responsibility | Source |
 | --- | --- | --- |
@@ -46,7 +46,9 @@ flowchart TD
   GQL[Apollo GraphQL resolvers]
   NextUI[Next.js landing page and clinic directory]
   PublicClient[Public discovery fetch helper]
-  Guard[MemberAccessGuard - protected appointments]
+  Guard[MemberAccessGuard - protected appointments, uploads and member edits]
+  Upload[UploadService - public member and clinic images]
+  Images[(Local upload directory)]
   Member[MemberService]
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
@@ -61,11 +63,15 @@ flowchart TD
   Client -->|HTTP REST: JSON and Bearer token; some paths mismatched| REST
   NextUI -->|In-process calls: clinic and doctor discovery| PublicClient
   PublicClient -->|HTTP GraphQL: public queries, credentials omitted| GQL
-  GQL -->|In-process context: appointment Bearer token| Guard
+  GQL -->|In-process context: appointment, upload or member edit Bearer token| Guard
+  GQL -->|In-process call: validated upload streams and target| Upload
+  Upload -->|Node filesystem streams: image bytes| Images
   REST -->|In-process request: appointment Bearer token| Guard
   Guard -->|In-process call: verify token and load principal| Member
   REST -->|In-process calls: signup, login, refresh| Member
   GQL -->|In-process call: public profile ID| Member
+  GQL -->|In-process call: own-account update input and principal| Member
+  Member -->|In-process call: claim new image and delete previous owned file after save| Upload
   REST -->|In-process call: issue sign-in nonce| Google
   Member -->|In-process call: verify Google ID token and browser nonce| Google
   Google -->|HTTPS: fetch public signing keys for local JWT verification| Provider
@@ -172,6 +178,105 @@ Here, shared services include reusable in-process capabilities and external prov
 
 Google verification is behind GoogleAuthService; account/session writes remain in MemberService. When adding email or another external API, keep provider SDK calls and credentials behind a backend adapter/service. Expose explicit application methods to features, define who owns identity/notification data, and document failure/retry behavior. Email and additional external API adapters are proposed boundaries, not existing components.
 
+## Clinic and doctor cities
+
+As of 2026-10-18, clinic signup requires `location` from MediBridge's ten-value
+`Location` enum in `backend/src/libs/enum/location.enum.ts`. SignupDto and
+MemberService validate required clinic cities; the service rejects location supplied
+by doctors/users, and the Mongoose schema requires city storage on clinics only.
+Doctors select `clinicId` at signup and never store their own city.
+
+MemberService hydrates the location response field from each doctor's current active,
+nondeleted clinic for getMember, getDoctors, and signup/login/refresh. The directory
+uses one batched clinic query, selecting only clinic ID and location. Existing stored
+doctor cities are ignored. Changing clinicId or the clinic city affects the next read;
+there is no city cache or duplicate city value to synchronize. A missing/unavailable
+clinic or legacy clinic without a city yields an absent city (GraphQL null). Clinic
+responses use the clinic's stored city; USER responses do not expose legacy city data.
+
+Clinics can edit their city through updateMember; doctor responses reflect it on the
+next read. No migration, workplace-change endpoint, or directory city filter
+is implemented. Tests change simulated persistence to verify affiliation/city changes;
+no live database or frontend workplace-change workflow was exercised.
+
+## Authenticated member updates
+
+`MemberResolver.myProfile(): MemberSelf!` is a guarded read for settings pages.
+It takes no target ID: MemberService reads the authenticated member's active,
+nondeleted record, rechecks authVersion, selects an explicit profile/contact allowlist,
+and hydrates doctor city from the current clinic. A shared selfProfile mapper supplies
+both this query and updateMember.member. Only MemberSelf exposes email/phone and
+canChangePassword (EMAIL provider); public Member schema/projections are unchanged.
+The capability flag is a UI hint; updateMember retains server-side enforcement.
+No password hash/provider identifiers/authVersion are returned. Existing GraphQL
+context sets no-store. Next.js may load settings with this query without expanding
+its basic identity session. Actual frontend wiring remains outside this backend task.
+
+`MemberResolver.updateMember(input: MemberUpdateInput!)` uses MemberAccessGuard and
+the authenticated principal, never a caller-supplied account ID. Input lives in
+`backend/src/libs/dto/member/member-update.input.ts`; MemberService owns profile,
+password, and session-version writes. The response is MemberUpdateResult with an
+authenticated MemberSelf (private contact fields), requiresLogin, and
+imageCleanupPending. Public Member fields remain unchanged.
+
+Allowed edits are name, nickname, phone, image, address and description; clinic name
+and city are clinic-only. Affiliation, approval, email/provider and role/status changes
+are outside this API. Password changes require currentPassword, newPassword and
+confirmPassword together, matching confirmation, existing length constraints and
+successful current-password verification. Google-only accounts cannot set a password.
+Only the new salted hash persists; logging excludes arguments and response data.
+
+All requested member changes use one conditional findOneAndUpdate with explicit
+allowlisted $set fields, runValidators, and an incremented __v. Snapshot/version
+conflicts and unique-index collisions return CONFLICT. The clinic-city schema validator
+reads the trusted memberType filter when running in Mongoose query context.
+Password changes also atomically increment hidden member authVersion; signed access
+tokens and refresh-session records carry the version. Current-member guard/refresh
+checks reject mismatches, including outstanding tokens/sessions. Missing legacy
+versions mean zero. The frontend must sign in again when requiresLogin is true.
+
+Image writes remain owned by UploadService. UploadStorageModule exports storage to
+MemberModule and UploadModule without an authentication dependency/circular import.
+Uploads use authenticated owner directories. Before saving, MemberService claims an
+owned pending image with an exclusive hidden attachment marker. Conditional-write
+failures release the marker when the failure is known; uncertain database outcomes
+retain it for later reconciliation. A successful database write precedes deletion of
+the old owned attached file. Markers remain after deletion to prevent reattachment
+races. External/unowned legacy files are never deleted. Failed deletion preserves
+the successful update and sets imageCleanupPending; no automatic retry exists.
+Pending uploads, orphan claims, and retired markers await the deferred cleanup tool.
+
+Update/ownership/concurrency/session tests use real GraphQL, Mongoose document
+validation, password helpers and filesystem operations with simulated database writes.
+Actual MongoDB concurrent writes/indexes, browser Save integration and deployment
+remain unverified.
+
+## Public image uploads
+
+`UploadModule` imports `MemberModule` for its exported access guard and
+`UploadStorageModule` for filesystem operations. `UploadResolver`
+exposes MediBridge-compatible `imageUploader(file: Upload!, target: String!): String!`
+and `imagesUploader(files: [Upload!]!, target: String!): [String!]!` mutations.
+`MemberAccessGuard` verifies the token and current account through `MemberService`;
+`UploadService` owns file writes and has no MongoDB/profile write responsibility.
+`upload.http.ts` registers graphql-upload-ts multipart middleware at `/graphql`
+and Express static serving at `/uploads`; `main.ts` calls it before listening.
+
+Targets are restricted to member/clinic images, stored below authenticated owner IDs.
+UploadService generates UUID names,
+checks MIME types and PNG/JPEG/WebP signatures, streams to hidden temporary files,
+then publishes by rename. Limits are 10 MB/file and five files/request; failed writes
+and batches are cleaned up. Apollo CSRF protection stays enabled; clients send
+`Apollo-Require-Preflight: true`, which is allowed by CORS. These are public images,
+not protected medical documents. Signatures are checked without full decoding or
+malware scanning. `UPLOAD_DIR` defaults to `uploads` relative to the backend working
+directory. Save-time deletion of previously attached owned profile images is implemented;
+persistent disk provisioning, quotas, unused-file cleanup/retry jobs, object storage,
+and browser/profile editing integration remain unimplemented.
+
+Upload HTTP tests use real multipart parsing and disk writes with mocked current-member
+authentication. No live MongoDB or deployment was exercised for this addition.
+
 ## Security and configuration
 
 The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor excludes bodies, tokens, GraphQL arguments/query text, and response data, but records request paths and exception messages/stacks; this is not a universal redaction service.
@@ -200,6 +305,7 @@ flowchart LR
   subgraph Host[Backend host - README records Hostinger VPS]
     API[Single Node.js process: Nest REST and Apollo GraphQL]
     File[Local JSON-line log file]
+    Images[Local public upload directory]
   end
   DB[(External MongoDB / Atlas-compatible database)]
   Google[Google identity provider and public signing keys]
@@ -208,6 +314,9 @@ flowchart LR
   Status -->|HTTP fetch: API info and health JSON| API
   API -->|MongoDB wire protocol: application records; production SRV/TLS requirement| DB
   API -->|Node filesystem append: log events| File
+  React -->|HTTP multipart GraphQL: images and Bearer token; browser integration pending| API
+  API -->|Node filesystem streams: public image files| Images
+  API -->|HTTP GET /uploads: public image bytes| React
   API -->|HTTPS: retrieve Google public signing keys| Google
 ```
 

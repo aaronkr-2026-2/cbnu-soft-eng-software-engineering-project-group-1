@@ -10,6 +10,7 @@ export const MemberSessionSchema = new Schema(
       required: true,
       index: true,
     },
+    authVersion: { type: Number, default: 0, min: 0 },
     refreshTokenHash: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true },
   },

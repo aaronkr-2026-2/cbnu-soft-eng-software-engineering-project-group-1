@@ -18,6 +18,7 @@ import { MemberService } from '../src/components/member/member.service.js';
 import MemberSchema, { MEMBER } from '../src/schemas/member.model.js';
 import { MEMBER_SESSION } from '../src/schemas/member-session.model.js';
 import type { MemberDocument } from '../src/libs/types/member.types.js';
+import { Location } from '../src/libs/enum/location.enum.js';
 import { AuthProvider, MemberStatus } from '../src/libs/enum/member.enum.js';
 
 const Member = model('AuthTestMember', MemberSchema);
@@ -145,6 +146,14 @@ describe('Member REST authentication', () => {
                 throw { code: 11000 };
               members.push(member);
               return member;
+            },
+            find: (filter: Record<string, unknown>) => {
+              const ids = (filter._id as { $in: unknown[] }).$in;
+              const value = members.filter(item => ids.some(id => String(id) === String(item._id)) &&
+                item.memberType === filter.memberType && item.memberStatus === filter.memberStatus && item.deletedAt == null)
+                .map(item => ({ _id: item._id, location: item.location }));
+              const chain = { select: () => chain, lean: () => chain, exec: async () => value };
+              return chain;
             },
             findOne: (filter: Record<string, unknown>) =>
               query(
@@ -326,6 +335,10 @@ describe('Member REST authentication', () => {
     { memberType: 'CLINIC' },
     { memberType: 'DOCTOR' },
     { clinicName: 'Wrong role' },
+    { location: 'SEOUL' },
+    { memberType: 'CLINIC', clinicName: 'Clinic' },
+    { memberType: 'CLINIC', clinicName: 'Clinic', location: 'UNKNOWN' },
+    { memberType: 'CLINIC', clinicName: 'Clinic', location: null },
     { memberType: 'CLINIC', clinicName: 'Clinic', clinicTimezone: 'Not/AZone' },
   ])('rejects invalid or privileged signup input: %j', async (overrides) => {
     await request(app.getHttpServer())
@@ -345,6 +358,23 @@ describe('Member REST authentication', () => {
     },
   );
 
+  it.each(Object.values(Location))('accepts clinic city %s and enforces the stored enum', async location => {
+    const result = await request(app.getHttpServer()).post('/member/signup')
+      .send({ ...signup, memberType: 'CLINIC', clinicName: 'Clinic', location }).expect(201);
+    expect(result.body.member.location).toBe(location);
+    expect(members[0].location).toBe(location);
+    members[0].location = 'UNKNOWN' as Location;
+    await expect(members[0].validate()).rejects.toMatchObject({ errors: { location: expect.anything() } });
+  });
+
+  it('requires city storage on clinics and rejects city storage on doctors', async () => {
+    const clinic = new Member({ ...signup, memberType: 'CLINIC', clinicName: 'Clinic' });
+    await expect(clinic.validate()).rejects.toMatchObject({ errors: { location: expect.anything() } });
+    const doctor = new Member({ ...signup, memberType: 'DOCTOR', clinicId: clinic._id,
+      doctorSpecializations: ['DENTIST'], professionalLicenseNumber: 'TEST', location: 'SEOUL' });
+    await expect(doctor.validate()).rejects.toMatchObject({ errors: { location: expect.anything() } });
+  });
+
   it('registers clinics and doctors with a pending affiliation to an active clinic', async () => {
     const clinic = await request(app.getHttpServer())
       .post('/member/signup')
@@ -352,6 +382,7 @@ describe('Member REST authentication', () => {
         ...signup,
         memberType: 'CLINIC',
         clinicName: 'Example Clinic',
+        location: 'SEOUL',
         clinicTimezone: 'Asia/Seoul',
       })
       .expect(201);
@@ -365,10 +396,32 @@ describe('Member REST authentication', () => {
       doctorSpecializations: ['DENTIST'],
       professionalLicenseNumber: 'TEST-LICENSE',
     };
+    await request(app.getHttpServer()).post('/member/signup')
+      .send({ ...doctor, location: 'BUSAN' }).expect(400);
     const result = await request(app.getHttpServer())
       .post('/member/signup')
       .send(doctor)
       .expect(201);
+    expect(clinic.body.member.location).toBe('SEOUL');
+    expect(result.body.member.location).toBe('SEOUL');
+    expect(members[1].location).toBeUndefined();
+    const login = await request(app.getHttpServer()).post('/member/login')
+      .send({ memberEmail: doctor.memberEmail, memberPassword: doctor.memberPassword }).expect(200);
+    expect(login.body.member.location).toBe('SEOUL');
+    // A workplace change needs no copied city update on the doctor.
+    const otherClinic = await request(app.getHttpServer()).post('/member/signup').send({
+      ...signup, memberType: 'CLINIC', clinicName: 'New Clinic', location: 'BUSAN',
+      memberEmail: 'newclinic@example.com', memberPhone: '+821011112222', memberNick: 'new-clinic',
+    }).expect(201);
+    members[1].clinicId = members[2]._id;
+    const refresh = await request(app.getHttpServer()).post('/member/refresh')
+      .send({ refreshToken: login.body.refreshToken }).expect(200);
+    expect(refresh.body.member.location).toBe('BUSAN');
+    expect(refresh.body.member.clinicId).toBe(otherClinic.body.member._id);
+    members[2].location = Location.JEJU;
+    const changed = await request(app.getHttpServer()).post('/member/login')
+      .send({ memberEmail: doctor.memberEmail, memberPassword: doctor.memberPassword }).expect(200);
+    expect(changed.body.member.location).toBe('JEJU');
     expect(result.body.member.doctorClinicStatus).toBe('PENDING');
     expect(result.body.member.clinicId).toBe(clinic.body.member._id);
     members[0].memberStatus = MemberStatus.SUSPENDED;
