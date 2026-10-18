@@ -8,6 +8,8 @@ MedConnect is a healthcare appointment platform for patients, doctors, and clini
 It brings booking information and appointment statuses into one place, reducing
 reliance on phone calls and scattered messages.
 
+**Live site:** [MedConnect](https://cbnu-soft-group1.vercel.app/)
+
 The backend lives in `backend/` and uses NestJS, TypeScript, MongoDB/Mongoose, and
 GraphQL, with REST for member authentication and existing appointment routes.
 See this README's [backend setup](#requirements-and-quick-start) and
