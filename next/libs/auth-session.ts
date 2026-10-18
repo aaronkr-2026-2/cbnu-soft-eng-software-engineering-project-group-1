@@ -44,6 +44,29 @@ export function startSession(result: AuthResult) {
   listeners.forEach((listener) => listener());
 }
 
+// Apply profile display changes without resetting token expiry or replacing another session.
+export function updateSessionMember(
+  token: string,
+  member: AuthResult['member'],
+) {
+  if (
+    !session ||
+    session.accessToken !== token ||
+    session.expiresAt <= Date.now()
+  )
+    return;
+  session = {
+    ...session,
+    member: {
+      _id: member._id,
+      memberNick: member.memberNick,
+      memberType: member.memberType,
+      memberFullName: member.memberFullName,
+    },
+  };
+  listeners.forEach((listener) => listener());
+}
+
 // Tokens remain in this client module, never browser storage or serialized props.
 // Reload/expiry ends the local session. Sign-out does not revoke server sessions.
 export function useSession() {

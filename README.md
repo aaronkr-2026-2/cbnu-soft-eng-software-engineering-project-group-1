@@ -111,6 +111,14 @@ API/database integration is not yet verified.
   endpoints. Email/password browser flows were checked with a local fixture; real
   Google/Nest/database completion and persistent sessions remain unverified/pending.
 
+- **Next.js My Page:** `/mypage` loads the signed-in member's private profile,
+  supports inline editing with Save/Cancel, optional password changes, and image
+  preview/upload/removal. Signed-in desktop/mobile navigation includes My Page.
+  Requires the backend branch's `myProfile`, `updateMember`, and `imageUploader`
+  operations. Backend-schema validation, focused tests, and a local browser
+  fixture passed; real Nest/database integration remains unverified. Reload
+  still ends the in-memory session.
+
 Update this list whenever a new feature is added. Keep entries aligned with the
 implemented behavior, and revise them when features change or are removed.
 

@@ -35,6 +35,11 @@ export function SiteHeader() {
           <a href="/#your-care">Your care</a>
         </nav>
         <div className="header-actions">
+          {session && (
+            <Button component={Link} href="/mypage">
+              My Page
+            </Button>
+          )}
           <span className="sign-in-wrap">
             {session ? (
               <Button onClick={clearSession}>Sign out</Button>
@@ -81,6 +86,11 @@ export function SiteHeader() {
           <a href="/#your-care" onClick={() => setMenuOpen(false)}>
             Your care
           </a>
+          {session && (
+            <Link href="/mypage" onClick={() => setMenuOpen(false)}>
+              My Page
+            </Link>
+          )}
           {session ? (
             <Button
               onClick={() => {

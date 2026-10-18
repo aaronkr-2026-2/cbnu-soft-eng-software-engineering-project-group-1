@@ -340,3 +340,37 @@ The default frontend port is 3000; configure the backend separately.
   and no deployment was performed.
 - A lint script is not configured. No sprint record covers October 16, 2026;
   the latest recorded sprint ended October 15.
+
+## My Page
+
+`/mypage` displays the signed-in member's private personal information using
+`myProfile`. **Edit information** enables fields on the same page, displays
+optional current/new/confirm password inputs for eligible accounts, and adds
+**Edit image** at the bottom. Email and doctor specializations remain read-only.
+Clinic accounts can also edit their clinic name and location.
+
+**Save changes** sends only changed fields. Image selection previews locally;
+saving uploads JPEG, PNG, or WebP (up to 10 MB) through GraphQL multipart
+`imageUploader`, then attaches the returned path with `updateMember`. Cancel
+restores saved values and clears passwords and pending image selection. Password
+changes clear the local session and navigate to sign-in with a success notice.
+Google/provider accounts receive provider-managed password guidance.
+
+The browser uses `libs/api/member.ts` with bearer authorization, `no-store`,
+safe GraphQL/HTTP errors, request cancellation, and no automatic mutation retries.
+`apollo/user/profile.ts` keeps private operations separate from public discovery.
+No private profile data or tokens are serialized into static page props. The
+existing session remains in memory, so reloading requires signing in again.
+
+These operations require the updated **backend branch**; the older backend copy
+on the Next.js branch does not provide them. Configure the API URLs above to
+point at that backend and allow the frontend origin and upload preflight headers
+in CORS. Backend files were not changed as part of this frontend feature.
+
+Verification: `yarn typecheck`, `yarn build`, and
+`node --test tests/profile.test.cjs`. The three GraphQL operations were also
+validated against the current backend source-generated schema. Chrome checks
+using a disposable local fixture confirmed read-only/edit states, saving without
+passwords, cancellation, bottom image controls, and reload sign-out. Real
+Nest/database writes, actual image storage, password-change browser submission,
+and mobile browser interaction remain unverified.
