@@ -1,8 +1,11 @@
 import { Schema } from 'mongoose';
+import { randomUUID } from 'node:crypto';
+import { DoctorSpecialization } from '../libs/enum/member.enum.js';
 import {
   APPOINTMENT_SLOT_DURATION_MINUTES,
   APPOINTMENT_SLOT_DURATION_MS,
   AppointmentStatus,
+  AppointmentSource,
   DoctorChangeRequestStatus,
   DoctorChangeRequestType,
 } from '../libs/enum/appointment.enum.js';
@@ -12,7 +15,11 @@ export const APPOINTMENT_MODEL_NAME = 'Appointment';
 
 const DoctorChangeRequestSchema = new Schema(
   {
-    type: { type: String, enum: Object.values(DoctorChangeRequestType), required: true },
+    type: {
+      type: String,
+      enum: Object.values(DoctorChangeRequestType),
+      required: true,
+    },
     status: {
       type: String,
       enum: Object.values(DoctorChangeRequestStatus),
@@ -30,6 +37,20 @@ const DoctorChangeRequestSchema = new Schema(
 
 const AppointmentSchema = new Schema(
   {
+    specialty: {
+      type: String,
+      enum: Object.values(DoctorSpecialization),
+      immutable: true,
+      required: function (this: { source?: AppointmentSource }) {
+        return this.source !== AppointmentSource.LEGACY;
+      },
+    },
+    source: {
+      type: String,
+      enum: Object.values(AppointmentSource),
+      default: AppointmentSource.LEGACY,
+    },
+    version: { type: String, default: randomUUID, required: true },
     // Stored in UTC. Convert using the clinic's IANA timezone at the API edge.
     startsAt: { type: Date, required: true },
     endsAt: { type: Date, required: true },
@@ -61,9 +82,13 @@ AppointmentSchema.pre('validate', function validateDuration() {
   if (
     this.startsAt instanceof Date &&
     this.endsAt instanceof Date &&
-    this.endsAt.getTime() - this.startsAt.getTime() !== APPOINTMENT_SLOT_DURATION_MS
+    this.endsAt.getTime() - this.startsAt.getTime() !==
+      APPOINTMENT_SLOT_DURATION_MS
   ) {
-    this.invalidate('endsAt', `Appointments must be exactly ${APPOINTMENT_SLOT_DURATION_MINUTES} minutes.`);
+    this.invalidate(
+      'endsAt',
+      `Appointments must be exactly ${APPOINTMENT_SLOT_DURATION_MINUTES} minutes.`,
+    );
   }
 });
 

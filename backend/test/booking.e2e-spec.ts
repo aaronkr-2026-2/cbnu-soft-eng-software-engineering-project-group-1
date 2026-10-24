@@ -22,7 +22,13 @@ import { MEMBER } from '../src/schemas/member.model.js';
 import { DOCTOR_AVAILABILITY_MODEL_NAME } from '../src/schemas/doctor-availability.model.js';
 import { DOCTOR_AVAILABILITY_OVERRIDE_MODEL_NAME } from '../src/schemas/doctor-availability-override.model.js';
 import { AppointmentStatus } from '../src/libs/enum/appointment.enum.js';
-import { MemberType } from '../src/libs/enum/member.enum.js';
+import {
+  DoctorSpecialization,
+  MemberType,
+} from '../src/libs/enum/member.enum.js';
+import { BookingCoordinationService } from '../src/components/booking/booking-coordination.service.js';
+import { BookingPolicyService } from '../src/components/booking/booking-policy.service.js';
+import type { BookingTransaction } from '../src/libs/types/booking.types.js';
 
 const Appointment = model('BookingTestAppointment', AppointmentSchema);
 const patientId = new Types.ObjectId();
@@ -32,6 +38,7 @@ const start = new Date();
 start.setUTCDate(start.getUTCDate() + 7);
 start.setUTCHours(1, 0, 0, 0); // 10:00 Asia/Seoul
 const input = {
+  specialty: DoctorSpecialization.CARDIOLOGIST,
   doctorId: String(doctorId),
   clinicId: String(clinicId),
   startsAt: start.toISOString(),
@@ -54,6 +61,7 @@ describe('POST /appointment/bookAppointment', () => {
   const query = (value: unknown) => {
     const chain = {
       select: () => chain,
+      session: () => chain,
       lean: () => chain,
       exec: async () => value,
     };
@@ -65,6 +73,21 @@ describe('POST /appointment/bookAppointment', () => {
       controllers: [AppointmentController],
       providers: [
         AppointmentService,
+        {
+          provide: BookingPolicyService,
+          useValue: { assertReady: async () => undefined },
+        },
+        {
+          provide: BookingCoordinationService,
+          useValue: {
+            // Persistence substitution for transport/schedule coverage only. The
+            // separate replica-set suite verifies real transaction guarantees.
+            run: async (
+              _scope: unknown,
+              work: (tx: Partial<BookingTransaction>) => Promise<unknown>,
+            ) => work({ reserve: async () => undefined }),
+          },
+        },
         AppointmentResolver,
         MemberAccessGuard,
         {
@@ -101,20 +124,22 @@ describe('POST /appointment/bookAppointment', () => {
           provide: getModelToken(APPOINTMENT_MODEL_NAME),
           useValue: {
             init: async () => undefined,
-            exists: async (filter: {
+            exists: (filter: {
               doctorId: string;
               clinicId: string;
               startsAt: { $lt: Date };
               endsAt: { $gt: Date };
-            }) =>
-              appointments.some(
-                (item) =>
-                  String(item.doctorId) === filter.doctorId &&
-                  ['PENDING', 'CONFIRMED'].includes(item.status) &&
-                  item.startsAt < filter.startsAt.$lt &&
-                  item.endsAt > filter.endsAt.$gt,
-              ),
-            create: async (data: Row) => {
+            }) => ({
+              session: async () =>
+                appointments.some(
+                  (item) =>
+                    String(item.doctorId) === filter.doctorId &&
+                    ['PENDING', 'CONFIRMED'].includes(item.status) &&
+                    item.startsAt < filter.startsAt.$lt &&
+                    item.endsAt > filter.endsAt.$gt,
+                ),
+            }),
+            create: async ([data]: Row[]) => {
               const item = new Appointment(data);
               await item.validate();
               if (
@@ -127,7 +152,7 @@ describe('POST /appointment/bookAppointment', () => {
               )
                 throw { code: 11000 };
               appointments.push(item);
-              return item;
+              return [item];
             },
           },
         },
@@ -158,8 +183,15 @@ describe('POST /appointment/bookAppointment', () => {
         memberStatus: 'ACTIVE',
         clinicId,
         doctorClinicStatus: 'APPROVED',
+        doctorSpecializations: [DoctorSpecialization.CARDIOLOGIST],
       },
     ];
+    memberRows.push({
+      _id: patientId,
+      memberType: 'USER',
+      memberStatus: 'ACTIVE',
+      authVersion: 0,
+    });
     weekly = [
       { doctorId, clinicId, weekday, startMinute: 540, endMinute: 1020 },
     ];
@@ -175,10 +207,13 @@ describe('POST /appointment/bookAppointment', () => {
       .set('Authorization', 'Bearer test-token')
       .send({ ...input, ...changes });
 
-  it('creates a pending 30-minute booking for the authenticated patient', async () => {
+  it('creates a confirmed specialty-aware 30-minute booking for the authenticated patient', async () => {
     const result = await book().expect(201);
     expect(result.body.patientId).toBe(String(patientId));
-    expect(result.body.status).toBe('PENDING');
+    expect(result.body.status).toBe('CONFIRMED');
+    expect(result.body.specialty).toBe(input.specialty);
+    expect(result.body.source).toBe('ONLINE');
+    expect(result.body.version).toEqual(expect.any(String));
     expect(result.body.startsAt).toBe(start.toISOString());
     expect(result.body.endsAt).toBe(
       new Date(+start + 30 * 60_000).toISOString(),
@@ -201,6 +236,11 @@ describe('POST /appointment/bookAppointment', () => {
     },
   );
   it.each([
+    { specialty: undefined },
+    { specialty: 'INVALID' },
+    { specialty: DoctorSpecialization.DENTIST },
+    { source: 'PHONE' },
+    { version: 'client-value' },
     { patientId: String(new Types.ObjectId()) },
     { status: 'CONFIRMED' },
     { endsAt: start.toISOString() },
@@ -283,7 +323,7 @@ describe('POST /appointment/bookAppointment', () => {
     await book().expect(201);
   });
   const mutation = `mutation Book($input: BookAppointmentInput!) {
-    bookAppointment(input: $input) { _id patientId doctorId clinicId startsAt endsAt status durationMinutes }
+    bookAppointment(input: $input) { _id patientId doctorId clinicId startsAt endsAt status durationMinutes specialty source version }
   }`;
   const gqlBook = (changes: Row = {}) =>
     request(app.getHttpServer())
@@ -299,7 +339,7 @@ describe('POST /appointment/bookAppointment', () => {
     expect(result.body.errors).toBeUndefined();
     expect(result.body.data.bookAppointment).toMatchObject({
       patientId: String(patientId),
-      status: 'PENDING',
+      status: 'CONFIRMED',
       startsAt: start.toISOString(),
       durationMinutes: 30,
     });

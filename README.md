@@ -75,10 +75,13 @@ API/database integration is not yet verified.
 - **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
   for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
-  creating a PENDING appointment for a fixed 30-minute slot.
+  creating an immediately CONFIRMED, specialty-aware 30-minute appointment. Writes
+  require policy V2 activation and completed migration; disabled by default.
 - **Booking validation:** Approved doctor affiliation, active clinic/doctor checks,
   clinic-timezone slot alignment, weekly working hours, date-specific overrides,
-  and occupied-slot checks backed by a unique active-slot index.
+  occupied-slot checks backed by a unique active-slot index, transactional 24-hour
+  spacing at one clinic/specialty across doctors, and patient overlap prevention
+  across clinics/specialties. Conflicts preserve existing commitments.
 - **Appointment lookup:** GraphQL and REST retrieval for the appointment's patient,
   doctor, or clinic, with ownership checks.
 - **API documentation:** Swagger UI and OpenAPI JSON for REST, plus a GraphQL
@@ -177,18 +180,19 @@ The backend loads `.env` from its working directory before loading application m
 |---|---|---|
 | `NODE_ENV` | Runtime environment | Set `development` locally; `production` on the server |
 | `PORT_API` | API listening port | Falls back to `PORT`, then 3000 |
-| `MONGO_DEV` | Development MongoDB connection | Required for the documented development setup |
-| `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_DEV` is unset; use `mongodb+srv://` |
+| `MONGO_URI` | Explicit MongoDB connection override | Takes precedence in all environments |
+| `MONGO_DEV` | Development/test MongoDB connection | Used outside production when `MONGO_URI` is unset |
+| `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_URI` is unset; use `mongodb+srv://` |
+| `BOOKING_POLICY_V2_ENABLED` | Enables confirmed specialty-aware booking | `false`; set exactly `true` only after migration on a replica set |
 | `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Expected Google web client ID for sign-in verification | Required only for Google sign-in; absent configuration returns 503 |
 | `UPLOAD_DIR` | Local public image storage directory | `uploads`, relative to the backend working directory; persist this directory in deployment |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
 
-**Current database configuration limitation:** Startup validation recognizes
-`MONGO_URI`, but `DatabaseModule` does not use it. The module also prefers
-`MONGO_DEV` even in production. Use `MONGO_DEV` for development; for production,
-unset `MONGO_DEV` and set `MONGO_PROD` to an Atlas SRV connection string. Do not rely
-on `MONGO_URI` alone until these configuration paths are aligned.
+Startup, database connection, and feature modules share URI selection through
+`backend/src/database/database.config.ts`. Production never falls back to
+`MONGO_DEV`. An explicitly empty override fails startup instead of selecting an
+unexpected database. Production retains the `mongodb+srv://` requirement.
 
 ## API documentation and status
 
@@ -224,6 +228,7 @@ npm run build        # Compile the backend
 npm run lint         # Check source and tests
 npm test             # Unit tests
 npm run test:e2e     # HTTP/GraphQL tests
+npm run test:booking:integration # Disposable real MongoDB concurrency tests
 npm run test:cov     # Unit-test coverage
 ```
 
@@ -236,6 +241,20 @@ npm run start:prod
 
 HTTP tests use an in-memory persistence substitute with Mongoose validation;
 they do not connect to Atlas or verify real MongoDB concurrency/index enforcement.
+
+The separate booking integration command requires `mongod` on PATH, or a
+`MONGOD_BINARY` path. It starts a single-member replica set and a standalone server
+on dynamically selected localhost ports, runs races/rollback/retry/index checks,
+then stops both and removes their temporary data. It does not load `.env` or use
+the application's database. A single-member replica set is a disposable test
+fixture, not a production availability setup.
+
+`AppointmentService` uses `BookingCoordinationService` to save an appointment and
+its active commitment ledger entry together under patient/doctor-slot locks.
+Booking requires a replica set; it has no standalone or legacy-write fallback.
+The integration command builds the backend and tests the real API, migration CLI,
+conflict races, rollback, and activation gates. Waitlist/lifecycle APIs and workers
+remain later steps.
 
 ## Architecture
 
@@ -671,40 +690,107 @@ Content-Type: application/json
 {
   "doctorId": "<doctor-member-id>",
   "clinicId": "<clinic-member-id>",
+  "specialty": "CARDIOLOGIST",
   "startsAt": "2030-01-07T10:00:00+09:00"
 }
 ```
 
-The caller must be an active USER. The patient ID comes from authentication;
-request fields such as `patientId`, `status`, `endsAt`, and `durationMinutes` are
-rejected. The start must be a future ISO timestamp with an explicit timezone
-(`Z` or an offset), aligned to a 30-minute boundary in the clinic timezone.
-The server computes the end as exactly 30 elapsed minutes later and creates a
-PENDING appointment, returning the appointment object with HTTP 201.
+The caller must be an active USER; patient identity comes from authentication.
+`specialty` is required and must be a DoctorSpecialization offered by that doctor.
+The API rejects client-supplied patientId, status, source, version, endsAt and
+visit duration. Start must be a future ISO timestamp with an explicit timezone,
+aligned to a clinic-local :00/:30 boundary. The server returns HTTP 201 with a
+CONFIRMED appointment, its recorded specialty, source ONLINE, and an opaque version.
 
-Before booking, the doctor must be active, belong to the selected active clinic,
-and have APPROVED affiliation. Working hours must already exist in
-`doctor_availability` or `doctor_availability_overrides` for that doctor and clinic.
-There are no approval/availability-management APIs yet; new doctors start PENDING
-and cannot be booked until these prerequisites are configured.
+The active clinic and its active doctor must have APPROVED affiliation. Working
+hours must exist in doctor_availability or doctor_availability_overrides. Weekly
+hours use the clinic-local weekday; CUSTOM_HOURS replace weekly hours for that
+local date, and UNAVAILABLE blocks overlapping intervals or a whole day. The
+complete 30-minute slot must fit. Approval/schedule management APIs await Step 4.
 
-Weekly hours use the clinic-local weekday. Date-specific CUSTOM_HOURS replace
-weekly hours for that local date. UNAVAILABLE overrides block overlapping time
-intervals, or the full day when no interval is provided. The complete slot must
-fit within an available interval. No schedule means unavailable.
+For the same patient, clinic and booked specialty, active commitments must start
+at least 24 elapsed hours apart across all doctors. Exactly 24 hours is allowed.
+Active appointments also cannot overlap across any clinic/specialty; adjacent
+appointments are allowed. Appointment and ledger writes share one transaction;
+the unique active doctor/start index remains a final occupancy safeguard.
 
-PENDING and CONFIRMED appointments reserve the doctor's slot. An overlap check
-handles existing bookings, and MongoDB's unique active-slot index resolves
-simultaneous attempts at the same start time. Model initialization is awaited
-before booking; the existing unique index must remain enabled in the database.
-Canceled slots can be reused. This endpoint does not prevent a patient from
-booking different doctors at the same time.
+REST conflicts use HTTP 409 and `booking: { reason, existingCommitments, choices }`.
+COMMITMENT_CONFLICT and PATIENT_OVERLAP include only the caller's own blocking
+commitment summaries (kind, ID/version, doctor/clinic, specialty, times and status).
+SLOT_OCCUPIED/SLOT_UNAVAILABLE expose no other patient's details. Choices currently
+contain KEEP for own commitment conflicts; replacement is not implemented until
+Step 6. Ordinary booking never cancels or replaces an existing appointment.
 
-Errors: 400 for invalid input, past/misaligned starts, or invalid clinic/doctor
-relationships; 401 for invalid authentication; 403 for a non-USER caller;
-409 for unavailable or occupied slots. Responses use `Cache-Control: no-store`.
-Tests simulate persistence and duplicate-key races; actual Atlas index enforcement
-has not been integration-tested.
+Other errors: 400 for invalid input/specialty/slot or clinic/doctor relationships;
+401 for invalid/currently revoked sessions; 403 for non-USER callers; 503 with
+FEATURE_DISABLED or MIGRATION_REQUIRED until activation is ready. Responses are
+no-store. Historical records remain participant-scoped and retain their statuses;
+specialty/version may be absent until resolved/migrated, and source reads as LEGACY.
+There is no public generic status-edit or legacy PENDING creation endpoint.
+
+### Activate booking policy V2
+
+This release defaults booking writes off, including the old booking behavior.
+Reads and member/auth features remain available. Activation requires a
+transaction-capable replica set, compatible clients supplying specialty, a backup,
+and a maintenance window with **all old/new API and worker writers stopped**.
+The CLI flag records that operational prerequisite; it cannot stop other processes.
+Do not restart an older binary after activation because it ignores the ledger.
+No application database migration or deployment was performed during development.
+
+From backend/ after configuring the intended database:
+
+```bash
+npm run build
+BOOKING_POLICY_V2_ENABLED=false npm run booking:migrate -- --dry-run --report /private/tmp/booking-report.json
+```
+
+Dry-run reads data without creating collections/indexes or updating records. Console
+output contains aggregate counts; the optional report contains record IDs/issues
+and is created exclusively with mode 0600. Use a fresh private path, keep reports
+and resolution files out of Git/logs, and do not put patient/contact details in
+an evidence reference. A dry-run against live writers is advisory; apply rechecks
+within its transaction after writers are stopped.
+
+PENDING records require an explicit status decision; active records need a known
+booked specialty. The tool never infers it from today's doctor specialties or
+silently confirms old requests. Resolve conflicts, stale active records,
+participant/slot anomalies and ambiguous specialty before applying. A resolution
+file is a JSON array, for example:
+
+```json
+[
+  {
+    "appointmentId": "<existing-appointment-id>",
+    "specialty": "CARDIOLOGIST",
+    "status": "CONFIRMED",
+    "evidenceRef": "<review-record-reference>"
+  }
+]
+```
+
+Only supply decisions backed by an actual review. Historical terminal records may
+retain unknown specialty. Past requests cannot be newly confirmed, future visits
+cannot be marked completed/no-show, and terminal status transitions are rejected.
+The tool handles at most 5000 appointments; larger datasets need a separately
+reviewed batch migration. It refuses existing waitlist commitments because this
+is the initial booking migration, before waitlist rollout.
+
+After backup/review and stopping all writers, apply explicitly:
+
+```bash
+BOOKING_POLICY_V2_ENABLED=false npm run booking:migrate -- --apply --writers-stopped --resolutions /private/tmp/booking-resolutions.json
+```
+
+Omit --resolutions if no decisions are needed. Apply atomically backfills source,
+stable versions and known specialties/statuses, records audit evidence, rebuilds
+the active appointment ledger, and writes the readiness marker. Failure rolls
+back all document changes; index preparation happens before that transaction.
+Repeated apply preserves versions and does not duplicate unchanged audit entries.
+Then set BOOKING_POLICY_V2_ENABLED=true in server configuration and restart the
+new backend. Startup verifies indexes, the marker and a consistent snapshot of
+legacy metadata/ledger coverage; missing prerequisites prevent activation.
+Disabling the flag pauses new booking writes without reverting to old rules.
 
 ## GraphQL appointments
 
@@ -724,6 +810,9 @@ mutation BookAppointment($input: BookAppointmentInput!) {
     startsAt
     endsAt
     durationMinutes
+    specialty
+    source
+    version
     status
   }
 }
@@ -736,6 +825,7 @@ Variables:
   "input": {
     "doctorId": "<doctor-member-id>",
     "clinicId": "<clinic-member-id>",
+    "specialty": "CARDIOLOGIST",
     "startsAt": "2030-01-07T10:00:00+09:00"
   }
 }
@@ -772,7 +862,9 @@ populated by these operations.
 Inspect GraphQL's `errors` array even for HTTP 200 responses. Application errors
 use codes such as `UNAUTHENTICATED`, `FORBIDDEN`, `BAD_USER_INPUT`, `NOT_FOUND`, and
 `CONFLICT`. Internal error details and stack traces are not returned; response
-caching is disabled. GraphiQL is available at `/graphql` outside production.
+caching is disabled. Booking conflicts additionally expose the same allowlisted
+`{ reason, existingCommitments, choices }` at `errors[].extensions.booking`.
+No REPLACE choice is advertised before the replacement API exists. GraphiQL is available at `/graphql` outside production.
 
 The schema is generated from DTO decorators in memory. `AppointmentResolver`
 handles GraphQL arguments/context and delegates to `AppointmentService`.
@@ -799,14 +891,17 @@ checkout-to-deployment procedure for the current layout.
 - Clinic affiliation approval and availability management APIs are not implemented.
 - Email verification and logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
-- Real MongoDB booking races and index enforcement are not integration-tested.
-- Patient bookings with different doctors can overlap.
+- Booking, migration and concurrency are tested against disposable MongoDB;
+  application-database cutover, frontend integration and Atlas rollout remain unverified.
+- Cancellation, staff booking, waitlists and notification delivery are not yet implemented.
 - Authentication rate limiting is per process, without a shared multi-instance store.
-- Database environment-variable handling and local deployment scripts need the
-  alignment described above.
+- Local deployment scripts still need the alignment described above.
 
 ## Project records
 
+- [Booking and waitlist contracts](backend/BOOKING_WAITLIST_CONTRACT.md): Step 1
+  target policy, API contracts, legacy-data strategy, and rollout gates. These
+  contract includes future stages; the API sections above describe current behavior.
 - [Sprint 01](backend/SPRINT_01.md): October 1–8 scope and delivery review.
 - [Sprint 02](backend/SPRINT_02.md): October 9–15 Google sign-in backend delivery and remaining integration work.
 - [AI usage log](backend/AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.

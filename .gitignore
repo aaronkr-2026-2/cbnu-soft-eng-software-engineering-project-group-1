@@ -9,6 +9,7 @@ coverage/
 /backend/AGENTS.md
 /backend/SESSION_LOG.md
 /backend/FIXES-and-BUGS.md
+/backend/BOOKING_WAITLIST_PLAN.md
 
 # Keep Next.js sources visible even when a local Git exclude hides next/.
 !/next/

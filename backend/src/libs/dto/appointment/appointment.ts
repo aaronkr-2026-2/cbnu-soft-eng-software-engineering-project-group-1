@@ -7,9 +7,11 @@ import {
 } from '@nestjs/graphql';
 import {
   AppointmentStatus,
+  AppointmentSource,
   DoctorChangeRequestStatus,
   DoctorChangeRequestType,
 } from '../../enum/appointment.enum.js';
+import { DoctorSpecialization } from '../../enum/member.enum.js';
 
 @ObjectType('DoctorChangeRequest')
 export class DoctorChangeRequestOutput {
@@ -25,6 +27,10 @@ export class DoctorChangeRequestOutput {
 
 @ObjectType('Appointment')
 export class AppointmentOutput {
+  @Field(() => DoctorSpecialization, { nullable: true })
+  specialty?: DoctorSpecialization;
+  @Field(() => AppointmentSource) source: AppointmentSource;
+  @Field(() => String, { nullable: true }) version?: string;
   @Field(() => ID) _id: string;
   @Field(() => ID) doctorId: string;
   @Field(() => ID) clinicId: string;

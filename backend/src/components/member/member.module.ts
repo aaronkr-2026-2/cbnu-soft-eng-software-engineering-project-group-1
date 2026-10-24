@@ -19,12 +19,9 @@ import { MemberResolver } from './member.resolver.js';
 import { GoogleAuthService } from '../auth/google-auth.service.js';
 
 import { UploadStorageModule } from '../upload/upload-storage.module.js';
+import { getMongoUri } from '../../database/database.config.js';
 
-const mongoUri =
-  process.env.MONGO_URI ??
-  (process.env.NODE_ENV === 'production'
-    ? process.env.MONGO_PROD
-    : process.env.MONGO_DEV);
+const mongoUri = getMongoUri();
 
 @Module({
   imports: [

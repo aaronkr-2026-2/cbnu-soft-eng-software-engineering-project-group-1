@@ -1,8 +1,13 @@
 import { Field, ID, InputType } from '@nestjs/graphql';
-import { IsISO8601, IsMongoId, Matches } from 'class-validator';
+import { IsEnum, IsISO8601, IsMongoId, Matches } from 'class-validator';
+import { DoctorSpecialization } from '../../enum/member.enum.js';
 
 @InputType('BookAppointmentInput')
 export class BookAppointmentDto {
+  @Field(() => DoctorSpecialization)
+  @IsEnum(DoctorSpecialization)
+  specialty: DoctorSpecialization;
+
   @Field(() => ID)
   @IsMongoId()
   doctorId: string;
