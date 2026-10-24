@@ -130,18 +130,18 @@ The backend loads `.env` from its working directory before loading application m
 |---|---|---|
 | `NODE_ENV` | Runtime environment | Set `development` locally; `production` on the server |
 | `PORT_API` | API listening port | Falls back to `PORT`, then 3000 |
-| `MONGO_DEV` | Development MongoDB connection | Required for the documented development setup |
-| `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_DEV` is unset; use `mongodb+srv://` |
+| `MONGO_URI` | Explicit MongoDB connection override | Takes precedence in all environments |
+| `MONGO_DEV` | Development/test MongoDB connection | Used outside production when `MONGO_URI` is unset |
+| `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_URI` is unset; use `mongodb+srv://` |
 | `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Expected Google web client ID for sign-in verification | Required only for Google sign-in; absent configuration returns 503 |
 | `UPLOAD_DIR` | Local public image storage directory | `uploads`, relative to the backend working directory; persist this directory in deployment |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
 
-**Current database configuration limitation:** Startup validation recognizes
-`MONGO_URI`, but `DatabaseModule` does not use it. The module also prefers
-`MONGO_DEV` even in production. Use `MONGO_DEV` for development; for production,
-unset `MONGO_DEV` and set `MONGO_PROD` to an Atlas SRV connection string. Do not rely
-on `MONGO_URI` alone until these configuration paths are aligned.
+Startup, database connection, and feature modules share URI selection through
+`backend/src/database/database.config.ts`. Production never falls back to
+`MONGO_DEV`. An explicitly empty override fails startup instead of selecting an
+unexpected database. Production retains the `mongodb+srv://` requirement.
 
 ## API documentation and status
 
@@ -177,6 +177,7 @@ npm run build        # Compile the backend
 npm run lint         # Check source and tests
 npm test             # Unit tests
 npm run test:e2e     # HTTP/GraphQL tests
+npm run test:booking:integration # Disposable real MongoDB concurrency tests
 npm run test:cov     # Unit-test coverage
 ```
 
@@ -189,6 +190,20 @@ npm run start:prod
 
 HTTP tests use an in-memory persistence substitute with Mongoose validation;
 they do not connect to Atlas or verify real MongoDB concurrency/index enforcement.
+
+The separate booking integration command requires `mongod` on PATH, or a
+`MONGOD_BINARY` path. It starts a single-member replica set and a standalone server
+on dynamically selected localhost ports, runs races/rollback/retry/index checks,
+then stops both and removes their temporary data. It does not load `.env` or use
+the application's database. A single-member replica set is a disposable test
+fixture, not a production availability setup.
+
+`BookingCoordinationService` now provides internal transaction foundations with
+patient locks, doctor-slot allocation gates, and an active-commitment ledger. It
+requires a replica set and has no standalone fallback. Existing public booking
+still creates PENDING appointments and does not call these primitives. Wiring
+them into specialty-aware booking and migrating existing data belong to Step 3;
+waitlist/lifecycle APIs and workers remain later steps.
 
 ## Architecture
 
@@ -751,11 +766,11 @@ checkout-to-deployment procedure for the current layout.
 - Clinic affiliation approval and availability management APIs are not implemented.
 - Email verification and logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
-- Real MongoDB booking races and index enforcement are not integration-tested.
+- Internal coordination races, rollback and active-slot indexes are tested on a
+  disposable replica set; public booking is not yet integrated with this ledger.
 - Patient bookings with different doctors can overlap.
 - Authentication rate limiting is per process, without a shared multi-instance store.
-- Database environment-variable handling and local deployment scripts need the
-  alignment described above.
+- Local deployment scripts still need the alignment described above.
 
 ## Project records
 

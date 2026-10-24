@@ -6,7 +6,7 @@ Source inspection date: 2026-10-15; uploader update: 2026-10-18 (Asia/Seoul). Th
 
 The backend is a single NestJS application serving member authentication, public member profiles, appointment booking/lookup, and operational health endpoints. Feature modules run in the same Node.js process; they are not independent microservices. MongoDB stores application records and refresh sessions.
 
-`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, and upload modules.
+`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, upload, and internal booking coordination modules. Coordination foundations were added October 25, 2026 (Asia/Seoul); public booking does not call them yet.
 
 | Layer | Responsibility | Source |
 | --- | --- | --- |
@@ -51,6 +51,7 @@ flowchart TD
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
+  Coordination[BookingCoordinationService - internal only]
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
   Health[Health controllers and DatabaseService]
@@ -75,6 +76,7 @@ flowchart TD
   GQL -->|In-process calls: validated input and principal| Booking
   Member -->|Mongoose calls: member and session reads/writes| Models
   Booking -->|Mongoose calls: eligibility/hours reads and appointment writes| Models
+  Coordination -->|Mongoose session: coordination gates and commitment ledger; no public caller yet| Models
   Models -->|MongoDB wire protocol: documents, queries, indexes| DB
   Health -->|In-process calls: Mongoose connection state| Models
   REST -->|Interceptor events: route, duration, errors| Logs
@@ -116,10 +118,57 @@ GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `ba
 | `members` | USER, DOCTOR, CLINIC, ADMIN accounts, clinic timezone, affiliation and profile data | MemberService creates accounts/authenticates/reads profiles; AppointmentService directly reads doctor and clinic eligibility |
 | `member_sessions` | Member ID, refresh-token hash, expiry | MemberService writes and rotates sessions; unique hash and TTL expiry index |
 | `appointments` | Participant IDs, UTC start/end, status, cancellation/change-request fields | AppointmentService creates/reads bookings; partial unique doctor/start index for PENDING/CONFIRMED |
+| `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
+| `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty and time interval | BookingCoordinationService; internal ledger not yet populated by public booking |
 | `doctor_availability` | Weekly doctor/clinic hours | Read by AppointmentService; no management API implemented |
 | `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | Read by AppointmentService; no management API implemented |
 
 Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Change/cancellation schema fields do not mean change/cancellation APIs are implemented. Availability and approval currently require configuration outside the delivered API; their future write boundary remains to be defined. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
+
+### Internal booking transaction foundations (Step 2)
+
+`backend/src/components/booking/booking-coordination.service.ts` exports `run(scope,
+callback)` through BookingModule. The scope declares every affected patient and
+doctor-slot up front. A whole-patient gate deliberately serializes all of that
+patient's writes: this protects both the patient/clinic/specialty sliding 24-hour
+check and appointment overlap across clinics/specialties. It is stronger and
+coarser than separate specialty locks. All callbacks must lock the complete scope
+before any authoritative business reads, use the supplied session on every write,
+and await operations sequentially. Discovering another participant requires a
+new transaction with an expanded scope, never a late out-of-order lock.
+Callers must validate slots through `appointment-slot.ts` in the clinic timezone
+and recheck authorization, doctor eligibility, schedule, cutoff and consent in the
+transaction. Coordination is not a replacement for those domain checks.
+
+The service seeds empty coordination rows outside the transaction, then writes
+their revisions inside it in sorted key order: patient IDs first, then doctor-slot
+keys. Concurrent writers therefore conflict on an actual document instead of
+both passing a snapshot read. There is no expiring application lock or lock TTL.
+The driver retries transient failures with a 10-second transaction deadline and
+at most eight callback executions; commit time is limited to five seconds. Reads
+use snapshot isolation, writes majority concern, and primary preference. Unknown
+commit outcomes must be reconciled before callers retry a user action. Callback
+code must not send notifications, perform filesystem/network side effects, or
+manually commit/abort; persist future outbox events in the supplied transaction.
+
+`reserve` checks the active ledger for specialty spacing, patient overlap and
+doctor occupancy. `release` removes a commitment under its patient/slot locks.
+`holdSlot` increments a generation and prevents manual reservation until allocation
+is resolved; allocator reservations and `resolveSlot` require the expected
+generation. Generation checks provide concurrency foundations, not a FIFO worker
+or completed cancellation API. Domain records and their ledger entries must be
+created/changed atomically by later services. Historical appointments are not
+automatically copied or protected by this ledger yet; migration and integration
+are mandatory before enabling policy V2. The existing appointment unique active
+doctor/start index is unchanged.
+
+The service refuses missing persistence and standalone MongoDB before executing a
+callback. Replica-set, transaction and deployment guidance follows the
+[MongoDB transaction documentation](https://www.mongodb.com/docs/drivers/node/current/crud/transactions/).
+`npm run test:booking:integration` owns temporary local MongoDB processes and tests
+real two-client races, failure rollback, retries, slot generations, unique indexes
+and standalone rejection. This does not establish Atlas deployment readiness or
+implemented public waitlist behavior.
 
 ## Shared services and external integrations
 
@@ -248,7 +297,7 @@ Auth endpoints share a 20-request/minute/IP/process limiter. It is not a distrib
 | --- | --- |
 | `JWT_ACCESS_SECRET` | Server-only signing key for access JWTs and Google nonce challenges; startup requires at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Google web client audience; absence disables Google endpoints with 503. GOOGLE_CLIENT_SECRET is unused by this ID-token flow. |
-| `MONGO_URI`, `MONGO_DEV`, `MONGO_PROD`, `NODE_ENV` | Startup and feature modules prefer MONGO_URI, then the environment-specific URI. DatabaseModule currently instead prefers MONGO_DEV and ignores MONGO_URI; see critique. |
+| `MONGO_URI`, `MONGO_DEV`, `MONGO_PROD`, `NODE_ENV` | Shared database.config.ts selector: explicit MONGO_URI, then MONGO_PROD in production or MONGO_DEV otherwise. Startup validates the same selection; production requires SRV. |
 | `PORT_API`, `PORT` | Listener precedence: PORT_API, then PORT, then 3000. README examples use 3333. |
 | `CORS_ORIGINS` | Comma-separated origin allowlist; defaults include localhost ports 3000 and 5173 |
 | `LOG_FILE` | Optional JSON-line log file location |
@@ -292,11 +341,11 @@ Tests under `backend/test/` exercise HTTP/GraphQL behavior with simulated persis
 
 ## Architecture concerns
 
-These scoped source observations are proposals for future fixes, not a full runtime/security audit. No fixes were implemented.
+These scoped source observations are not a full runtime/security audit. Database URI selection was corrected in Step 2; other findings below remain proposals.
 
 | Finding and evidence | Impact | Proposed fix |
 | --- | --- | --- |
-| Conflicting database configuration: `backend/src/main.ts`, `components/member/member.module.ts`, and `components/appointment/appointment.module.ts` prefer MONGO_URI or environment-specific settings, while `backend/src/database/database.module.ts` ignores MONGO_URI and prefers MONGO_DEV even in production. | Startup validation/model registration can disagree with the actual connection, or production can select the development database. | Create one validated server configuration interface for URI selection, consumed by startup and modules. Verify MONGO_URI-only, development, and production configurations with fake values and no live database writes. |
+| Corrected October 25: startup, DatabaseModule, MemberModule, AppointmentModule and BookingModule use `backend/src/database/database.config.ts`. | Prevents connection/registration disagreement and development fallback in production. | Selection tests cover explicit overrides, production precedence and invalid/missing settings. Production connectivity remains unverified. |
 | Frontend authentication crosses incompatible contracts: `frontend/src/pages/Login.tsx` always calls mockLogin; `frontend/src/lib/api.ts` uses `/login/` and `/auth/register`, while the backend controller uses `/member/login` and `/member/signup`. `frontend/src/api.ts` defines a second client; frontend email/password and user shapes also differ from backend memberEmail/memberPassword and member responses. | A local UI session can appear authenticated without a valid server token; real registration/login calls do not match the implemented API. | Trace callers, consolidate the active API boundary, map backend DTO/response fields explicitly, and gate mocks deliberately. Verify signup/login/protected requests against server contracts; keep backend guards authoritative. |
 | Local deployment workflow does not match source layout: ignored root `docker-compose.yml` runs npm in `/usr/src/medconnect`, while package.json is under backend/. `deploy.sh` hard-resets and selects master. | The recorded script cannot be assumed to build this checkout and can discard local changes when run. | Review the intended branch/release workflow, point container commands at backend/, and replace destructive checkout handling with an explicit release procedure. Validate configuration/build before attempting deployment. |
 

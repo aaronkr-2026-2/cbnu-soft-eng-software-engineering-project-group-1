@@ -8,6 +8,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { configureUploads } from './components/upload/upload.http.js';
+import { requireMongoUri } from './database/database.config.js';
 
 function loadEnvironment(): void {
   try {
@@ -22,14 +23,7 @@ function validateConfiguration(): void {
   if (!jwtSecret || Buffer.byteLength(jwtSecret) < 32) {
     throw new Error('JWT_ACCESS_SECRET must contain at least 32 bytes');
   }
-  const mongoUri = process.env.MONGO_URI ??
-    (process.env.NODE_ENV === 'production' ? process.env.MONGO_PROD : process.env.MONGO_DEV);
-  if (!mongoUri) {
-    throw new Error('Missing MongoDB configuration. Set MONGO_URI (or MONGO_DEV/MONGO_PROD).');
-  }
-  if (!mongoUri.startsWith('mongodb+srv://') && process.env.NODE_ENV === 'production') {
-    throw new Error('Production MongoDB must use a TLS-enabled mongodb+srv:// connection string.');
-  }
+  requireMongoUri();
 }
 
 async function bootstrap() {

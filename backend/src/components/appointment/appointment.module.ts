@@ -5,6 +5,7 @@ import { AppointmentController } from './appointment.controller.js';
 import { AppointmentService } from './appointment.service.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { getMongoUri } from '../../database/database.config.js';
 import {
   APPOINTMENT_MODEL_NAME,
   default as AppointmentSchema,
@@ -18,11 +19,7 @@ import {
   default as DoctorAvailabilityOverrideSchema,
 } from '../../schemas/doctor-availability-override.model.js';
 
-const mongoUri =
-  process.env.MONGO_URI ??
-  (process.env.NODE_ENV === 'production'
-    ? process.env.MONGO_PROD
-    : process.env.MONGO_DEV);
+const mongoUri = getMongoUri();
 
 @Module({
   imports: [
