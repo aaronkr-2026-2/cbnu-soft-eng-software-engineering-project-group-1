@@ -1,4 +1,5 @@
 import { Schema } from 'mongoose';
+import { randomUUID } from 'node:crypto';
 import { DoctorSpecialization } from '../libs/enum/member.enum.js';
 import { APPOINTMENT_SLOT_DURATION_MS } from '../libs/enum/appointment.enum.js';
 
@@ -8,6 +9,15 @@ export const BOOKING_COMMITMENT = 'BookingCommitment';
 // the SAME transaction as the appointment/waitlist and any outbox event.
 export const BookingCommitmentSchema = new Schema(
   {
+    version: { type: String, required: true, default: randomUUID },
+    status: {
+      type: String,
+      enum: ['PENDING', 'CONFIRMED', 'ACTIVE', 'NOTIFICATION_ONLY'],
+      default: function (this: { kind?: string }) {
+        return this.kind === 'WAITLIST' ? 'ACTIVE' : 'CONFIRMED';
+      },
+      required: true,
+    },
     kind: { type: String, enum: ['APPOINTMENT', 'WAITLIST'], required: true },
     commitmentId: { type: Schema.Types.ObjectId, required: true },
     patientId: { type: Schema.Types.ObjectId, required: true },

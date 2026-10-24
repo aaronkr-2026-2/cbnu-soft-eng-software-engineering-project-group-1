@@ -3,7 +3,7 @@
   "rootDir": ".",
   "moduleNameMapper": { "^(.+\\/.*)\\.js$": "$1" },
   "testEnvironment": "node",
-  "testRegex": "booking-coordination.integration-spec.ts$",
+  "testRegex": "booking-(coordination|policy).integration-spec.ts$",
   "testTimeout": 30000,
   "transform": { "^.+\\.(t|j)s$": "ts-jest" }
 }

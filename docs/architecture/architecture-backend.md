@@ -6,7 +6,7 @@ Source inspection date: 2026-10-15; uploader update: 2026-10-18 (Asia/Seoul). Th
 
 The backend is a single NestJS application serving member authentication, public member profiles, appointment booking/lookup, and operational health endpoints. Feature modules run in the same Node.js process; they are not independent microservices. MongoDB stores application records and refresh sessions.
 
-`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, upload, and internal booking coordination modules. Coordination foundations were added October 25, 2026 (Asia/Seoul); public booking does not call them yet.
+`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, upload, and internal booking coordination modules. Booking policy V2 was integrated October 25, 2026 (Asia/Seoul); writes require the activation flag and verified migration on a replica set.
 
 | Layer | Responsibility | Source |
 | --- | --- | --- |
@@ -51,7 +51,7 @@ flowchart TD
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
-  Coordination[BookingCoordinationService - internal only]
+  Coordination[BookingCoordinationService]
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
   Health[Health controllers and DatabaseService]
@@ -76,7 +76,8 @@ flowchart TD
   GQL -->|In-process calls: validated input and principal| Booking
   Member -->|Mongoose calls: member and session reads/writes| Models
   Booking -->|Mongoose calls: eligibility/hours reads and appointment writes| Models
-  Coordination -->|Mongoose session: coordination gates and commitment ledger; no public caller yet| Models
+  Booking -->|In-process transaction callback: patient and slot scope| Coordination
+  Coordination -->|Mongoose session: coordination gates and commitment ledger| Models
   Models -->|MongoDB wire protocol: documents, queries, indexes| DB
   Health -->|In-process calls: Mongoose connection state| Models
   REST -->|Interceptor events: route, duration, errors| Logs
@@ -105,7 +106,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 
 **Protected requests:** the guard extracts REST or GraphQL request context and calls `MemberService.authenticateAccessToken`. JWT algorithm, issuer, audience, expiry, token type, and subject are checked. A fresh member query determines active status and current role. Services then enforce operation-specific authorization; a token alone does not grant appointment access.
 
-**Booking:** the authenticated caller must be USER; patient identity comes from the principal. `AppointmentService` checks the active doctor/clinic relationship and APPROVED affiliation, derives a 30-minute slot in the clinic timezone using `appointment-slot.ts`, applies weekly hours/date overrides, and checks overlap. It awaits model initialization and uses a unique active-slot index to resolve simultaneous same-start bookings. PENDING/CONFIRMED appointments reserve the slot. Patient conflicts across different doctors are not prevented.
+**Booking:** the authenticated caller must be USER; patient identity comes from the principal. With BOOKING_POLICY_V2_ENABLED=true and verified migration, AppointmentService rechecks the active patient/auth version, doctor/clinic approval, selected specialty, clinic-local alignment and hours/overrides within a BookingCoordinationService transaction. It saves a CONFIRMED appointment with source ONLINE, specialty and opaque version together with its active ledger entry. Whole-patient serialization enforces the sliding 24-hour rule at one clinic/specialty across doctors and appointment overlap prevention everywhere. Doctor-slot gates plus the unchanged unique active-slot index prevent double allocation. New requests require specialty; old PENDING records are never silently confirmed. Disabled booking returns 503 rather than falling back to old writes.
 
 **Appointment lookup:** the service scopes the query to the caller's patient, doctor, or clinic ID. Another doctor in the same clinic has no access; there is no ADMIN override. Missing and unauthorized appointments both return not found. Public member lookup is separate and returns only projected profile fields; it does not require this guard.
 
@@ -117,15 +118,17 @@ GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `ba
 | --- | --- | --- |
 | `members` | USER, DOCTOR, CLINIC, ADMIN accounts, clinic timezone, affiliation and profile data | MemberService creates accounts/authenticates/reads profiles; AppointmentService directly reads doctor and clinic eligibility |
 | `member_sessions` | Member ID, refresh-token hash, expiry | MemberService writes and rotates sessions; unique hash and TTL expiry index |
-| `appointments` | Participant IDs, UTC start/end, status, cancellation/change-request fields | AppointmentService creates/reads bookings; partial unique doctor/start index for PENDING/CONFIRMED |
+| `appointments` | Participant IDs, booked specialty, source/version, UTC start/end, status, cancellation/change-request fields | AppointmentService creates confirmed bookings/reads participants; partial unique doctor/start index still includes legacy PENDING/CONFIRMED |
 | `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
-| `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty and time interval | BookingCoordinationService; internal ledger not yet populated by public booking |
+| `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty, version/status and time interval | BookingCoordinationService; appointment entries saved atomically by public booking, legacy entries populated by migration |
+| `booking_policy` | Migration version/readiness marker | BookingMigrationService writes offline; BookingPolicyService checks at startup and in mutation transactions |
+| `booking_migration_audit` | Metadata/status change history and review evidence references | Offline migration only; excluded from API projections and console/app logs |
 | `doctor_availability` | Weekly doctor/clinic hours | Read by AppointmentService; no management API implemented |
 | `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | Read by AppointmentService; no management API implemented |
 
 Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Change/cancellation schema fields do not mean change/cancellation APIs are implemented. Availability and approval currently require configuration outside the delivered API; their future write boundary remains to be defined. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
 
-### Internal booking transaction foundations (Step 2)
+### Booking transaction foundations (Steps 2–3)
 
 `backend/src/components/booking/booking-coordination.service.ts` exports `run(scope,
 callback)` through BookingModule. The scope declares every affected patient and
@@ -157,9 +160,9 @@ doctor occupancy. `release` removes a commitment under its patient/slot locks.
 is resolved; allocator reservations and `resolveSlot` require the expected
 generation. Generation checks provide concurrency foundations, not a FIFO worker
 or completed cancellation API. Domain records and their ledger entries must be
-created/changed atomically by later services. Historical appointments are not
-automatically copied or protected by this ledger yet; migration and integration
-are mandatory before enabling policy V2. The existing appointment unique active
+created/changed atomically. Public booking now does this; later lifecycle/waitlist
+services must follow the same protocol. Historical appointments enter the ledger
+only through explicit offline migration before policy V2 is enabled. The existing appointment unique active
 doctor/start index is unchanged.
 
 The service refuses missing persistence and standalone MongoDB before executing a
@@ -169,6 +172,39 @@ callback. Replica-set, transaction and deployment guidance follows the
 real two-client races, failure rollback, retries, slot generations, unique indexes
 and standalone rejection. This does not establish Atlas deployment readiness or
 implemented public waitlist behavior.
+
+### Activation, migration and conflict responses (Step 3)
+
+BookingPolicyService verifies the enabled flag, replica-set/index prerequisites,
+readiness marker and a consistent transactional snapshot of metadata/ledger coverage
+at startup. Every booking rechecks the marker in its transaction. The operator
+must stop all old/new writers for migration; a CLI acknowledgment cannot enforce
+another process's shutdown. Never run old writers after cutover or bypass the
+ledger with external status edits. Later cancellation/rescheduling/status writes
+must update their ledger entry and version in the same transaction.
+
+`backend/src/tools/booking-migration.ts` uses the shared URI selector and a
+connection with automatic DDL disabled. Dry-run reads only and emits aggregate
+counts; an optional exclusive mode-0600 operator report contains record IDs/issues.
+BookingMigrationService applies reviewed resolutions, backfills source/version and
+known specialty, preserves terminal history with nullable specialty, rebuilds the
+active ledger and marks readiness atomically. PENDING/ambiguous/conflicting or stale
+active records block migration; the current doctor specialty list is never used
+as historical inference. Each actual metadata/status change records audit evidence;
+unchanged reruns preserve versions and add no audit entries. Failure rolls back
+all document changes, while index preparation precedes the transaction. This
+initial tool is bounded to 5000 appointments and refuses waitlist commitments.
+The exact commands and resolution shape are in the root README. No application
+DB migration, backup rehearsal, Atlas cutover or production activation was run.
+
+BookingConflictException constructs only allowlisted summaries from a query scoped
+to the requesting patient. Both transports expose reason, own commitments and
+choices; GraphQL keeps its generic extensions.code and adds extensions.booking
+only for the explicit booking exception classes. Other HttpException payloads
+are not forwarded. KEEP is currently the only own-conflict choice; replacement
+will be added in Step 6. Slot conflicts expose no other patient's identity. Source,
+specialty and version are added to participant appointment reads; no generic
+status mutation, waitlist endpoint or notification worker is introduced.
 
 ## Shared services and external integrations
 
@@ -298,6 +334,7 @@ Auth endpoints share a 20-request/minute/IP/process limiter. It is not a distrib
 | `JWT_ACCESS_SECRET` | Server-only signing key for access JWTs and Google nonce challenges; startup requires at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Google web client audience; absence disables Google endpoints with 503. GOOGLE_CLIENT_SECRET is unused by this ID-token flow. |
 | `MONGO_URI`, `MONGO_DEV`, `MONGO_PROD`, `NODE_ENV` | Shared database.config.ts selector: explicit MONGO_URI, then MONGO_PROD in production or MONGO_DEV otherwise. Startup validates the same selection; production requires SRV. |
+| `BOOKING_POLICY_V2_ENABLED` | Exactly true/false; defaults false. Booking writes require true plus verified migration on a replica set; disabled never restores old writes. |
 | `PORT_API`, `PORT` | Listener precedence: PORT_API, then PORT, then 3000. README examples use 3333. |
 | `CORS_ORIGINS` | Comma-separated origin allowlist; defaults include localhost ports 3000 and 5173 |
 | `LOG_FILE` | Optional JSON-line log file location |
@@ -319,6 +356,8 @@ flowchart LR
   end
   DB[(External MongoDB / Atlas-compatible database)]
   Google[Google identity provider and public signing keys]
+  Migration[Offline migration CLI - separate operator Node process]
+  Migration -->|MongoDB wire protocol: read-only audit or offline transactional migration| DB
   React -->|HTTP: JSON API requests and Bearer tokens; integration incomplete| API
   API -->|HTTP: status HTML, CSS, JavaScript| Status
   Status -->|HTTP fetch: API info and health JSON| API

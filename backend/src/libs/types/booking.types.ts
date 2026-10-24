@@ -15,6 +15,8 @@ export type BookingCommitment = BookingSlot & {
   clinicId: Types.ObjectId;
   specialty: DoctorSpecialization;
   endsAt: Date;
+  version?: string;
+  status?: 'PENDING' | 'CONFIRMED' | 'ACTIVE' | 'NOTIFICATION_ONLY';
 };
 
 export type BookingTransaction = {

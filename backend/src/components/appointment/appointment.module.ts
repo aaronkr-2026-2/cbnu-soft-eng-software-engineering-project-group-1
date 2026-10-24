@@ -6,6 +6,7 @@ import { AppointmentService } from './appointment.service.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { getMongoUri } from '../../database/database.config.js';
+import { BookingModule } from '../booking/booking.module.js';
 import {
   APPOINTMENT_MODEL_NAME,
   default as AppointmentSchema,
@@ -24,6 +25,7 @@ const mongoUri = getMongoUri();
 @Module({
   imports: [
     MemberModule,
+    BookingModule,
     ...(mongoUri
       ? [
           MongooseModule.forFeature([

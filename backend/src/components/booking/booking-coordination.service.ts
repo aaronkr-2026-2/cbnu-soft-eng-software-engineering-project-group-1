@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { BookingConflictException } from './booking-error.js';
 import {
   Connection,
   type ClientSession,
@@ -46,11 +47,7 @@ export class BookingCoordinationService {
     private readonly commitments?: Model<Commitment>,
   ) {}
 
-  // Internal only: no resolver/controller calls this until policy V2 is ready.
-  async run<T>(
-    scope: BookingScope,
-    work: (tx: BookingTransaction) => Promise<T>,
-  ): Promise<T> {
+  async prepare(): Promise<void> {
     const { connection, gates, commitments } = this;
     if (
       !connection?.db ||
@@ -78,7 +75,16 @@ export class BookingCoordinationService {
       throw error;
     });
     await this.initialization;
+  }
 
+  async run<T>(
+    scope: BookingScope,
+    work: (tx: BookingTransaction) => Promise<T>,
+  ): Promise<T> {
+    await this.prepare();
+    const connection = this.connection!;
+    const gates = this.gates!;
+    const commitments = this.commitments!;
     const keys = [
       ...new Set([
         ...scope.patientIds.map(patientKey),
@@ -228,39 +234,53 @@ export class BookingCoordinationService {
         ? gate.allocationPending
         : !gate.allocationPending || gate.generation !== generation)
     ) {
-      throw new ConflictException(
-        'Slot allocation is pending or generation is stale',
-      );
+      throw new BookingConflictException('STALE_COMMITMENT');
     }
     const duplicate = await commitments
       .exists({ kind: entry.kind, commitmentId: entry.commitmentId })
       .session(session);
-    if (duplicate) throw new ConflictException('Commitment already exists');
-    const conflict = await commitments
-      .exists({
+    if (duplicate) throw new BookingConflictException('DUPLICATE_ENTRY');
+    const sameSpecialty = {
+      clinicId: entry.clinicId,
+      specialty: entry.specialty,
+      startsAt: {
+        $gt: new Date(entry.startsAt.getTime() - DAY_MS),
+        $lt: new Date(entry.startsAt.getTime() + DAY_MS),
+      },
+    };
+    const blockers = await commitments
+      .find({
         patientId: entry.patientId,
-        clinicId: entry.clinicId,
-        specialty: entry.specialty,
-        startsAt: {
-          $gt: new Date(entry.startsAt.getTime() - DAY_MS),
-          $lt: new Date(entry.startsAt.getTime() + DAY_MS),
-        },
+        $or: [
+          sameSpecialty,
+          ...(entry.kind === 'APPOINTMENT'
+            ? [
+                {
+                  kind: 'APPOINTMENT' as const,
+                  startsAt: { $lt: entry.endsAt },
+                  endsAt: { $gt: entry.startsAt },
+                },
+              ]
+            : []),
+        ],
       })
-      .session(session);
-    if (conflict)
-      throw new ConflictException(
-        'Patient already has a commitment within 24 hours',
+      .session(session)
+      .sort({ startsAt: 1, commitmentId: 1 })
+      .lean()
+      .exec();
+    if (blockers.length) {
+      const specialtyConflict = blockers.some(
+        (item) =>
+          String(item.clinicId) === String(entry.clinicId) &&
+          item.specialty === entry.specialty &&
+          Math.abs(item.startsAt.getTime() - entry.startsAt.getTime()) < DAY_MS,
       );
+      throw new BookingConflictException(
+        specialtyConflict ? 'COMMITMENT_CONFLICT' : 'PATIENT_OVERLAP',
+        blockers,
+      );
+    }
     if (entry.kind === 'APPOINTMENT') {
-      const overlap = await commitments
-        .exists({
-          patientId: entry.patientId,
-          kind: 'APPOINTMENT',
-          startsAt: { $lt: entry.endsAt },
-          endsAt: { $gt: entry.startsAt },
-        })
-        .session(session);
-      if (overlap) throw new ConflictException('Patient appointments overlap');
       const occupied = await commitments
         .exists({
           doctorId: entry.doctorId,
@@ -269,8 +289,7 @@ export class BookingCoordinationService {
           endsAt: { $gt: entry.startsAt },
         })
         .session(session);
-      if (occupied)
-        throw new ConflictException('Appointment slot is already booked');
+      if (occupied) throw new BookingConflictException('SLOT_OCCUPIED');
     }
     await commitments.create([entry], { session });
   }

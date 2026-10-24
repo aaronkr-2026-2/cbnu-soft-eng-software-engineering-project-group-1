@@ -20,7 +20,8 @@
     "test:cov": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "test:debug": "node --experimental-vm-modules --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
-    "test:booking:integration": "node test/run-booking-integration.cjs"
+    "test:booking:integration": "npm run build && node test/run-booking-integration.cjs",
+    "booking:migrate": "node --env-file-if-exists=.env dist/tools/booking-migration.js"
   },
   "dependencies": {
     "@apollo/server": "^5.5.1",

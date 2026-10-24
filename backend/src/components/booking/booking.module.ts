@@ -10,6 +10,16 @@ import {
   BookingCommitmentSchema,
 } from '../../schemas/booking-commitment.model.js';
 import { BookingCoordinationService } from './booking-coordination.service.js';
+import { BookingPolicyService } from './booking-policy.service.js';
+import { BookingMigrationService } from './booking-migration.service.js';
+import AppointmentSchema, {
+  APPOINTMENT_MODEL_NAME,
+} from '../../schemas/appointment.model.js';
+import MemberSchema, { MEMBER } from '../../schemas/member.model.js';
+import {
+  BOOKING_POLICY,
+  BookingPolicySchema,
+} from '../../schemas/booking-policy.model.js';
 
 @Module({
   imports: getMongoUri()
@@ -17,10 +27,21 @@ import { BookingCoordinationService } from './booking-coordination.service.js';
         MongooseModule.forFeature([
           { name: BOOKING_GATE, schema: BookingGateSchema },
           { name: BOOKING_COMMITMENT, schema: BookingCommitmentSchema },
+          { name: APPOINTMENT_MODEL_NAME, schema: AppointmentSchema },
+          { name: MEMBER, schema: MemberSchema },
+          { name: BOOKING_POLICY, schema: BookingPolicySchema },
         ]),
       ]
     : [],
-  providers: [BookingCoordinationService],
-  exports: [BookingCoordinationService],
+  providers: [
+    BookingCoordinationService,
+    BookingMigrationService,
+    BookingPolicyService,
+  ],
+  exports: [
+    BookingCoordinationService,
+    BookingPolicyService,
+    BookingMigrationService,
+  ],
 })
 export class BookingModule {}
