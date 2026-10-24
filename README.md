@@ -759,6 +759,9 @@ checkout-to-deployment procedure for the current layout.
 
 ## Project records
 
+- [Booking and waitlist contracts](backend/BOOKING_WAITLIST_CONTRACT.md): Step 1
+  target policy, API contracts, legacy-data strategy, and rollout gates. These
+  changes are not implemented; the API sections above describe current behavior.
 - [Sprint 01](backend/SPRINT_01.md): October 1–8 scope and delivery review.
 - [Sprint 02](backend/SPRINT_02.md): October 9–15 Google sign-in backend delivery and remaining integration work.
 - [AI usage log](backend/AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.

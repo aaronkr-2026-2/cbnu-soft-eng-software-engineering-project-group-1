@@ -524,3 +524,16 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Added an authenticated self-query instead of expanding public query contact fields or relying on stale frontend session identity. Capability is computed from the account provider and is a UI hint, not authorization.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** Resolve the user from the authenticated token instead of accepting an ID, so the private profile endpoint cannot select someone else's account.
+
+
+## Define booking and waitlist contracts (Step 1) — 2026-10-25
+
+**Tool(s) used:** Codex; local source/Git inspection, apply_patch, Python documentation checks, Git whitespace checks.
+**What I asked for:** Start the booking/waitlist plan step by step, report each completed step with a commit message, and leave commits/pushes to me. I confirmed the four queue/time defaults after an explanation.
+**Pre-planning:** The current service creates PENDING appointments without specialty; no waitlist APIs exist. The plan was Git-ignored. Existing GraphQL error formatting strips structured domain details.
+**Planning:** Publish a tracked target contract while retaining the README's implemented-behavior claims. Separate my four confirmed rules from other implementation decisions; settle migration and rollout before runtime work.
+**Implementation process:** Added BOOKING_WAITLIST_CONTRACT.md with specialty-aware booking, FIFO, all replacement combinations, scoped permissions, statuses, safe errors, migration, feature gates and boundary acceptance examples. Linked it in README and updated local plan/session context. Source comparisons, replacement/boundary coverage, local links/source paths and whitespace checks passed. No runtime tests or database changes; Step 2 not started. No sprint covers October 25.
+**What I kept as-is:** Current API behavior, application code, legacy data, existing routes, closed sprints and the pre-existing .gitignore change. Nothing staged, committed or pushed.
+**What I changed or rejected, and why:** Rejected silent specialty inference for new requests, automatic legacy confirmation and enabling promotion before visible notification delivery. Atomic replacement must preserve the original on failure.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** A failed switch to another booking or waitlist must leave my original appointment intact, so both changes belong in one server transaction.
