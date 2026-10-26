@@ -1,0 +1,17 @@
+// Forward feature partials here as screens are implemented, for example:
+// @forward "./auth";
+// Keep selectors under a feature root and responsive rules with that feature.
+
+@forward 'landing';
+
+@forward 'auth';
+
+@forward 'clinic-card';
+
+@forward 'clinics';
+
+@forward 'doctor-card';
+
+@forward 'doctors';
+
+@forward 'mypage';

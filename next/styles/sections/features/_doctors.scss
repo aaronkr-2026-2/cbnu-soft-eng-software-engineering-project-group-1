@@ -1,0 +1,104 @@
+@use '../../variables' as v;
+
+.doctors-page {
+  .doctors-page__intro {
+    padding-block: 2rem 3.5rem;
+    background: v.$backgroundColor;
+
+    .MuiButton-root {
+      margin: 0 0 2rem -1rem;
+    }
+
+    .eyebrow {
+      display: block;
+    }
+
+    h1 {
+      margin: 0.75rem 0 1rem;
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 600;
+      letter-spacing: -0.045em;
+      line-height: 1.1;
+    }
+
+    p {
+      max-width: 40rem;
+      color: v.$mutedTextColor;
+      line-height: 1.7;
+    }
+  }
+
+  .doctors-page__directory {
+    padding-block: 3rem 5rem;
+
+    h2 {
+      margin-bottom: 1.75rem;
+      font-size: 1.65rem;
+    }
+  }
+
+  .doctors-page__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+
+    .MuiButton-root {
+      flex-shrink: 0;
+    }
+  }
+
+  .doctors-page__count {
+    margin-block: 1.25rem;
+    color: v.$mutedTextColor;
+    font-size: 0.9rem;
+  }
+
+  .doctors-page__grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+
+  .doctors-page__empty {
+    padding: 3rem 1rem;
+    border: 1px solid v.$borderColor;
+    border-radius: v.$radius;
+    text-align: center;
+
+    > svg {
+      color: v.$primary;
+      font-size: 2.5rem;
+    }
+
+    h3 {
+      margin-block: 1rem 0.5rem;
+    }
+
+    p {
+      color: v.$mutedTextColor;
+      line-height: 1.6;
+    }
+  }
+
+  .doctors-page__note {
+    margin-top: 1.5rem;
+    color: v.$mutedTextColor;
+    font-size: 0.85rem;
+  }
+
+  @media (max-width: 64rem) {
+    .doctors-page__grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 40rem) {
+    .doctors-page__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .doctors-page__toolbar {
+      flex-wrap: wrap;
+    }
+  }
+}

@@ -1,0 +1,81 @@
+@use '../../variables' as v;
+
+.doctor-summary-card.MuiCard-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  border: 1px solid v.$borderColor;
+  border-radius: v.$radius;
+  background: v.$whiteColor;
+  color: v.$textColor;
+
+  .doctor-summary-card__image {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    object-position: top;
+    background: v.$backgroundColor;
+  }
+
+  .doctor-summary-card__content {
+    flex: 1;
+    padding: 1.25rem;
+    overflow-wrap: anywhere;
+  }
+
+  .doctor-summary-card__name {
+    margin: 0;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .doctor-summary-card__specializations {
+    margin: 0.5rem 0 1rem;
+    color: v.$primary;
+    font-size: 0.9rem;
+  }
+
+  .doctor-summary-card__clinic {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    margin: 0 0 1rem;
+    color: v.$mutedTextColor;
+    font-size: 0.9rem;
+
+    svg {
+      flex-shrink: 0;
+      margin-top: 0.15rem;
+      color: v.$secondaryColor;
+    }
+  }
+
+  .doctor-summary-card__description {
+    margin: 0 0 1rem;
+    color: v.$mutedTextColor;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+
+  .doctor-summary-card__rating {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    color: v.$mutedTextColor;
+
+    > span:first-child {
+      display: inline-flex;
+    }
+  }
+
+  .doctor-summary-card__actions {
+    padding: 0 1.25rem 1rem;
+
+    button:focus-visible {
+      outline: 2px solid v.$primary;
+      outline-offset: 3px;
+    }
+  }
+}
