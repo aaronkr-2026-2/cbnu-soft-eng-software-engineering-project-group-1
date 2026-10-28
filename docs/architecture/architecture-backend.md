@@ -52,6 +52,7 @@ flowchart TD
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
   Coordination[BookingCoordinationService]
+  Schedule[AppointmentScheduleService]
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
   Health[Health controllers and DatabaseService]
@@ -76,6 +77,9 @@ flowchart TD
   GQL -->|In-process calls: validated input and principal| Booking
   Member -->|Mongoose calls: member and session reads/writes| Models
   Booking -->|Mongoose calls: eligibility/hours reads and appointment writes| Models
+  GQL -->|Public slots or guarded clinic schedule mutations| Schedule
+  Schedule -->|In-process doctor-scoped transaction callback| Coordination
+  Schedule -->|Mongoose reads and schedule writes| Models
   Booking -->|In-process transaction callback: patient and slot scope| Coordination
   Coordination -->|Mongoose session: coordination gates and commitment ledger| Models
   Models -->|MongoDB wire protocol: documents, queries, indexes| DB
@@ -116,17 +120,17 @@ GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `ba
 
 | MongoDB collection | Data | Current owner/access |
 | --- | --- | --- |
-| `members` | USER, DOCTOR, CLINIC, ADMIN accounts, clinic timezone, affiliation and profile data | MemberService creates accounts/authenticates/reads profiles; AppointmentService directly reads doctor and clinic eligibility |
+| `members` | USER, DOCTOR, CLINIC, ADMIN accounts, clinic timezone, affiliation and profile data | MemberService owns accounts/authentication/profile/affiliation writes; appointment services read eligibility |
 | `member_sessions` | Member ID, refresh-token hash, expiry | MemberService writes and rotates sessions; unique hash and TTL expiry index |
 | `appointments` | Participant IDs, booked specialty, source/version, UTC start/end, status, cancellation/change-request fields | AppointmentService creates confirmed bookings/reads participants; partial unique doctor/start index still includes legacy PENDING/CONFIRMED |
 | `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
 | `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty, version/status and time interval | BookingCoordinationService; appointment entries saved atomically by public booking, legacy entries populated by migration |
 | `booking_policy` | Migration version/readiness marker | BookingMigrationService writes offline; BookingPolicyService checks at startup and in mutation transactions |
 | `booking_migration_audit` | Metadata/status change history and review evidence references | Offline migration only; excluded from API projections and console/app logs |
-| `doctor_availability` | Weekly doctor/clinic hours | Read by AppointmentService; no management API implemented |
-| `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | Read by AppointmentService; no management API implemented |
+| `doctor_availability` | Weekly doctor/clinic hours | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
+| `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
 
-Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Change/cancellation schema fields do not mean change/cancellation APIs are implemented. Availability and approval currently require configuration outside the delivered API; their future write boundary remains to be defined. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
+Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Change/cancellation schema fields do not mean change/cancellation APIs are implemented. MemberService owns pending doctor affiliation review; AppointmentScheduleService owns clinic-scoped schedule writes. These now have guarded GraphQL APIs. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
 
 ### Booking transaction foundations (Steps 2–3)
 
@@ -144,8 +148,8 @@ and recheck authorization, doctor eligibility, schedule, cutoff and consent in t
 transaction. Coordination is not a replacement for those domain checks.
 
 The service seeds empty coordination rows outside the transaction, then writes
-their revisions inside it in sorted key order: patient IDs first, then doctor-slot
-keys. Concurrent writers therefore conflict on an actual document instead of
+their revisions inside it in sorted key order: doctor IDs, patient IDs, then
+doctor-slot keys. Booking and schedule edits both take the doctor gate. Concurrent writers therefore conflict on an actual document instead of
 both passing a snapshot read. There is no expiring application lock or lock TTL.
 The driver retries transient failures with a 10-second transaction deadline and
 at most eight callback executions; commit time is limited to five seconds. Reads
@@ -205,6 +209,29 @@ are not forwarded. KEEP is currently the only own-conflict choice; replacement
 will be added in Step 6. Slot conflicts expose no other patient's identity. Source,
 specialty and version are added to participant appointment reads; no generic
 status mutation, waitlist endpoint or notification worker is introduced.
+
+### Clinic schedules and dynamic slots (Step 4, October 26)
+
+MemberService exposes own-clinic doctor discovery and conditional PENDING affiliation
+approval/rejection; approved affiliations cannot be revoked through that operation.
+AppointmentScheduleService replaces weekly hours or one date's overrides inside
+a doctor-gated transaction, verifies clinic ownership/current account state and
+checks future/in-progress appointments plus active waitlist ledger targets before
+narrowing hours. Invalidating edits conflict without changing those commitments.
+Booking takes the same doctor gate before schedule reads, preventing write races.
+Later worker allocation paths must also include the doctor gate.
+
+The public getAvailableSlots query requires an active clinic, approved doctor and
+offered specialty, and caps inclusive clinic-local date ranges at 31 days. Shared
+appointment-slot.ts helpers generate real UTC instants, preserve local :00/:30
+alignment through DST/quarter-hour offsets, and apply weekly/custom/blocked hours.
+Occupancy reads project only time intervals; allocation holds become UNAVAILABLE.
+No empty slot documents or fixed time enum are introduced. Slot policy eligibility
+for waitlisting is distinct from actual enrollment, which remains disabled until
+Step 6. Results are advisory; mutation-time checks remain authoritative. The
+existing disposable API suite covers onboarding/configuration, split shifts,
+overrides, privacy, ownership, preserved commitments and concurrent booking/editing.
+No browser integration, application DB changes or deployment was performed.
 
 ## Shared services and external integrations
 
@@ -388,4 +415,4 @@ These scoped source observations are not a full runtime/security audit. Database
 | Frontend authentication crosses incompatible contracts: `frontend/src/pages/Login.tsx` always calls mockLogin; `frontend/src/lib/api.ts` uses `/login/` and `/auth/register`, while the backend controller uses `/member/login` and `/member/signup`. `frontend/src/api.ts` defines a second client; frontend email/password and user shapes also differ from backend memberEmail/memberPassword and member responses. | A local UI session can appear authenticated without a valid server token; real registration/login calls do not match the implemented API. | Trace callers, consolidate the active API boundary, map backend DTO/response fields explicitly, and gate mocks deliberately. Verify signup/login/protected requests against server contracts; keep backend guards authoritative. |
 | Local deployment workflow does not match source layout: ignored root `docker-compose.yml` runs npm in `/usr/src/medconnect`, while package.json is under backend/. `deploy.sh` hard-resets and selects master. | The recorded script cannot be assumed to build this checkout and can discard local changes when run. | Review the intended branch/release workflow, point container commands at backend/, and replace destructive checkout handling with an explicit release procedure. Validate configuration/build before attempting deployment. |
 
-Further boundary to clarify when implementing availability or clinic approval: AppointmentService reads member and schedule models directly, but no schedule-management service owns API writes yet. Define that ownership before adding writes; a repository-wide service split is not required for this documentation task.
+Scheduling write ownership was established in Step 4: MemberService owns affiliation review and AppointmentScheduleService owns weekly/date schedule changes. AppointmentService retains explicit read dependencies and shares pure slot/override rules. No repository-wide service split was introduced.

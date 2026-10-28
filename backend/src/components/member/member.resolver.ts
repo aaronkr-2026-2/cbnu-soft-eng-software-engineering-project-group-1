@@ -11,10 +11,31 @@ import {
   MemberUpdateResult,
 } from '../../libs/dto/member/member.js';
 import { MemberService } from './member.service.js';
+import { DoctorClinicStatus } from '../../libs/enum/member.enum.js';
 
 @Resolver(() => Member)
 export class MemberResolver {
   constructor(private readonly memberService: MemberService) {}
+
+  @UseGuards(MemberAccessGuard)
+  @Query(() => [Member])
+  myClinicDoctors(@Context('req') request: AuthenticatedRequest) {
+    return this.memberService.listClinicDoctors(request.member);
+  }
+
+  @UseGuards(MemberAccessGuard)
+  @Mutation(() => DoctorClinicStatus)
+  reviewDoctorAffiliation(
+    @Args('doctorId', { type: () => ID }) doctorId: string,
+    @Args('approve') approve: boolean,
+    @Context('req') request: AuthenticatedRequest,
+  ) {
+    return this.memberService.reviewDoctorAffiliation(
+      doctorId,
+      approve,
+      request.member,
+    );
+  }
 
   @UseGuards(MemberAccessGuard)
   @Query(() => MemberSelf)

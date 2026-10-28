@@ -44,7 +44,7 @@ import {
   AvailabilityOverrideType,
 } from '../../libs/enum/appointment.enum.js';
 import type { BookAppointmentDto } from '../../libs/dto/appointment/book-appointment.dto.js';
-import { appointmentSlot } from './appointment-slot.js';
+import { appointmentSlot, slotFitsSchedule } from './appointment-slot.js';
 import type { MemberPrincipal } from '../../libs/types/member.types.js';
 
 type AppointmentEntity = InferSchemaType<typeof AppointmentSchema>;
@@ -96,7 +96,11 @@ export class AppointmentService {
     const version = randomUUID();
     try {
       return await this.coordination.run(
-        { patientIds: [member._id], slots: [{ doctorId, startsAt }] },
+        {
+          doctorIds: [doctorId],
+          patientIds: [member._id],
+          slots: [{ doctorId, startsAt }],
+        },
         async (tx) => {
           await this.policy!.assertReady(tx.session);
           const patient = await models.members
@@ -264,14 +268,6 @@ export class AppointmentService {
       .session(session)
       .lean()
       .exec();
-    const blocked = overrides.some(
-      (item) =>
-        item.type === AvailabilityOverrideType.UNAVAILABLE &&
-        (item.startMinute == null ||
-          item.endMinute == null ||
-          (item.startMinute < slot.endMinute &&
-            item.endMinute > slot.startMinute)),
-    );
     const custom = overrides.filter(
       (item) => item.type === AvailabilityOverrideType.CUSTOM_HOURS,
     );
@@ -282,16 +278,7 @@ export class AppointmentService {
           .session(session)
           .lean()
           .exec();
-    if (
-      blocked ||
-      !hours.some(
-        (item) =>
-          item.startMinute != null &&
-          item.endMinute != null &&
-          item.startMinute <= slot.startMinute &&
-          item.endMinute >= slot.endMinute,
-      )
-    ) {
+    if (!slotFitsSchedule(slot, hours, overrides)) {
       throw new BookingConflictException('SLOT_UNAVAILABLE');
     }
   }

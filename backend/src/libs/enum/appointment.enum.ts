@@ -44,3 +44,10 @@ export enum AvailabilityOverrideType {
 registerEnumType(AvailabilityOverrideType, {
   name: 'AvailabilityOverrideType',
 });
+
+export enum AppointmentSlotState {
+  AVAILABLE = 'AVAILABLE',
+  OCCUPIED = 'OCCUPIED',
+  UNAVAILABLE = 'UNAVAILABLE',
+}
+registerEnumType(AppointmentSlotState, { name: 'AppointmentSlotState' });

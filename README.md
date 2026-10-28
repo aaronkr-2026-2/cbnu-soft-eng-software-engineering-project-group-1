@@ -22,6 +22,7 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - [My private profile](#my-private-profile-graphql)
 - [Update your member information](#update-your-member-information-graphql)
 - [Appointment lookup](#get-an-appointment)
+- [Clinic schedules and slots](#clinic-schedules-and-slots-graphql)
 - [Appointment booking](#book-an-appointment)
 - [GraphQL appointments](#graphql-appointments)
 - [Deployment](#deployment)
@@ -63,6 +64,12 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   occupied-slot checks backed by a unique active-slot index, transactional 24-hour
   spacing at one clinic/specialty across doctors, and patient overlap prevention
   across clinics/specialties. Conflicts preserve existing commitments.
+- **Clinic scheduling:** Clinics list and approve/reject pending doctor affiliations,
+  replace weekly working hours, and manage date-specific hours/closures through
+  guarded GraphQL mutations. Edits preserve existing bookings and waitlist targets.
+- **Dynamic appointment slots:** Public GraphQL queries generate clinic-local
+  30-minute slots for up to 31 days, showing occupancy and allocation holds without
+  patient details. Waitlist policy eligibility is shown; enrollment remains pending.
 - **Appointment lookup:** GraphQL and REST retrieval for the appointment's patient,
   doctor, or clinic, with ownership checks.
 - **API documentation:** Swagger UI and OpenAPI JSON for REST, plus a GraphQL
@@ -78,8 +85,8 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 Update this list whenever a new feature is added. Keep entries aligned with the
 implemented behavior, and revise them when features change or are removed.
 
-Clinic approval and availability management APIs are not yet implemented. Booking
-requires an approved doctor and configured working hours in the database.
+Clinics can approve doctors and configure hours through the GraphQL operations
+below. Booking also requires the existing policy V2 activation/migration checks.
 
 ## Requirements and quick start
 
@@ -300,8 +307,9 @@ and stable across restarts. Startup rejects missing or short secrets.
   store; configure trusted proxies explicitly for your deployment.
 
 HTTP tests use Mongoose document validation with an in-memory persistence substitute;
-they do not connect to Atlas. Clinic verification, affiliation approval endpoints,
-email verification, and logout/revocation remain unimplemented. Protected booking
+they do not connect to Atlas. Separate clinic verification, email verification,
+and logout/revocation remain unimplemented; clinic-owned doctor affiliation review
+is available through GraphQL. Protected booking
 and appointment lookup are implemented; their prerequisites are described below.
 
 ### Google sign-in (REST)
@@ -630,6 +638,88 @@ Current account status and role are checked on every request, including after a
 previously valid token was issued. Existing appointments in any status can be read
 by their matching participants; this endpoint does not create appointments.
 
+## Clinic schedules and slots (GraphQL)
+
+Schedule mutations require a current CLINIC Bearer token and a doctor approved at
+that clinic. They use replica-set transactions and can be configured before
+booking policy activation. Existing REST routes remain unchanged.
+
+| Operation | Access / behavior |
+| --- | --- |
+| myClinicDoctors | CLINIC; up to 100 active doctors at its own clinic, including pending affiliations; public profile fields only |
+| reviewDoctorAffiliation(doctorId, approve) | Owning CLINIC; approve/reject a PENDING affiliation; repeated identical decisions are harmless. Approved affiliations cannot be revoked through this operation. |
+| setDoctorWeeklyHours(input) | Owning CLINIC; atomically replaces all weekly intervals; an empty list clears them |
+| setDoctorDateOverrides(input) | Owning CLINIC; replaces one clinic-local date's overrides; an empty list restores weekly hours |
+| getAvailableSlots(input) | Public; active clinic/approved doctor/offered specialty; inclusive clinic-local date range of 1–31 days |
+
+For example, review a pending application and configure split Monday hours:
+
+```graphql
+mutation Review($doctorId: ID!) {
+  reviewDoctorAffiliation(doctorId: $doctorId, approve: true)
+}
+```
+
+```graphql
+mutation Hours($input: DoctorWeeklyHoursInput!) {
+  setDoctorWeeklyHours(input: $input)
+}
+```
+
+```json
+{
+  "input": {
+    "doctorId": "<doctor-member-id>",
+    "intervals": [
+      { "weekday": 1, "startMinute": 540, "endMinute": 720 },
+      { "weekday": 1, "startMinute": 780, "endMinute": 1020 }
+    ]
+  }
+}
+```
+
+Weekdays are 0=Sunday through 6=Saturday; intervals use minutes since local
+midnight. They must be positive, aligned to 30 minutes and non-overlapping within
+a day (maximum 56 weekly intervals). These split hours generate 14 complete slots;
+none crosses lunch or closing time. Different doctors keep separate hours.
+
+Date override input is `{ doctorId, date, overrides }`, with at most 16 rows.
+Each row has type CUSTOM_HOURS or UNAVAILABLE and optional startMinute/endMinute.
+CUSTOM_HOURS requires both limits and replaces weekly hours on that date;
+UNAVAILABLE blocks its interval, or the whole date when both limits are omitted.
+A single missing limit is invalid. Rows of the same type cannot overlap and all
+rows need distinct start minutes, matching the existing stored schedule format.
+
+```graphql
+mutation Overrides($input: DoctorDateOverridesInput!) {
+  setDoctorDateOverrides(input: $input)
+}
+```
+
+```graphql
+query Slots($input: AvailableSlotsInput!) {
+  getAvailableSlots(input: $input) {
+    doctorId clinicId specialty clinicTimezone
+    startsAt endsAt state waitlistEligible canJoinWaitlist
+  }
+}
+```
+
+Slots input contains doctorId, clinicId, specialty, fromDate and toDate; dates are
+YYYY-MM-DD in clinic time. Returns future scheduled slots as UTC timestamps.
+AVAILABLE means unoccupied, OCCUPIED includes PENDING/CONFIRMED reservations, and
+UNAVAILABLE indicates allocation is pending. Closed/break periods return no slots.
+`waitlistEligible` describes occupied-slot policy eligibility at least 48 hours
+ahead; `canJoinWaitlist` stays false until enrollment is implemented in Step 6.
+No patient identity or queue membership is exposed. Availability is advisory,
+not a reservation or proof that the patient passes booking conflict checks.
+
+Schedule edits return CONFLICT if they would invalidate an existing future/in-progress
+booking or active waitlist target. Resolve those commitments first; edits never
+move or cancel them. Booking and schedule writes share a doctor gate, so a racing
+booking cannot bypass this preservation check. Candidate generation and booking
+reuse the same clinic-timezone alignment and override calculations, including DST.
+
 ## Book an appointment
 
 ```http
@@ -658,7 +748,8 @@ The active clinic and its active doctor must have APPROVED affiliation. Working
 hours must exist in doctor_availability or doctor_availability_overrides. Weekly
 hours use the clinic-local weekday; CUSTOM_HOURS replace weekly hours for that
 local date, and UNAVAILABLE blocks overlapping intervals or a whole day. The
-complete 30-minute slot must fit. Approval/schedule management APIs await Step 4.
+complete 30-minute slot must fit. Clinics manage approval and schedules through
+the GraphQL operations above.
 
 For the same patient, clinic and booked specialty, active commitments must start
 at least 24 elapsed hours apart across all doctors. Exactly 24 hours is allowed.
@@ -840,7 +931,6 @@ checkout-to-deployment procedure for the current layout.
 
 ## Known limitations
 
-- Clinic affiliation approval and availability management APIs are not implemented.
 - Email verification and logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;

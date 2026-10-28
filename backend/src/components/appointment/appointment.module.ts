@@ -7,6 +7,16 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { getMongoUri } from '../../database/database.config.js';
 import { BookingModule } from '../booking/booking.module.js';
+import { AppointmentScheduleService } from './appointment-schedule.service.js';
+import { AppointmentScheduleResolver } from './appointment-schedule.resolver.js';
+import {
+  BOOKING_GATE,
+  BookingGateSchema,
+} from '../../schemas/booking-gate.model.js';
+import {
+  BOOKING_COMMITMENT,
+  BookingCommitmentSchema,
+} from '../../schemas/booking-commitment.model.js';
 import {
   APPOINTMENT_MODEL_NAME,
   default as AppointmentSchema,
@@ -31,6 +41,8 @@ const mongoUri = getMongoUri();
           MongooseModule.forFeature([
             { name: MEMBER, schema: MemberSchema },
             { name: APPOINTMENT_MODEL_NAME, schema: AppointmentSchema },
+            { name: BOOKING_GATE, schema: BookingGateSchema },
+            { name: BOOKING_COMMITMENT, schema: BookingCommitmentSchema },
             {
               name: DOCTOR_AVAILABILITY_MODEL_NAME,
               schema: DoctorAvailabilitySchema,
@@ -44,6 +56,11 @@ const mongoUri = getMongoUri();
       : []),
   ],
   controllers: [AppointmentController],
-  providers: [AppointmentService, AppointmentResolver],
+  providers: [
+    AppointmentService,
+    AppointmentResolver,
+    AppointmentScheduleService,
+    AppointmentScheduleResolver,
+  ],
 })
 export class AppointmentModule {}

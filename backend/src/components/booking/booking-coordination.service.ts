@@ -87,6 +87,7 @@ export class BookingCoordinationService {
     const commitments = this.commitments!;
     const keys = [
       ...new Set([
+        ...(scope.doctorIds ?? []).map((id) => `doctor:${id.toHexString()}`),
         ...scope.patientIds.map(patientKey),
         ...scope.slots.map(slotKey),
       ]),

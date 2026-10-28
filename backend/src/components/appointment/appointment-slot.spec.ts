@@ -1,4 +1,8 @@
-import { appointmentSlot } from './appointment-slot.js';
+import {
+  appointmentCandidates,
+  appointmentDateRange,
+  appointmentSlot,
+} from './appointment-slot.js';
 
 describe('clinic timezone slot calculations', () => {
   it('uses the clinic date and weekday instead of UTC date', () => {
@@ -39,5 +43,31 @@ describe('clinic timezone slot calculations', () => {
     expect(first.startMinute).toBe(60);
     expect(second.startMinute).toBe(60);
     expect(+second.endsAt - +first.endsAt).toBe(3_600_000);
+  });
+  it('generates actual UTC instants across skipped and repeated DST hours', () => {
+    const spring = [
+      ...appointmentCandidates('2030-03-10', '2030-03-10', 'America/New_York'),
+    ];
+    const fall = [
+      ...appointmentCandidates('2030-11-03', '2030-11-03', 'America/New_York'),
+    ];
+    expect(spring).toHaveLength(46);
+    expect(
+      spring.some((slot) => slot.startMinute >= 120 && slot.startMinute < 180),
+    ).toBe(false);
+    expect(fall).toHaveLength(50);
+    expect(fall.filter((slot) => slot.startMinute === 60)).toHaveLength(2);
+    const kathmandu = [
+      ...appointmentCandidates('2030-01-07', '2030-01-07', 'Asia/Kathmandu'),
+    ];
+    expect(kathmandu).toHaveLength(48);
+    expect(
+      kathmandu.every((slot) => slot.startsAt.getUTCMinutes() % 30 === 15),
+    ).toBe(true);
+  });
+  it('rejects impossible calendar dates and ranges larger than 31 days', () => {
+    expect(() => appointmentDateRange('2030-02-30', '2030-03-01')).toThrow();
+    expect(() => appointmentDateRange('2030-01-01', '2030-02-01')).toThrow();
+    expect(() => appointmentDateRange('2030-01-02', '2030-01-01')).toThrow();
   });
 });

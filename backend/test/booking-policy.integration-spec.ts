@@ -765,4 +765,292 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       await rm(directory, { recursive: true, force: true });
     }
   });
+
+  const clinicGraphql = async (
+    query: string,
+    variables: Record<string, unknown>,
+    owner = clinic,
+  ) => {
+    const bearer = await app
+      .get(JwtService)
+      .signAsync({ sub: String(owner), tokenType: 'access', authVersion: 0 });
+    return request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', `Bearer ${bearer}`)
+      .send({ query, variables });
+  };
+  const weeklyMutation =
+    'mutation($input: DoctorWeeklyHoursInput!) { setDoctorWeeklyHours(input: $input) }';
+  const overrideMutation =
+    'mutation($input: DoctorDateOverridesInput!) { setDoctorDateOverrides(input: $input) }';
+  const day = start.toISOString().slice(0, 10);
+  const weekday = start.getUTCDay();
+  const slots = (changes = {}) =>
+    request(app.getHttpServer())
+      .post('/graphql')
+      .send({
+        query:
+          'query($input: AvailableSlotsInput!) { getAvailableSlots(input: $input) { doctorId clinicId specialty clinicTimezone startsAt endsAt state waitlistEligible canJoinWaitlist } }',
+        variables: {
+          input: {
+            doctorId: String(doctor),
+            clinicId: String(clinic),
+            specialty: 'CARDIOLOGIST',
+            fromDate: day,
+            toDate: day,
+            ...changes,
+          },
+        },
+      });
+  const setWeekly = (
+    intervals: unknown[],
+    doctorId = String(doctor),
+    owner = clinic,
+  ) => clinicGraphql(weeklyMutation, { input: { doctorId, intervals } }, owner);
+  const setOverrides = (overrides: unknown[], date = day) =>
+    clinicGraphql(overrideMutation, {
+      input: { doctorId: String(doctor), date, overrides },
+    });
+
+  it('onboards a doctor and configures 14 split-shift slots entirely through APIs', async () => {
+    const signup = await request(app.getHttpServer())
+      .post('/member/signup')
+      .send({
+        memberEmail: 'schedule-doctor@example.test',
+        memberPassword: 'test-password-123',
+        memberPhone: '+821011112222',
+        memberNick: 'Schedule Doctor',
+        memberType: 'DOCTOR',
+        clinicId: String(clinic),
+        doctorSpecializations: ['CARDIOLOGIST'],
+        professionalLicenseNumber: 'fixture-schedule-license',
+      })
+      .expect(201);
+    const doctorId = signup.body.member._id;
+    const roster = await clinicGraphql(
+      'query { myClinicDoctors { _id doctorClinicStatus } }',
+      {},
+    );
+    expect(roster.body.data.myClinicDoctors).toContainEqual({
+      _id: doctorId,
+      doctorClinicStatus: 'PENDING',
+    });
+    const review = await clinicGraphql(
+      'mutation($id: ID!) { reviewDoctorAffiliation(doctorId: $id, approve: true) }',
+      { id: doctorId },
+    );
+    expect(review.body.data.reviewDoctorAffiliation).toBe('APPROVED');
+    const configured = await setWeekly(
+      [
+        { weekday, startMinute: 540, endMinute: 720 },
+        { weekday, startMinute: 780, endMinute: 1020 },
+      ],
+      doctorId,
+    );
+    expect(configured.body.errors).toBeUndefined();
+    const response = await slots({ doctorId });
+    expect(response.body.errors).toBeUndefined();
+    expect(response.body.data.getAvailableSlots).toHaveLength(14);
+    expect(
+      response.body.data.getAvailableSlots.every(
+        (row: { state: string }) => row.state === 'AVAILABLE',
+      ),
+    ).toBe(true);
+    expect(
+      response.body.data.getAvailableSlots.some(
+        (row: { startsAt: string }) => row.startsAt === at(120).toISOString(),
+      ),
+    ).toBe(false); // noon break
+    await rest({ doctorId }).expect(201);
+  });
+
+  it('enforces clinic ownership and does not revoke approved affiliations through review', async () => {
+    const foreign = await setWeekly([], String(doctor), clinic2);
+    expect(foreign.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
+    const user = await request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        query: weeklyMutation,
+        variables: { input: { doctorId: String(doctor), intervals: [] } },
+      });
+    expect(user.body.errors[0].extensions.code).toBe('FORBIDDEN');
+    const anonymous = await request(app.getHttpServer())
+      .post('/graphql')
+      .send({
+        query: weeklyMutation,
+        variables: { input: { doctorId: String(doctor), intervals: [] } },
+      });
+    expect(anonymous.body.errors[0].extensions.code).toBe('UNAUTHENTICATED');
+    const rejectApproved = await clinicGraphql(
+      'mutation($id: ID!) { reviewDoctorAffiliation(doctorId: $id, approve: false) }',
+      { id: String(doctor) },
+    );
+    expect(rejectApproved.body.errors[0].extensions.code).toBe('CONFLICT');
+    const foreignReview = await clinicGraphql(
+      'mutation($id: ID!) { reviewDoctorAffiliation(doctorId: $id, approve: true) }',
+      { id: String(doctor) },
+      clinic2,
+    );
+    expect(foreignReview.body.errors[0].extensions.code).toBe('NOT_FOUND');
+  });
+
+  it.each([
+    [{ weekday: 7, startMinute: 540, endMinute: 720 }],
+    [{ weekday, startMinute: 545, endMinute: 720 }],
+    [{ weekday, startMinute: 720, endMinute: 540 }],
+    [
+      { weekday, startMinute: 540, endMinute: 720 },
+      { weekday, startMinute: 600, endMinute: 780 },
+    ],
+  ])(
+    'rejects invalid or overlapping weekly intervals %j',
+    async (...intervals) => {
+      expect((await setWeekly(intervals)).body.errors[0].extensions.code).toBe(
+        'BAD_USER_INPUT',
+      );
+      expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+    },
+  );
+
+  it('applies custom hours, full-day closure and clearing consistently with booking', async () => {
+    expect(
+      (
+        await setOverrides([
+          { type: 'CUSTOM_HOURS', startMinute: 780, endMinute: 840 },
+        ])
+      ).body.errors,
+    ).toBeUndefined();
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(2);
+    await rest().expect(409);
+    expect(
+      (await setOverrides([{ type: 'UNAVAILABLE' }])).body.errors,
+    ).toBeUndefined();
+    expect((await slots()).body.data.getAvailableSlots).toEqual([]);
+    expect((await setOverrides([])).body.errors).toBeUndefined();
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+    await rest().expect(201);
+  });
+
+  it('applies partial blocks without changing another doctor and rejects incomplete overrides', async () => {
+    const bad = await setOverrides([{ type: 'UNAVAILABLE', startMinute: 600 }]);
+    expect(bad.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
+    expect(
+      (
+        await setOverrides([
+          { type: 'CUSTOM_HOURS', startMinute: 540, endMinute: 720 },
+          { type: 'UNAVAILABLE', startMinute: 600, endMinute: 630 },
+        ])
+      ).body.errors,
+    ).toBeUndefined();
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(5);
+    expect(
+      (await slots({ doctorId: String(doctor2) })).body.data.getAvailableSlots,
+    ).toHaveLength(18);
+    await rest().expect(409);
+  });
+
+  it('returns occupied slots and allocation holds without patient identity', async () => {
+    await rest().expect(201);
+    const result = await slots();
+    const row = result.body.data.getAvailableSlots.find(
+      (item: { startsAt: string }) => item.startsAt === start.toISOString(),
+    );
+    expect(row).toMatchObject({
+      state: 'OCCUPIED',
+      waitlistEligible: true,
+      canJoinWaitlist: false,
+    });
+    expect(JSON.stringify(result.body)).not.toContain(String(patient));
+    await app
+      .get(BookingCoordinationService)
+      .run(
+        {
+          doctorIds: [doctor],
+          patientIds: [],
+          slots: [{ doctorId: doctor, startsAt: start }],
+        },
+        (tx) => tx.holdSlot({ doctorId: doctor, startsAt: start }),
+      );
+    const held = (await slots()).body.data.getAvailableSlots.find(
+      (item: { startsAt: string }) => item.startsAt === start.toISOString(),
+    );
+    expect(held).toMatchObject({
+      state: 'UNAVAILABLE',
+      waitlistEligible: false,
+    });
+  });
+
+  it('preserves booked times and active waitlist targets when editing schedules', async () => {
+    await rest().expect(201);
+    const narrowing = await setWeekly([
+      { weekday, startMinute: 780, endMinute: 1020 },
+    ]);
+    expect(narrowing.body.errors[0].extensions.code).toBe('CONFLICT');
+    expect(
+      (await setOverrides([{ type: 'UNAVAILABLE' }])).body.errors[0].extensions
+        .code,
+    ).toBe('CONFLICT');
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+    const waitingStart = at(24 * 60);
+    await connection
+      .db!.collection('booking_commitments')
+      .insertOne({
+        kind: 'WAITLIST',
+        commitmentId: id(),
+        patientId: patient2,
+        doctorId: doctor,
+        clinicId: clinic,
+        specialty: 'CARDIOLOGIST',
+        status: 'ACTIVE',
+        version: randomUUID(),
+        startsAt: waitingStart,
+        endsAt: at(24 * 60 + 30),
+      });
+    const closingQueue = await setOverrides(
+      [{ type: 'UNAVAILABLE' }],
+      waitingStart.toISOString().slice(0, 10),
+    );
+    expect(closingQueue.body.errors[0].extensions.code).toBe('CONFLICT');
+    expect(
+      (await connection
+        .db!.collection('appointments')
+        .findOne({ patientId: patient }))!.status,
+    ).toBe('CONFIRMED');
+  });
+
+  it('serializes closing working hours against a concurrent patient booking', async () => {
+    const [editing, booking] = await Promise.all([setWeekly([]), rest()]);
+    expect(Boolean(editing.body.errors) || booking.status === 409).toBe(true);
+    if (booking.status === 201)
+      expect(editing.body.errors[0].extensions.code).toBe('CONFLICT');
+    else {
+      expect(booking.status).toBe(409);
+      expect(editing.body.errors).toBeUndefined();
+    }
+  });
+
+  it('bounds calendar queries and respects quarter-hour clinic offsets', async () => {
+    for (const changes of [
+      { fromDate: '2035-02-30', toDate: '2035-03-01' },
+      { toDate: '2035-02-01' },
+    ])
+      expect((await slots(changes)).body.errors[0].extensions.code).toBe(
+        'BAD_USER_INPUT',
+      );
+    await connection
+      .db!.collection('members')
+      .updateOne(
+        { _id: clinic },
+        { $set: { clinicTimezone: 'Asia/Kathmandu' } },
+      );
+    const rows = (await slots()).body.data.getAvailableSlots;
+    expect(rows).toHaveLength(18);
+    expect(
+      rows.every(
+        (row: { startsAt: string }) =>
+          new Date(row.startsAt).getUTCMinutes() % 30 === 15,
+      ),
+    ).toBe(true);
+  });
 });
