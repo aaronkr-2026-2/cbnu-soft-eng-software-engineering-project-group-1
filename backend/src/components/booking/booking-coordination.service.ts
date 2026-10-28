@@ -293,5 +293,14 @@ export class BookingCoordinationService {
       if (occupied) throw new BookingConflictException('SLOT_OCCUPIED');
     }
     await commitments.create([entry], { session });
+    // A new manual allocation makes earlier opening events stale. Allocators
+    // using an explicit generation retain it until resolveSlot completes.
+    if (entry.kind === 'APPOINTMENT' && generation == null) {
+      await gates.updateOne(
+        { _id: slotKey(entry) },
+        { $inc: { generation: 1 } },
+        { session },
+      );
+    }
   }
 }

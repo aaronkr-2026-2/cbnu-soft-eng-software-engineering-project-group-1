@@ -10,6 +10,10 @@ import { BookingModule } from '../booking/booking.module.js';
 import { AppointmentScheduleService } from './appointment-schedule.service.js';
 import { AppointmentScheduleResolver } from './appointment-schedule.resolver.js';
 import {
+  APPOINTMENT_EVENT,
+  AppointmentEventSchema,
+} from '../../schemas/appointment-event.model.js';
+import {
   BOOKING_GATE,
   BookingGateSchema,
 } from '../../schemas/booking-gate.model.js';
@@ -41,6 +45,7 @@ const mongoUri = getMongoUri();
           MongooseModule.forFeature([
             { name: MEMBER, schema: MemberSchema },
             { name: APPOINTMENT_MODEL_NAME, schema: AppointmentSchema },
+            { name: APPOINTMENT_EVENT, schema: AppointmentEventSchema },
             { name: BOOKING_GATE, schema: BookingGateSchema },
             { name: BOOKING_COMMITMENT, schema: BookingCommitmentSchema },
             {

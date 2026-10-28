@@ -76,7 +76,7 @@ flowchart TD
   REST -->|In-process calls: validated input and principal| Booking
   GQL -->|In-process calls: validated input and principal| Booking
   Member -->|Mongoose calls: member and session reads/writes| Models
-  Booking -->|Mongoose calls: eligibility/hours reads and appointment writes| Models
+  Booking -->|Mongoose calls: eligibility/hours reads, appointment and outbox writes| Models
   GQL -->|Public slots or guarded clinic schedule mutations| Schedule
   Schedule -->|In-process doctor-scoped transaction callback| Coordination
   Schedule -->|Mongoose reads and schedule writes| Models
@@ -101,6 +101,9 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
+| GraphQL | `createClinicAppointment`, `cancelAppointment`, `setAppointmentOutcome` | Guarded actor/participant permissions; shared AppointmentService rules and transactional outbox |
+| GraphQL | `getAvailableSlots`, `setDoctorWeeklyHours`, `setDoctorDateOverrides` | Public bounded slot reads; own-clinic guarded schedule writes |
+| GraphQL | `myClinicDoctors`, `reviewDoctorAffiliation` | Own-clinic affiliation discovery/review through MemberService |
 | REST | `POST /appointment/bookAppointment`, `GET /appointment/:id` | Same guard and appointment service as GraphQL |
 | Operations | `GET /`, `/health/live`, `/health/ready`, `/status` | Public API info, liveness, database readiness, and status UI; `/status/assets/*` serves its CSS/JS |
 
@@ -125,12 +128,13 @@ GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `ba
 | `appointments` | Participant IDs, booked specialty, source/version, UTC start/end, status, cancellation/change-request fields | AppointmentService creates confirmed bookings/reads participants; partial unique doctor/start index still includes legacy PENDING/CONFIRMED |
 | `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
 | `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty, version/status and time interval | BookingCoordinationService; appointment entries saved atomically by public booking, legacy entries populated by migration |
+| `appointment_events` | Durable status/release outbox with stable ID, appointment version, optional slot generation/mode and PENDING state | AppointmentService writes with lifecycle changes in one transaction; no worker/delivery API yet |
 | `booking_policy` | Migration version/readiness marker | BookingMigrationService writes offline; BookingPolicyService checks at startup and in mutation transactions |
 | `booking_migration_audit` | Metadata/status change history and review evidence references | Offline migration only; excluded from API projections and console/app logs |
 | `doctor_availability` | Weekly doctor/clinic hours | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
 | `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
 
-Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Change/cancellation schema fields do not mean change/cancellation APIs are implemented. MemberService owns pending doctor affiliation review; AppointmentScheduleService owns clinic-scoped schedule writes. These now have guarded GraphQL APIs. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
+Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Cancellation/outcome APIs are implemented; embedded doctor change-request fields still do not establish a rescheduling API. MemberService owns pending doctor affiliation review; AppointmentScheduleService owns clinic-scoped schedule writes. These now have guarded GraphQL APIs. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
 
 ### Booking transaction foundations (Steps 2–3)
 
@@ -163,9 +167,9 @@ doctor occupancy. `release` removes a commitment under its patient/slot locks.
 `holdSlot` increments a generation and prevents manual reservation until allocation
 is resolved; allocator reservations and `resolveSlot` require the expected
 generation. Generation checks provide concurrency foundations, not a FIFO worker
-or completed cancellation API. Domain records and their ledger entries must be
-created/changed atomically. Public booking now does this; later lifecycle/waitlist
-services must follow the same protocol. Historical appointments enter the ledger
+or a notification worker. Domain records and their ledger entries must be
+created/changed atomically. Booking and lifecycle mutations now do this; later
+waitlist services must follow the same protocol. Historical appointments enter the ledger
 only through explicit offline migration before policy V2 is enabled. The existing appointment unique active
 doctor/start index is unchanged.
 
@@ -184,8 +188,8 @@ readiness marker and a consistent transactional snapshot of metadata/ledger cove
 at startup. Every booking rechecks the marker in its transaction. The operator
 must stop all old/new writers for migration; a CLI acknowledgment cannot enforce
 another process's shutdown. Never run old writers after cutover or bypass the
-ledger with external status edits. Later cancellation/rescheduling/status writes
-must update their ledger entry and version in the same transaction.
+ledger with external status edits. Cancellation/outcomes update ledger and version
+atomically; future rescheduling/waitlist writes must follow the same protocol.
 
 `backend/src/tools/booking-migration.ts` uses the shared URI selector and a
 connection with automatic DDL disabled. Dry-run reads only and emits aggregate
@@ -232,6 +236,33 @@ Step 6. Results are advisory; mutation-time checks remain authoritative. The
 existing disposable API suite covers onboarding/configuration, split shifts,
 overrides, privacy, ownership, preserved commitments and concurrent booking/editing.
 No browser integration, application DB changes or deployment was performed.
+
+### Cancellation, clinic booking and durable events (Step 5, October 28)
+
+AppointmentService owns all new mutations. Clinic creation derives clinicId from
+a current CLINIC principal, validates an existing active USER, and delegates to
+the same private booking operation as online creation. Source/creator metadata
+records PHONE/WALK_IN and the clinic actor. Staff conflict responses omit patient
+commitment summaries, including other clinics' records.
+
+Cancellation is patient/own-clinic only before start; completion/no-show is
+own-clinic only at/after end. Each operation rechecks actor, scoped appointment and
+state/time under doctor, patient and slot gates. A version-conditional write,
+active ledger removal and durable outbox insert commit together. Repeated matching
+terminal actions return the stored result without new events/generation changes.
+Outbox initialization/indexing occurs before the transaction; failures inside it
+roll back appointment, ledger, generation and events. Creation can be paused while
+migrated commitments remain cancellable through assertMigrated.
+
+Cancellation increments slot generation and writes SLOT_RELEASED plus a status
+change event with stable IDs. A queue at >=48h retains the allocation hold;
+manual openings release it. Closed/ineligible schedules produce UNAVAILABLE hints
+and never bypass booking's schedule checks. Manual reservations increment the
+generation to stale earlier releases. Future workers must recheck actual cutoff,
+generation and current occupancy/schedule, rather than treating an event hint as
+current availability. Outbox records are private and have no TTL, worker, retry
+processor or delivery channel in this step. No application DB migration,
+frontend integration or deployment was performed.
 
 ## Shared services and external integrations
 

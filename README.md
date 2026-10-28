@@ -25,6 +25,7 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - [Clinic schedules and slots](#clinic-schedules-and-slots-graphql)
 - [Appointment booking](#book-an-appointment)
 - [GraphQL appointments](#graphql-appointments)
+- [Appointment changes and clinic bookings](#appointment-changes-and-clinic-bookings-graphql)
 - [Deployment](#deployment)
 - [Known limitations](#known-limitations)
 - [Project records](#project-records)
@@ -70,6 +71,11 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - **Dynamic appointment slots:** Public GraphQL queries generate clinic-local
   30-minute slots for up to 31 days, showing occupancy and allocation holds without
   patient details. Waitlist policy eligibility is shown; enrollment remains pending.
+- **Appointment lifecycle:** Patients/the owning clinic can cancel confirmed visits
+  before start; clinics record completion/no-show at or after the end. Repeated
+  identical actions are idempotent; appointment/ledger/outbox changes are atomic.
+- **Clinic bookings:** Clinics create PHONE/WALK_IN bookings for existing active
+  patients using the same scheduling/conflict rules, with clinic identity from auth.
 - **Appointment lookup:** GraphQL and REST retrieval for the appointment's patient,
   doctor, or clinic, with ownership checks.
 - **API documentation:** Swagger UI and OpenAPI JSON for REST, plus a GraphQL
@@ -213,8 +219,8 @@ fixture, not a production availability setup.
 its active commitment ledger entry together under patient/doctor-slot locks.
 Booking requires a replica set; it has no standalone or legacy-write fallback.
 The integration command builds the backend and tests the real API, migration CLI,
-conflict races, rollback, and activation gates. Waitlist/lifecycle APIs and workers
-remain later steps.
+conflict races, rollback, activation gates, and appointment lifecycle events.
+Waitlist enrollment, event workers and notification delivery remain later steps.
 
 ## Architecture
 
@@ -769,7 +775,8 @@ Other errors: 400 for invalid input/specialty/slot or clinic/doctor relationship
 FEATURE_DISABLED or MIGRATION_REQUIRED until activation is ready. Responses are
 no-store. Historical records remain participant-scoped and retain their statuses;
 specialty/version may be absent until resolved/migrated, and source reads as LEGACY.
-There is no public generic status-edit or legacy PENDING creation endpoint.
+There is no arbitrary status-edit or legacy PENDING creation endpoint; supported
+transitions are described below.
 
 ### Activate booking policy V2
 
@@ -898,7 +905,8 @@ query GetAppointment($id: ID!) {
 Variables: `{ "id": "<appointment-id>" }`.
 
 All existing booking prerequisites, current-account checks, and ownership rules
-apply. `patientId` comes from authentication; it is not an input field. ID values
+apply. For bookAppointment, patientId comes from authentication; clinic creation
+uses an existing patient ID as described below. ID values
 are strings; output dates are UTC ISO timestamps. Member relations are not
 populated by these operations.
 
@@ -912,6 +920,75 @@ No REPLACE choice is advertised before the replacement API exists. GraphiQL is a
 The schema is generated from DTO decorators in memory. `AppointmentResolver`
 handles GraphQL arguments/context and delegates to `AppointmentService`.
 Setup follows the [Nest GraphQL guide](https://docs.nestjs.com/graphql/quick-start).
+
+## Appointment changes and clinic bookings (GraphQL)
+
+All three operations require a current Bearer token and verified booking migration
+on a replica set. New clinic bookings also require BOOKING_POLICY_V2_ENABLED=true;
+cancellation/outcomes remain available when new bookings are paused. The offline
+migration procedure still requires stopping all API/worker writers.
+
+| Operation | Allowed actor and transition |
+| --- | --- |
+| cancelAppointment(id) | Own patient or owning CLINIC; CONFIRMED → CANCELED strictly before start |
+| setAppointmentOutcome(id, outcome) | Owning CLINIC; CONFIRMED → COMPLETED or NO_SHOW at/after visit end |
+| createClinicAppointment(input) | CLINIC; existing active USER, approved own-clinic doctor; PHONE or WALK_IN source; creates CONFIRMED |
+
+Identical repeated cancellation/outcomes return the existing result without another
+release/event. Other terminal transitions conflict. Unrelated records return
+NOT_FOUND; doctors/ADMIN receive no cancellation or outcome override. Changes bump
+the opaque appointment version and record lastChangedBy; cancellation records
+canceledAt/canceledBy. No action silently replaces another commitment.
+
+```graphql
+mutation Cancel($id: ID!) {
+  cancelAppointment(id: $id) { _id status version canceledAt canceledBy }
+}
+```
+
+```graphql
+mutation Outcome($id: ID!, $outcome: AppointmentOutcome!) {
+  setAppointmentOutcome(id: $id, outcome: $outcome) { _id status version }
+}
+```
+
+```graphql
+mutation ClinicBooking($input: ClinicAppointmentInput!) {
+  createClinicAppointment(input: $input) { _id patientId clinicId source status }
+}
+```
+
+```json
+{
+  "input": {
+    "patientId": "<existing-patient-member-id>",
+    "doctorId": "<own-clinic-doctor-id>",
+    "specialty": "CARDIOLOGIST",
+    "startsAt": "2030-01-07T10:00:00+09:00",
+    "source": "PHONE"
+  }
+}
+```
+
+Clinic ID is derived from the caller and is not an input field. Guest patients are
+not supported. Staff booking enforces the same patient-wide conflicts as online
+booking, but conflict errors omit commitment details to protect other clinics'
+records. Input cannot set status, version, duration or end time.
+
+Status changes remove the active commitment and save APPOINTMENT_STATUS_CHANGED
+in appointment_events within the same transaction. Cancellation also saves
+SLOT_RELEASED with a stable event ID, appointment version and slot generation.
+Manual allocations advance the generation so older openings become stale. Events
+remain PENDING until later workers exist; nothing sends a notification yet.
+
+If a cancellation has waiting entries at least 48 hours before start, the slot
+stays behind its allocation gate for queue processing. Inside 48 hours it is open
+for manual competition if current schedule/eligibility permits; the release event
+will feed later notification work. Release events for closed/ineligible schedules
+have mode UNAVAILABLE and do not announce bookable time. With no waiting entries,
+available slots also open manually outside the cutoff. Release modes are snapshots:
+workers must recheck the current generation, occupancy, schedule and actual
+allocation-time cutoff.
 
 ## Deployment
 
@@ -935,7 +1012,8 @@ checkout-to-deployment procedure for the current layout.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;
   application-database cutover, frontend integration and Atlas rollout remain unverified.
-- Cancellation, staff booking, waitlists and notification delivery are not yet implemented.
+- Waitlist enrollment, automatic promotion, event workers and notification delivery
+  are not yet implemented. Stored outbox events are not delivered notifications.
 - Authentication rate limiting is per process, without a shared multi-instance store.
 - Local deployment scripts still need the alignment described above.
 

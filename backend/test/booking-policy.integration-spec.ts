@@ -22,6 +22,7 @@ import { BookingCoordinationService } from '../src/components/booking/booking-co
 import { parseBookingResolutions } from '../src/components/booking/booking-migration.js';
 import { BookingUnavailableException } from '../src/components/booking/booking-error.js';
 import { APPOINTMENT_MODEL_NAME } from '../src/schemas/appointment.model.js';
+import { APPOINTMENT_EVENT } from '../src/schemas/appointment-event.model.js';
 import {
   DoctorSpecialization,
   MemberType,
@@ -118,6 +119,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     process.env.BOOKING_POLICY_V2_ENABLED = 'false';
     for (const name of [
       'appointments',
+      'appointment_events',
       'members',
       'booking_commitments',
       'booking_gates',
@@ -962,16 +964,14 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       canJoinWaitlist: false,
     });
     expect(JSON.stringify(result.body)).not.toContain(String(patient));
-    await app
-      .get(BookingCoordinationService)
-      .run(
-        {
-          doctorIds: [doctor],
-          patientIds: [],
-          slots: [{ doctorId: doctor, startsAt: start }],
-        },
-        (tx) => tx.holdSlot({ doctorId: doctor, startsAt: start }),
-      );
+    await app.get(BookingCoordinationService).run(
+      {
+        doctorIds: [doctor],
+        patientIds: [],
+        slots: [{ doctorId: doctor, startsAt: start }],
+      },
+      (tx) => tx.holdSlot({ doctorId: doctor, startsAt: start }),
+    );
     const held = (await slots()).body.data.getAvailableSlots.find(
       (item: { startsAt: string }) => item.startsAt === start.toISOString(),
     );
@@ -993,20 +993,18 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     ).toBe('CONFLICT');
     expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
     const waitingStart = at(24 * 60);
-    await connection
-      .db!.collection('booking_commitments')
-      .insertOne({
-        kind: 'WAITLIST',
-        commitmentId: id(),
-        patientId: patient2,
-        doctorId: doctor,
-        clinicId: clinic,
-        specialty: 'CARDIOLOGIST',
-        status: 'ACTIVE',
-        version: randomUUID(),
-        startsAt: waitingStart,
-        endsAt: at(24 * 60 + 30),
-      });
+    await connection.db!.collection('booking_commitments').insertOne({
+      kind: 'WAITLIST',
+      commitmentId: id(),
+      patientId: patient2,
+      doctorId: doctor,
+      clinicId: clinic,
+      specialty: 'CARDIOLOGIST',
+      status: 'ACTIVE',
+      version: randomUUID(),
+      startsAt: waitingStart,
+      endsAt: at(24 * 60 + 30),
+    });
     const closingQueue = await setOverrides(
       [{ type: 'UNAVAILABLE' }],
       waitingStart.toISOString().slice(0, 10),
@@ -1052,5 +1050,354 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
           new Date(row.startsAt).getUTCMinutes() % 30 === 15,
       ),
     ).toBe(true);
+  });
+
+  const slotGate = () =>
+    connection
+      .db!.collection<{
+        _id: string;
+        generation: number;
+        allocationPending: boolean;
+      }>('booking_gates')
+      .findOne({ _id: `slot:${doctor}:${+start}` });
+  const cancelQuery =
+    'mutation($id: ID!) { cancelAppointment(id: $id) { _id status version canceledAt canceledBy lastChangedBy source } }';
+  const outcomeQuery =
+    'mutation($id: ID!, $outcome: AppointmentOutcome!) { setAppointmentOutcome(id: $id, outcome: $outcome) { _id status version lastChangedBy } }';
+  const staffQuery =
+    'mutation($input: ClinicAppointmentInput!) { createClinicAppointment(input: $input) { _id clinicId patientId source status lastChangedBy } }';
+  const cancel = (appointmentId: string, bearer = token) =>
+    request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', `Bearer ${bearer}`)
+      .send({ query: cancelQuery, variables: { id: appointmentId } });
+  const staff = (changes = {}, owner = clinic) => {
+    const { clinicId: _clinicId, ...booking } = input;
+    return clinicGraphql(
+      staffQuery,
+      {
+        input: {
+          ...booking,
+          patientId: String(patient),
+          source: 'PHONE',
+          ...changes,
+        },
+      },
+      owner,
+    );
+  };
+  const queueFor = async (startsAt = start) =>
+    connection.db!.collection('booking_commitments').insertOne({
+      kind: 'WAITLIST',
+      commitmentId: id(),
+      patientId: patient2,
+      doctorId: doctor,
+      clinicId: clinic,
+      specialty: 'CARDIOLOGIST',
+      status: 'ACTIVE',
+      version: randomUUID(),
+      startsAt,
+      endsAt: new Date(+startsAt + 30 * 60_000),
+    });
+
+  it('cancels once, atomically releases the commitment and invalidates old opening generations on rebooking', async () => {
+    const original = (await rest().expect(201)).body;
+    const results = await Promise.all([
+      cancel(original._id),
+      cancel(original._id),
+    ]);
+    expect(results.every((result) => result.body.errors === undefined)).toBe(
+      true,
+    );
+    expect(results[0].body.data.cancelAppointment.version).toBe(
+      results[1].body.data.cancelAppointment.version,
+    );
+    expect(results[0].body.data.cancelAppointment).toMatchObject({
+      status: 'CANCELED',
+      canceledBy: String(patient),
+      lastChangedBy: String(patient),
+    });
+    expect(results[0].body.data.cancelAppointment.version).not.toBe(
+      original.version,
+    );
+    expect(
+      await connection.db!.collection('booking_commitments').countDocuments(),
+    ).toBe(0);
+    const events = await connection
+      .db!.collection('appointment_events')
+      .find({})
+      .toArray();
+    expect(events).toHaveLength(2);
+    expect(events.every((event) => event.state === 'PENDING')).toBe(true);
+    const released = events.find((event) => event.type === 'SLOT_RELEASED')!;
+    expect(released.releaseMode).toBe('MANUAL');
+    await rest().expect(201);
+    const gate = await slotGate();
+    expect(gate!.generation).toBeGreaterThan(released.slotGeneration);
+    expect(
+      (await cancel(original._id)).body.data.cancelAppointment.status,
+    ).toBe('CANCELED');
+    expect((await slotGate())!.generation).toBe(gate!.generation);
+    expect(
+      await connection
+        .db!.collection('appointments')
+        .countDocuments({ status: 'CONFIRMED' }),
+    ).toBe(1);
+    expect(
+      await connection.db!.collection('appointment_events').countDocuments(),
+    ).toBe(2);
+  });
+
+  it('restricts cancellation to the patient and owning clinic and keeps it usable while new bookings are paused', async () => {
+    const original = (await rest().expect(201)).body;
+    expect(
+      (await cancel(original._id, token2)).body.errors[0].extensions.code,
+    ).toBe('NOT_FOUND');
+    expect(
+      (await clinicGraphql(cancelQuery, { id: original._id }, clinic2)).body
+        .errors[0].extensions.code,
+    ).toBe('NOT_FOUND');
+    const doctorToken = await app
+      .get(JwtService)
+      .signAsync({ sub: String(doctor), tokenType: 'access', authVersion: 0 });
+    expect(
+      (await cancel(original._id, doctorToken)).body.errors[0].extensions.code,
+    ).toBe('FORBIDDEN');
+    process.env.BOOKING_POLICY_V2_ENABLED = 'false';
+    expect(
+      (await clinicGraphql(cancelQuery, { id: original._id })).body.data
+        .cancelAppointment,
+    ).toMatchObject({ status: 'CANCELED', canceledBy: String(clinic) });
+    expect((await staff()).body.errors[0].extensions.booking.reason).toBe(
+      'FEATURE_DISABLED',
+    );
+    expect(
+      (await cancel(original._id)).body.data.cancelAppointment.canceledBy,
+    ).toBe(String(clinic));
+  });
+
+  it.each(['PHONE', 'WALK_IN'])(
+    'creates an own-clinic %s booking for an existing patient under the same rules',
+    async (source) => {
+      const result = await staff({ source });
+      expect(result.body.errors).toBeUndefined();
+      expect(result.body.data.createClinicAppointment).toMatchObject({
+        clinicId: String(clinic),
+        patientId: String(patient),
+        lastChangedBy: String(clinic),
+        source,
+        status: 'CONFIRMED',
+      });
+      const conflict = await staff({
+        doctorId: String(doctor2),
+        startsAt: at(30).toISOString(),
+      });
+      expect(conflict.body.errors[0].extensions.booking).toEqual({
+        reason: 'COMMITMENT_CONFLICT',
+        existingCommitments: [],
+        choices: [],
+      });
+    },
+  );
+
+  it('rejects foreign doctors, injected clinic/source fields and non-patient or unavailable accounts in staff booking', async () => {
+    for (const changes of [
+      { clinicId: String(clinic2) },
+      { source: 'ONLINE' },
+      { doctorId: String(doctor3) },
+      { patientId: String(clinic) },
+      { patientId: String(doctor) },
+      { patientId: String(id()) },
+    ])
+      expect((await staff(changes)).body.errors).toBeDefined();
+    await connection
+      .db!.collection('members')
+      .updateOne({ _id: patient }, { $set: { memberStatus: 'SUSPENDED' } });
+    expect((await staff()).body.errors[0].extensions.code).toBe(
+      'BAD_USER_INPUT',
+    );
+    expect(
+      await connection.db!.collection('appointments').countDocuments(),
+    ).toBe(0);
+  });
+
+  it('does not disclose another clinic commitment to staff when enforcing patient overlap', async () => {
+    await rest({
+      doctorId: String(doctor3),
+      clinicId: String(clinic2),
+      specialty: 'DENTIST',
+    }).expect(201);
+    const result = await staff();
+    expect(result.body.errors[0].extensions.booking).toEqual({
+      reason: 'PATIENT_OVERLAP',
+      existingCommitments: [],
+      choices: [],
+    });
+    expect(JSON.stringify(result.body)).not.toContain(String(clinic2));
+    expect(JSON.stringify(result.body)).not.toContain(String(doctor3));
+  });
+
+  it.each([48 * 3600_000, 48 * 3600_000 - 1])(
+    'holds queued cancellation releases only outside the 48h cutoff (%i ms)',
+    async (remaining) => {
+      const original = (await rest().expect(201)).body;
+      await queueFor();
+      jest.spyOn(Date, 'now').mockReturnValue(+start - remaining);
+      const result = await clinicGraphql(cancelQuery, { id: original._id });
+      expect(result.body.errors).toBeUndefined();
+      const event = await connection
+        .db!.collection('appointment_events')
+        .findOne({ type: 'SLOT_RELEASED' });
+      expect(event!.releaseMode).toBe(
+        remaining >= 48 * 3600_000 ? 'QUEUE' : 'MANUAL',
+      );
+      const gate = await slotGate();
+      expect(gate!.allocationPending).toBe(remaining >= 48 * 3600_000);
+      expect(event!.slotGeneration).toBe(gate!.generation);
+      const replacement = await staff(); // Patient 1 is not in the queued entry.
+      if (remaining >= 48 * 3600_000)
+        expect(replacement.body.errors[0].extensions.code).toBe('CONFLICT');
+      else
+        expect(replacement.body.data.createClinicAppointment.status).toBe(
+          'CONFIRMED',
+        );
+    },
+  );
+
+  it('records a closed cancellation release without reopening an unavailable slot', async () => {
+    const original = (await rest().expect(201)).body;
+    // Model an external closure; the normal schedule API protects existing visits.
+    await connection.db!.collection('doctor_availability_overrides').insertOne({
+      doctorId: doctor,
+      clinicId: clinic,
+      date: day,
+      type: 'UNAVAILABLE',
+    });
+    expect((await cancel(original._id)).body.errors).toBeUndefined();
+    expect(
+      await connection
+        .db!.collection('appointment_events')
+        .findOne({ type: 'SLOT_RELEASED' }),
+    ).toMatchObject({ releaseMode: 'UNAVAILABLE' });
+    expect((await slots()).body.data.getAvailableSlots).toEqual([]);
+    await rest().expect(409);
+  });
+
+  it('rolls cancellation, ledger release, gate generation and events back on an outbox failure', async () => {
+    const original = (await rest().expect(201)).body;
+    const oldGate = await slotGate();
+    jest
+      .spyOn(connection.model(APPOINTMENT_EVENT), 'create')
+      .mockRejectedValueOnce(new Error('injected outbox failure'));
+    expect((await cancel(original._id)).body.errors[0].extensions.code).toBe(
+      'INTERNAL_SERVER_ERROR',
+    );
+    expect(
+      await connection
+        .db!.collection('appointments')
+        .findOne({ _id: new Types.ObjectId(original._id) }),
+    ).toMatchObject({ status: 'CONFIRMED', version: original.version });
+    expect(
+      await connection.db!.collection('booking_commitments').countDocuments(),
+    ).toBe(1);
+    expect(
+      await connection.db!.collection('appointment_events').countDocuments(),
+    ).toBe(0);
+    expect((await slotGate())!.generation).toBe(oldGate!.generation);
+  });
+
+  it.each(['COMPLETED', 'NO_SHOW'])(
+    'records clinic-only %s after the visit, releases its ledger, and repeats idempotently',
+    async (outcome) => {
+      const version = randomUUID();
+      const row = legacy({
+        startsAt: new Date('2020-01-01T01:00Z'),
+        endsAt: new Date('2020-01-01T01:30Z'),
+        status: 'CONFIRMED',
+        specialty: 'CARDIOLOGIST',
+        source: 'ONLINE',
+        version,
+      });
+      await connection.db!.collection('appointments').insertOne(row);
+      await connection.db!.collection('booking_commitments').insertOne({
+        kind: 'APPOINTMENT',
+        commitmentId: row._id,
+        patientId: patient,
+        doctorId: doctor,
+        clinicId: clinic,
+        specialty: 'CARDIOLOGIST',
+        status: 'CONFIRMED',
+        version,
+        startsAt: row.startsAt,
+        endsAt: row.endsAt,
+      });
+      const result = await clinicGraphql(outcomeQuery, {
+        id: String(row._id),
+        outcome,
+      });
+      expect(result.body.errors).toBeUndefined();
+      expect(result.body.data.setAppointmentOutcome).toMatchObject({
+        status: outcome,
+        lastChangedBy: String(clinic),
+      });
+      expect(
+        (await clinicGraphql(outcomeQuery, { id: String(row._id), outcome }))
+          .body.data.setAppointmentOutcome.version,
+      ).toBe(result.body.data.setAppointmentOutcome.version);
+      expect(
+        await connection.db!.collection('booking_commitments').countDocuments(),
+      ).toBe(0);
+      expect(
+        await connection.db!.collection('appointment_events').countDocuments(),
+      ).toBe(1);
+      const flip = await clinicGraphql(outcomeQuery, {
+        id: String(row._id),
+        outcome: outcome === 'COMPLETED' ? 'NO_SHOW' : 'COMPLETED',
+      });
+      expect(flip.body.errors[0].extensions.code).toBe('CONFLICT');
+    },
+  );
+
+  it('enforces start/end time boundaries and outcome ownership', async () => {
+    const original = (await rest().expect(201)).body;
+    expect(
+      (
+        await clinicGraphql(outcomeQuery, {
+          id: original._id,
+          outcome: 'COMPLETED',
+        })
+      ).body.errors[0].extensions.code,
+    ).toBe('CONFLICT');
+    expect(
+      (
+        await clinicGraphql(
+          outcomeQuery,
+          { id: original._id, outcome: 'COMPLETED' },
+          clinic2,
+        )
+      ).body.errors[0].extensions.code,
+    ).toBe('NOT_FOUND');
+    const userOutcome = await request(app.getHttpServer())
+      .post('/graphql')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        query: outcomeQuery,
+        variables: { id: original._id, outcome: 'COMPLETED' },
+      });
+    expect(userOutcome.body.errors[0].extensions.code).toBe('FORBIDDEN');
+    jest.spyOn(Date, 'now').mockReturnValue(+start);
+    expect(
+      (await clinicGraphql(cancelQuery, { id: original._id })).body.errors[0]
+        .extensions.code,
+    ).toBe('CONFLICT');
+    jest.spyOn(Date, 'now').mockReturnValue(+at(30));
+    expect(
+      (
+        await clinicGraphql(outcomeQuery, {
+          id: original._id,
+          outcome: 'COMPLETED',
+        })
+      ).body.data.setAppointmentOutcome.status,
+    ).toBe('COMPLETED');
   });
 });

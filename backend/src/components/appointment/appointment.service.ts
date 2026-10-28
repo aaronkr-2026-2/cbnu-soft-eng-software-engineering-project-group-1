@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -42,15 +43,49 @@ import {
   AppointmentStatus,
   AppointmentSource,
   AvailabilityOverrideType,
+  AppointmentOutcome,
+  ClinicBookingSource,
+  AppointmentEventType,
+  SlotReleaseMode,
 } from '../../libs/enum/appointment.enum.js';
 import type { BookAppointmentDto } from '../../libs/dto/appointment/book-appointment.dto.js';
+import type { ClinicAppointmentInput } from '../../libs/dto/appointment/clinic-appointment.input.js';
+import {
+  APPOINTMENT_EVENT,
+  AppointmentEventSchema,
+} from '../../schemas/appointment-event.model.js';
+import {
+  BOOKING_COMMITMENT,
+  BookingCommitmentSchema,
+} from '../../schemas/booking-commitment.model.js';
 import { appointmentSlot, slotFitsSchedule } from './appointment-slot.js';
 import type { MemberPrincipal } from '../../libs/types/member.types.js';
 
 type AppointmentEntity = InferSchemaType<typeof AppointmentSchema>;
+type AppointmentRecord = AppointmentEntity & { _id: Types.ObjectId };
+const appointmentFields = {
+  _id: 1,
+  specialty: 1,
+  source: 1,
+  version: 1,
+  startsAt: 1,
+  endsAt: 1,
+  durationMinutes: 1,
+  status: 1,
+  doctorId: 1,
+  clinicId: 1,
+  patientId: 1,
+  doctorChangeRequest: 1,
+  lastChangedBy: 1,
+  canceledAt: 1,
+  canceledBy: 1,
+  createdAt: 1,
+  updatedAt: 1,
+};
 
 @Injectable()
 export class AppointmentService {
+  private outboxInitialization?: Promise<void>;
   constructor(
     @Optional()
     @InjectModel(APPOINTMENT_MODEL_NAME)
@@ -70,12 +105,79 @@ export class AppointmentService {
     >,
     @Optional() private readonly coordination?: BookingCoordinationService,
     @Optional() private readonly policy?: BookingPolicyService,
+    @Optional()
+    @InjectModel(APPOINTMENT_EVENT)
+    private readonly outbox?: Model<
+      InferSchemaType<typeof AppointmentEventSchema>
+    >,
+    @Optional()
+    @InjectModel(BOOKING_COMMITMENT)
+    private readonly commitments?: Model<
+      InferSchemaType<typeof BookingCommitmentSchema>
+    >,
   ) {}
 
   async bookAppointment(input: BookAppointmentDto, member: MemberPrincipal) {
     if (member.memberType !== MemberType.USER)
       throw new ForbiddenException('Only users can book appointments');
 
+    return this.createBooking(
+      input,
+      member._id,
+      member,
+      AppointmentSource.ONLINE,
+    );
+  }
+
+  async createClinicAppointment(
+    input: ClinicAppointmentInput,
+    member: MemberPrincipal,
+  ) {
+    if (member.memberType !== MemberType.CLINIC)
+      throw new ForbiddenException('Only clinics can create staff bookings');
+    if (
+      !/^[a-f\d]{24}$/i.test(input.patientId) ||
+      !Object.values(ClinicBookingSource).includes(input.source)
+    )
+      throw new BadRequestException(
+        'An existing patient ID and phone/walk-in source are required',
+      );
+    return this.createBooking(
+      { ...input, clinicId: String(member._id) },
+      new Types.ObjectId(input.patientId),
+      member,
+      input.source === ClinicBookingSource.PHONE
+        ? AppointmentSource.PHONE
+        : AppointmentSource.WALK_IN,
+    );
+  }
+
+  private async requireCurrentMember(
+    member: MemberPrincipal,
+    members: Model<MemberEntity>,
+    session: ClientSession,
+  ) {
+    const current = await members
+      .findOne({
+        _id: member._id,
+        memberType: member.memberType,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select({ _id: 1, authVersion: 1 })
+      .session(session)
+      .lean()
+      .exec();
+    if (!current || (current.authVersion ?? 0) !== (member.authVersion ?? 0))
+      throw new UnauthorizedException('Invalid access token');
+  }
+
+  private async createBooking(
+    input: BookAppointmentDto,
+    patientId: Types.ObjectId,
+    member: MemberPrincipal,
+    source: AppointmentSource,
+  ) {
     if (!this.coordination || !this.policy)
       throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
     await this.policy.assertReady();
@@ -98,27 +200,29 @@ export class AppointmentService {
       return await this.coordination.run(
         {
           doctorIds: [doctorId],
-          patientIds: [member._id],
+          patientIds: [patientId],
           slots: [{ doctorId, startsAt }],
         },
         async (tx) => {
           await this.policy!.assertReady(tx.session);
-          const patient = await models.members
-            .findOne({
-              _id: member._id,
-              memberType: MemberType.USER,
-              memberStatus: MemberStatus.ACTIVE,
-              deletedAt: null,
-            })
-            .select({ _id: 1, authVersion: 1 })
-            .session(tx.session)
-            .lean()
-            .exec();
-          if (
-            !patient ||
-            (patient.authVersion ?? 0) !== (member.authVersion ?? 0)
-          )
-            throw new UnauthorizedException('Invalid access token');
+          await this.requireCurrentMember(member, models.members, tx.session);
+          if (member.memberType === MemberType.CLINIC) {
+            const patient = await models.members
+              .findOne({
+                _id: patientId,
+                memberType: MemberType.USER,
+                memberStatus: MemberStatus.ACTIVE,
+                deletedAt: null,
+              })
+              .select({ _id: 1 })
+              .session(tx.session)
+              .lean()
+              .exec();
+            if (!patient)
+              throw new BadRequestException(
+                'An active existing patient account is required',
+              );
+          }
           const timezone = await this.requireApprovedDoctor(
             input,
             models.members,
@@ -131,7 +235,7 @@ export class AppointmentService {
             commitmentId: _id,
             version,
             status: 'CONFIRMED',
-            patientId: member._id,
+            patientId,
             doctorId,
             clinicId,
             specialty: input.specialty,
@@ -151,11 +255,11 @@ export class AppointmentService {
               {
                 _id,
                 version,
-                source: AppointmentSource.ONLINE,
+                source,
                 specialty: input.specialty,
                 doctorId,
                 clinicId,
-                patientId: member._id,
+                patientId,
                 startsAt,
                 endsAt: slot.endsAt,
                 status: AppointmentStatus.CONFIRMED,
@@ -169,6 +273,14 @@ export class AppointmentService {
         },
       );
     } catch (error) {
+      // Staff may enforce a patient's cross-clinic conflicts, but may not read
+      // the other clinic's commitment details through this error response.
+      if (
+        member.memberType === MemberType.CLINIC &&
+        error instanceof BookingConflictException
+      ) {
+        throw new BookingConflictException(error.booking.reason);
+      }
       if (
         typeof error === 'object' &&
         error !== null &&
@@ -303,6 +415,239 @@ export class AppointmentService {
     if (occupied) throw new BookingConflictException('SLOT_OCCUPIED');
   }
 
+  async cancelAppointment(id: string, member: MemberPrincipal) {
+    if (![MemberType.USER, MemberType.CLINIC].includes(member.memberType))
+      throw new ForbiddenException(
+        'Only patients or their clinic can cancel appointments',
+      );
+    return this.changeStatus(id, AppointmentStatus.CANCELED, member);
+  }
+
+  async setAppointmentOutcome(
+    id: string,
+    outcome: AppointmentOutcome,
+    member: MemberPrincipal,
+  ) {
+    if (member.memberType !== MemberType.CLINIC)
+      throw new ForbiddenException(
+        'Only clinics can record appointment outcomes',
+      );
+    if (!Object.values(AppointmentOutcome).includes(outcome))
+      throw new BadRequestException('Invalid appointment outcome');
+    return this.changeStatus(
+      id,
+      outcome === AppointmentOutcome.COMPLETED
+        ? AppointmentStatus.COMPLETED
+        : AppointmentStatus.NO_SHOW,
+      member,
+    );
+  }
+
+  private async canReopen(
+    appointment: AppointmentRecord,
+    models: ReturnType<AppointmentService['bookingModels']>,
+    session: ClientSession,
+  ) {
+    if (!appointment.specialty) return false;
+    try {
+      const input = {
+        doctorId: String(appointment.doctorId),
+        clinicId: String(appointment.clinicId),
+        specialty: appointment.specialty,
+        startsAt: appointment.startsAt.toISOString(),
+      };
+      const timezone = await this.requireApprovedDoctor(
+        input,
+        models.members,
+        session,
+      );
+      await this.requireWorkingHours(
+        input,
+        appointmentSlot(appointment.startsAt, timezone),
+        models,
+        session,
+      );
+      return true;
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        (error instanceof BookingConflictException &&
+          error.booking.reason === 'SLOT_UNAVAILABLE')
+      )
+        return false;
+      throw error; // Infrastructure failures must roll back rather than mimic closures.
+    }
+  }
+
+  private async changeStatus(
+    id: string,
+    status: AppointmentStatus,
+    member: MemberPrincipal,
+  ) {
+    if (!/^[a-f\d]{24}$/i.test(id))
+      throw new BadRequestException('Invalid appointment ID');
+    if (!this.coordination || !this.policy || !this.outbox || !this.commitments)
+      throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
+    await this.policy.assertMigrated();
+    const models = this.bookingModels();
+    const scope = {
+      _id: new Types.ObjectId(id),
+      [member.memberType === MemberType.CLINIC ? 'clinicId' : 'patientId']:
+        member._id,
+    };
+    const original = await models.appointments
+      .findOne(scope)
+      .select(appointmentFields)
+      .lean()
+      .exec();
+    if (!original) throw new NotFoundException('Appointment not found');
+    this.outboxInitialization ??= (async () => {
+      await this.outbox!.createCollection();
+      await this.outbox!.createIndexes();
+    })().catch((error: unknown) => {
+      this.outboxInitialization = undefined;
+      throw error;
+    });
+    await this.outboxInitialization;
+    const version = randomUUID();
+    return this.coordination.run(
+      {
+        doctorIds: [original.doctorId],
+        patientIds: [original.patientId],
+        slots: [{ doctorId: original.doctorId, startsAt: original.startsAt }],
+      },
+      async (tx) => {
+        await this.policy!.assertMigrated(tx.session);
+        await this.requireCurrentMember(member, models.members, tx.session);
+        const current = await models.appointments
+          .findOne(scope)
+          .select(appointmentFields)
+          .session(tx.session)
+          .lean()
+          .exec();
+        if (!current) throw new NotFoundException('Appointment not found');
+        if (
+          !['doctorId', 'clinicId', 'patientId'].every(
+            (key) =>
+              String(current[key as 'doctorId' | 'clinicId' | 'patientId']) ===
+              String(original[key as 'doctorId' | 'clinicId' | 'patientId']),
+          ) ||
+          +current.startsAt !== +original.startsAt
+        )
+          throw new BookingConflictException('STALE_COMMITMENT');
+        if (current.status === status)
+          return {
+            ...current,
+            source: current.source ?? AppointmentSource.LEGACY,
+          };
+        const now = new Date(Date.now());
+        if (
+          current.status !== AppointmentStatus.CONFIRMED ||
+          (status === AppointmentStatus.CANCELED
+            ? current.startsAt <= now
+            : current.endsAt > now)
+        )
+          throw new ConflictException(
+            'Unsupported appointment transition or time',
+          );
+        if (!current.version)
+          throw new BookingUnavailableException('MIGRATION_REQUIRED');
+        await tx.release('APPOINTMENT', current._id);
+        const changed = await models.appointments
+          .findOneAndUpdate(
+            {
+              ...scope,
+              version: current.version,
+              status: AppointmentStatus.CONFIRMED,
+            },
+            {
+              $set: {
+                status,
+                version,
+                lastChangedBy: member._id,
+                ...(status === AppointmentStatus.CANCELED
+                  ? { canceledAt: now, canceledBy: member._id }
+                  : {}),
+              },
+            },
+            {
+              session: tx.session,
+              returnDocument: 'after',
+              runValidators: true,
+            },
+          )
+          .select(appointmentFields)
+          .lean()
+          .exec();
+        if (!changed) throw new BookingConflictException('STALE_COMMITMENT');
+        const event = {
+          appointmentId: current._id,
+          appointmentVersion: version,
+          appointmentStatus: status,
+          patientId: current.patientId,
+          clinicId: current.clinicId,
+          doctorId: current.doctorId,
+          actorId: member._id,
+          startsAt: current.startsAt,
+          endsAt: current.endsAt,
+          occurredAt: now,
+        };
+        let slotGeneration: number | undefined;
+        let releaseMode: SlotReleaseMode | undefined;
+        if (status === AppointmentStatus.CANCELED) {
+          const slot = {
+            doctorId: current.doctorId,
+            startsAt: current.startsAt,
+          };
+          slotGeneration = await tx.holdSlot(slot);
+          const queued =
+            +current.startsAt - +now >= 48 * 3600_000 &&
+            Boolean(
+              await this.commitments!.exists({
+                kind: 'WAITLIST',
+                doctorId: current.doctorId,
+                clinicId: current.clinicId,
+                startsAt: current.startsAt,
+                endsAt: current.endsAt,
+              }).session(tx.session),
+            );
+          const available = await this.canReopen(current, models, tx.session);
+          releaseMode = !available
+            ? SlotReleaseMode.UNAVAILABLE
+            : queued
+              ? SlotReleaseMode.QUEUE
+              : SlotReleaseMode.MANUAL;
+          if (!queued) await tx.resolveSlot(slot, slotGeneration);
+        }
+        await this.outbox!.create(
+          [
+            {
+              ...event,
+              _id: `status:${id.toLowerCase()}:${version}`,
+              type: AppointmentEventType.STATUS_CHANGED,
+            },
+            ...(status === AppointmentStatus.CANCELED
+              ? [
+                  {
+                    ...event,
+                    _id: `release:${id.toLowerCase()}:${version}`,
+                    type: AppointmentEventType.SLOT_RELEASED,
+                    slotGeneration,
+                    releaseMode,
+                  },
+                ]
+              : []),
+          ],
+          { session: tx.session, ordered: true },
+        );
+        return {
+          ...changed,
+          source: changed.source ?? AppointmentSource.LEGACY,
+        };
+      },
+    );
+  }
+
   async getAppointment(id: string, member: MemberPrincipal) {
     if (!/^[a-f\d]{24}$/i.test(id))
       throw new BadRequestException('Invalid appointment ID');
@@ -323,25 +668,7 @@ export class AppointmentService {
         _id: new Types.ObjectId(id),
         [ownershipField]: member._id,
       })
-      .select({
-        _id: 1,
-        specialty: 1,
-        source: 1,
-        version: 1,
-        startsAt: 1,
-        endsAt: 1,
-        durationMinutes: 1,
-        status: 1,
-        doctorId: 1,
-        clinicId: 1,
-        patientId: 1,
-        doctorChangeRequest: 1,
-        lastChangedBy: 1,
-        canceledAt: 1,
-        canceledBy: 1,
-        createdAt: 1,
-        updatedAt: 1,
-      })
+      .select(appointmentFields)
       .lean()
       .exec();
     if (!appointment) throw new NotFoundException('Appointment not found');

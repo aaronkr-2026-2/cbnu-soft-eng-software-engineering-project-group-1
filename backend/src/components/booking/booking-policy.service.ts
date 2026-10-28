@@ -47,6 +47,11 @@ export class BookingPolicyService implements OnModuleInit {
   async assertReady(session?: ClientSession) {
     if (!bookingPolicyEnabled())
       throw new BookingUnavailableException('FEATURE_DISABLED');
+    await this.assertMigrated(session);
+  }
+
+  // Existing commitments remain cancellable while new booking is paused.
+  async assertMigrated(session?: ClientSession) {
     if (!this.policy)
       throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
     const ready = await this.policy

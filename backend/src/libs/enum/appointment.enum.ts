@@ -22,6 +22,29 @@ export enum AppointmentSource {
 }
 registerEnumType(AppointmentSource, { name: 'AppointmentSource' });
 
+export enum ClinicBookingSource {
+  PHONE = 'PHONE',
+  WALK_IN = 'WALK_IN',
+}
+registerEnumType(ClinicBookingSource, { name: 'ClinicBookingSource' });
+
+export enum AppointmentOutcome {
+  COMPLETED = 'COMPLETED',
+  NO_SHOW = 'NO_SHOW',
+}
+registerEnumType(AppointmentOutcome, { name: 'AppointmentOutcome' });
+
+export enum AppointmentEventType {
+  STATUS_CHANGED = 'APPOINTMENT_STATUS_CHANGED',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+}
+
+export enum SlotReleaseMode {
+  QUEUE = 'QUEUE',
+  MANUAL = 'MANUAL',
+  UNAVAILABLE = 'UNAVAILABLE',
+}
+
 export enum DoctorChangeRequestType {
   CANCEL = 'CANCEL',
   RESCHEDULE = 'RESCHEDULE',
