@@ -1,3 +1,4 @@
+import { appointmentFields } from '../../libs/types/appointment.types.js';
 import {
   PromotionIneligible,
   PromotionCutoff,
@@ -74,25 +75,6 @@ import { WaitlistService } from '../waitlist/waitlist.service.js';
 
 type AppointmentEntity = InferSchemaType<typeof AppointmentSchema>;
 type AppointmentRecord = AppointmentEntity & { _id: Types.ObjectId };
-const appointmentFields = {
-  _id: 1,
-  specialty: 1,
-  source: 1,
-  version: 1,
-  startsAt: 1,
-  endsAt: 1,
-  durationMinutes: 1,
-  status: 1,
-  doctorId: 1,
-  clinicId: 1,
-  patientId: 1,
-  doctorChangeRequest: 1,
-  lastChangedBy: 1,
-  canceledAt: 1,
-  canceledBy: 1,
-  createdAt: 1,
-  updatedAt: 1,
-};
 
 @Injectable()
 export class AppointmentService {
@@ -987,12 +969,10 @@ export class AppointmentService {
       .lean()
       .exec();
     return {
-      entries: rows
-        .slice(0, limit)
-        .map((row) => ({
-          ...row,
-          source: row.source ?? AppointmentSource.LEGACY,
-        })),
+      entries: rows.slice(0, limit).map((row) => ({
+        ...row,
+        source: row.source ?? AppointmentSource.LEGACY,
+      })),
       nextCursor: rows.length > limit ? String(rows[limit - 1]._id) : null,
     };
   }

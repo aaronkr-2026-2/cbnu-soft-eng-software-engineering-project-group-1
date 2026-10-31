@@ -1,3 +1,5 @@
+import { AppointmentCalendarService } from '../src/components/appointment/appointment-calendar.service.js';
+import { AppointmentSource } from '../src/libs/enum/appointment.enum.js';
 import { NotificationService } from '../src/components/notification/notification.service.js';
 import { AppointmentWaitlistLifecycleService } from '../src/components/appointment/appointment-waitlist-lifecycle.service.js';
 import { WaitlistService } from '../src/components/waitlist/waitlist.service.js';
@@ -1440,6 +1442,522 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         })
       ).body.data.setAppointmentOutcome.status,
     ).toBe('COMPLETED');
+  });
+
+  describe('Authorized calendar snapshots and polling', () => {
+    const window = {
+      from: at(-30).toISOString(),
+      to: at(3 * 1440).toISOString(),
+    };
+    const calendarQuery =
+      'query($input:CalendarInput!){myCalendar(input:$input){revision nextCursor clinicTimezone entries{_id patientId doctorId clinicId clinicTimezone startsAt endsAt status source version}}}';
+    const updatesQuery =
+      'query($input:CalendarUpdatesInput!){calendarUpdates(input:$input){revision changed pollAfterSeconds}}';
+    const calendar = (changes = {}, owner = clinic) =>
+      clinicGraphql(calendarQuery, { input: { ...window, ...changes } }, owner);
+    const updates = (changes = {}, owner = clinic) =>
+      clinicGraphql(updatesQuery, { input: { ...window, ...changes } }, owner);
+    const historical = (changes: Record<string, unknown> = {}) =>
+      legacy({
+        status: 'CANCELED',
+        createdAt: at(-1440),
+        updatedAt: at(-1440),
+        ...changes,
+      });
+
+    it('shows online, phone and walk-in bookings only to their own clinic and assigned doctor', async () => {
+      const online = (await rest()).body;
+      const foreign = await rest(
+        {
+          doctorId: String(doctor3),
+          clinicId: String(clinic2),
+          specialty: DoctorSpecialization.DENTIST,
+        },
+        token2,
+      );
+      expect(foreign.status).toBe(201);
+      expect(
+        (
+          await staff({
+            doctorId: String(doctor2),
+            specialty: 'DENTIST',
+            startsAt: at(60).toISOString(),
+          })
+        ).body.errors,
+      ).toBeUndefined();
+      expect(
+        (
+          await staff({
+            doctorId: String(doctor2),
+            patientId: String(patient2),
+            source: 'WALK_IN',
+            startsAt: at(120).toISOString(),
+          })
+        ).body.errors,
+      ).toBeUndefined();
+      const clinicPage = await calendar();
+      expect(clinicPage.body.errors).toBeUndefined();
+      expect(clinicPage.headers['cache-control']).toBe('no-store');
+      const page = clinicPage.body.data.myCalendar;
+      expect(page.clinicTimezone).toBe('Asia/Seoul');
+      expect(
+        page.entries.map((row: { source: string }) => row.source).sort(),
+      ).toEqual(['ONLINE', 'PHONE', 'WALK_IN']);
+      expect(
+        page.entries.every(
+          (row: { clinicId: string; clinicTimezone: string }) =>
+            row.clinicId === String(clinic) &&
+            row.clinicTimezone === 'Asia/Seoul',
+        ),
+      ).toBe(true);
+      const doctorPage = (await calendar({}, doctor)).body.data.myCalendar;
+      expect(doctorPage.entries.map((row: { _id: string }) => row._id)).toEqual(
+        [online._id],
+      );
+      expect(
+        (await calendar({}, clinic2)).body.data.myCalendar.entries.map(
+          (row: { _id: string }) => row._id,
+        ),
+      ).toEqual([foreign.body._id]);
+      expect(
+        (await calendar({ doctorId: String(doctor3) })).body.data.myCalendar
+          .entries,
+      ).toHaveLength(0);
+      expect(
+        (await calendar({ doctorId: String(doctor2) }, doctor)).body.errors[0]
+          .extensions.code,
+      ).toBe('FORBIDDEN');
+    });
+
+    it('revisions reveal changes only within the authorized doctor/clinic window', async () => {
+      const initial = (await updates({}, doctor)).body.data.calendarUpdates;
+      expect(initial).toMatchObject({ changed: true, pollAfterSeconds: 5 });
+      expect(initial.revision).toMatch(/^[a-f\d]{64}$/);
+      await rest({ doctorId: String(doctor2) });
+      expect(
+        (await updates({ knownRevision: initial.revision }, doctor)).body.data
+          .calendarUpdates.changed,
+      ).toBe(false);
+      const clinicBefore = (await updates()).body.data.calendarUpdates;
+      expect(
+        (await updates({ knownRevision: clinicBefore.revision })).body.data
+          .calendarUpdates.changed,
+      ).toBe(false);
+      await rest(
+        {
+          doctorId: String(doctor3),
+          clinicId: String(clinic2),
+          specialty: DoctorSpecialization.DENTIST,
+        },
+        token2,
+      );
+      expect(
+        (await updates({ knownRevision: clinicBefore.revision })).body.data
+          .calendarUpdates.changed,
+      ).toBe(false);
+      await rest({ startsAt: at(1440).toISOString() });
+      expect(
+        (await updates({ knownRevision: clinicBefore.revision })).body.data
+          .calendarUpdates.changed,
+      ).toBe(true);
+    });
+
+    it('reconnects from committed state after cancellation and rejects stale pagination revisions', async () => {
+      const first = (await rest()).body;
+      await rest({ startsAt: at(1440).toISOString() });
+      const page = (await calendar({ limit: 1 })).body.data.myCalendar;
+      expect(page.nextCursor).toBe(first._id);
+      await cancel(first._id);
+      expect(
+        (await updates({ knownRevision: page.revision })).body.data
+          .calendarUpdates.changed,
+      ).toBe(true);
+      expect(
+        (
+          await calendar({
+            after: page.nextCursor,
+            revision: page.revision,
+            limit: 1,
+          })
+        ).body.errors[0].extensions.code,
+      ).toBe('CONFLICT');
+      const fresh = (await calendar()).body.data.myCalendar;
+      expect(
+        fresh.entries.find((row: { _id: string }) => row._id === first._id)
+          .status,
+      ).toBe('CANCELED');
+      expect(
+        new Set(fresh.entries.map((row: { _id: string }) => row._id)).size,
+      ).toBe(2);
+      expect(
+        (await updates({ knownRevision: fresh.revision })).body.data
+          .calendarUpdates.changed,
+      ).toBe(false);
+    });
+
+    it('paginates tied starts and requires an unchanged authorized window for every page', async () => {
+      const first = new Types.ObjectId('100000000000000000000001'),
+        second = new Types.ObjectId('100000000000000000000002'),
+        third = new Types.ObjectId('100000000000000000000003');
+      const foreign = historical({
+        doctorId: doctor3,
+        clinicId: clinic2,
+        patientId: patient2,
+      });
+      await connection
+        .db!.collection('appointments')
+        .insertMany([
+          historical({ _id: third }),
+          historical({ _id: first }),
+          historical({ _id: second }),
+          foreign,
+        ]);
+      const page = (await calendar({ limit: 1 })).body.data.myCalendar;
+      expect(page.entries[0]._id).toBe(String(first));
+      const next = (
+        await calendar({
+          limit: 1,
+          after: page.nextCursor,
+          revision: page.revision,
+        })
+      ).body.data.myCalendar;
+      expect(next.entries[0]._id).toBe(String(second));
+      const final = (
+        await calendar({
+          limit: 1,
+          after: next.nextCursor,
+          revision: next.revision,
+        })
+      ).body.data.myCalendar;
+      expect(final.entries[0]._id).toBe(String(third));
+      expect(final.nextCursor).toBeNull();
+      expect(
+        (
+          await calendar({
+            after: String(foreign._id),
+            revision: page.revision,
+          })
+        ).body.errors[0].extensions.code,
+      ).toBe('BAD_USER_INPUT');
+      expect(
+        (await calendar({ doctorId: String(doctor), revision: page.revision }))
+          .body.errors[0].extensions.code,
+      ).toBe('CONFLICT');
+    });
+
+    it('includes overlapping visits, excludes adjoining boundaries, and normalizes UTC offsets', async () => {
+      await rest();
+      expect(
+        (
+          await calendar({
+            from: at(15).toISOString(),
+            to: at(45).toISOString(),
+          })
+        ).body.data.myCalendar.entries,
+      ).toHaveLength(1);
+      expect(
+        (
+          await calendar({
+            from: at(30).toISOString(),
+            to: at(60).toISOString(),
+          })
+        ).body.data.myCalendar.entries,
+      ).toHaveLength(0);
+      expect(
+        (
+          await calendar({
+            from: at(-30).toISOString(),
+            to: start.toISOString(),
+          })
+        ).body.data.myCalendar.entries,
+      ).toHaveLength(0);
+      const utc = (
+        await calendar({ from: start.toISOString(), to: at(60).toISOString() })
+      ).body.data.myCalendar;
+      const offset = (
+        await calendar({
+          from: '2035-01-01T10:00:00+09:00',
+          to: '2035-01-01T11:00:00+09:00',
+        })
+      ).body.data.myCalendar;
+      expect(offset.revision).toBe(utc.revision);
+    });
+
+    it('keeps history readable while booking is paused and excludes persistence-only data', async () => {
+      await connection
+        .db!.collection('appointments')
+        .insertOne(
+          historical({ internalOnly: 'private-provider-payload', __v: 7 }),
+        );
+      process.env.BOOKING_POLICY_V2_ENABLED = 'false';
+      await connection.db!.collection('booking_policy').deleteMany({});
+      const result = await calendar();
+      expect(result.body.errors).toBeUndefined();
+      expect(result.body.data.myCalendar.entries[0]).toMatchObject({
+        source: 'LEGACY',
+        version: null,
+        status: 'CANCELED',
+      });
+      const raw = await app
+        .get(AppointmentCalendarService)
+        .calendar(
+          { from: at(-30), to: at(60), limit: 100 },
+          { _id: clinic, memberType: MemberType.CLINIC, authVersion: 0 },
+        );
+      expect(raw.entries[0]).not.toHaveProperty('internalOnly');
+      expect(raw.entries[0]).not.toHaveProperty('__v');
+      expect(JSON.stringify(result.body)).not.toContain(
+        'private-provider-payload',
+      );
+    });
+
+    it('invalidates when clinic display timezone changes, even on an empty calendar', async () => {
+      const before = (await calendar()).body.data.myCalendar;
+      await connection
+        .db!.collection('members')
+        .updateOne(
+          { _id: clinic },
+          { $set: { clinicTimezone: 'America/New_York' } },
+        );
+      const after = (await calendar()).body.data.myCalendar;
+      expect(after.clinicTimezone).toBe('America/New_York');
+      expect(after.revision).not.toBe(before.revision);
+    });
+
+    it('shows promoted bookings once, with their current appointment version', async () => {
+      const original = (await rest({}, token2)).body;
+      process.env.WAITLIST_ENROLLMENT_ENABLED = 'true';
+      const joined = await clinicGraphql(
+        'mutation($input:JoinWaitlistInput!){joinWaitlist(input:$input){_id}}',
+        { input: { ...input, automaticBookingConsent: true } },
+        patient,
+      );
+      expect(joined.body.errors).toBeUndefined();
+      await cancel(original._id, token2);
+      const before = (await updates()).body.data.calendarUpdates;
+      jest
+        .spyOn(app.get(AppointmentPromotionService), 'isEnabled')
+        .mockReturnValue(true);
+      await app.get(AppointmentPromotionService).runOnce();
+      expect(
+        (await updates({ knownRevision: before.revision })).body.data
+          .calendarUpdates.changed,
+      ).toBe(true);
+      const page = (await calendar({}, doctor)).body.data.myCalendar;
+      const active = page.entries.filter(
+        (row: { status: string }) => row.status === 'CONFIRMED',
+      );
+      expect(active).toHaveLength(1);
+      expect(active[0]).toMatchObject({
+        source: 'WAITLIST',
+        patientId: String(patient),
+      });
+      expect(active[0].version).toMatch(/^[a-f\d-]{36}$/);
+      expect(
+        new Set(page.entries.map((row: { _id: string }) => row._id)).size,
+      ).toBe(2);
+    });
+
+    it('never publishes a booking before its transaction commits', async () => {
+      await app.get(WaitlistService).prepare();
+      const before = (await calendar()).body.data.myCalendar;
+      let enter!: () => void, resume!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      const resumed = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      const pending = app.get(BookingCoordinationService).run(
+        {
+          doctorIds: [doctor],
+          patientIds: [patient],
+          slots: [{ doctorId: doctor, startsAt: start }],
+        },
+        async (tx) => {
+          const booked = await app
+            .get(AppointmentService)
+            .bookInTransaction(
+              input,
+              patient,
+              { _id: patient, memberType: MemberType.USER, authVersion: 0 },
+              AppointmentSource.ONLINE,
+              tx,
+            );
+          enter();
+          await resumed;
+          return booked;
+        },
+      );
+      await entered;
+      try {
+        const during = (await calendar()).body.data.myCalendar;
+        expect(during.entries).toHaveLength(0);
+        expect(during.revision).toBe(before.revision);
+      } finally {
+        resume();
+      }
+      const committed = await pending;
+      const after = (await calendar()).body.data.myCalendar;
+      expect(after.entries[0]._id).toBe(String(committed._id));
+      expect(after.revision).not.toBe(before.revision);
+    });
+
+    it('reads replacement atomically rather than publishing a half-cancelled calendar', async () => {
+      const original = (await rest()).body;
+      const appointments = app.get(AppointmentService);
+      const book = appointments.bookInTransaction.bind(appointments);
+      let enter!: () => void, resume!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      const resumed = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      jest
+        .spyOn(appointments, 'bookInTransaction')
+        .mockImplementationOnce(async (...args) => {
+          enter();
+          await resumed;
+          return book(...args);
+        });
+      const pending = clinicGraphql(
+        'mutation($input:ReplaceCommitmentInput!){replaceCommitment(input:$input){appointment{_id}}}',
+        {
+          input: {
+            originalKind: 'APPOINTMENT',
+            originalId: original._id,
+            originalVersion: original.version,
+            destinationKind: 'APPOINTMENT',
+            destination: {
+              ...input,
+              doctorId: String(doctor2),
+              startsAt: at(60).toISOString(),
+            },
+          },
+        },
+        patient,
+      );
+      process.env.WAITLIST_ENROLLMENT_ENABLED = 'true';
+      process.env.COMMITMENT_REPLACEMENT_ENABLED = 'true';
+      // Start the Supertest request before waiting at the in-transaction barrier.
+      const result = pending.then((response) => response);
+      await entered;
+      try {
+        expect((await calendar()).body.data.myCalendar.entries).toMatchObject([
+          { _id: original._id, status: 'CONFIRMED' },
+        ]);
+      } finally {
+        resume();
+      }
+      expect((await result).body.errors).toBeUndefined();
+      const after = (await calendar()).body.data.myCalendar.entries;
+      expect(after.map((row: { status: string }) => row.status).sort()).toEqual(
+        ['CANCELED', 'CONFIRMED'],
+      );
+    });
+
+    it('updates outcomes and rechecks token/account state for every poll', async () => {
+      const booked = (await rest()).body;
+      const before = (await updates()).body.data.calendarUpdates;
+      freezeTime(+at(30));
+      await clinicGraphql(outcomeQuery, {
+        id: booked._id,
+        outcome: 'COMPLETED',
+      });
+      const result = (await updates({ knownRevision: before.revision })).body
+        .data.calendarUpdates;
+      expect(result.changed).toBe(true);
+      expect((await calendar()).body.data.myCalendar.entries[0].status).toBe(
+        'COMPLETED',
+      );
+      const bearer = await app.get(JwtService).signAsync({
+        sub: String(clinic),
+        tokenType: 'access',
+        authVersion: 0,
+      });
+      await connection
+        .db!.collection('members')
+        .updateOne({ _id: clinic }, { $set: { authVersion: 1 } });
+      const revoked = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Authorization', `Bearer ${bearer}`)
+        .send({ query: updatesQuery, variables: { input: window } });
+      expect(revoked.body.errors[0].extensions.code).toBe('UNAUTHENTICATED');
+    });
+
+    it('requires current staff/doctor authentication and does not grant patients or admins calendar access', async () => {
+      const anonymous = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({ query: calendarQuery, variables: { input: window } });
+      expect(anonymous.body.errors[0].extensions.code).toBe('UNAUTHENTICATED');
+      expect((await calendar({}, patient)).body.errors[0].extensions.code).toBe(
+        'FORBIDDEN',
+      );
+      const admin = id();
+      await connection.db!.collection('members').insertOne({
+        _id: admin,
+        memberType: 'ADMIN',
+        memberStatus: 'ACTIVE',
+        authVersion: 0,
+      });
+      expect((await calendar({}, admin)).body.errors[0].extensions.code).toBe(
+        'FORBIDDEN',
+      );
+      await connection
+        .db!.collection('members')
+        .updateOne({ _id: doctor }, { $set: { memberStatus: 'SUSPENDED' } });
+      expect((await updates({}, doctor)).body.errors[0].extensions.code).toBe(
+        'UNAUTHENTICATED',
+      );
+    });
+
+    it.each([
+      { from: start.toISOString(), to: start.toISOString() },
+      { from: start.toISOString(), to: at(32 * 1440).toISOString() },
+      { from: 'invalid' },
+      { doctorId: 'invalid' },
+      { limit: 0 },
+      { limit: 101 },
+      { after: String(doctor) },
+      { revision: 'invalid' },
+      { clinicId: String(clinic2) },
+    ])('rejects invalid or unscoped calendar input %j', async (changes) => {
+      expect((await calendar(changes)).body.errors).toBeDefined();
+    });
+
+    it('reads multiple MongoDB cursor batches and changes on a later calendar page', async () => {
+      await connection
+        .db!.collection('appointments')
+        .insertMany(Array.from({ length: 150 }, () => historical()));
+      const first = (await calendar()).body.data.myCalendar;
+      expect(first.entries).toHaveLength(100);
+      const next = (
+        await calendar({ after: first.nextCursor, revision: first.revision })
+      ).body.data.myCalendar;
+      expect(next.entries).toHaveLength(50);
+      expect(next.nextCursor).toBeNull();
+      expect(next.revision).toBe(first.revision);
+      await connection
+        .db!.collection('appointments')
+        .updateOne(
+          { _id: new Types.ObjectId(next.entries[49]._id) },
+          { $set: { version: randomUUID() } },
+        );
+      expect(
+        (await updates({ knownRevision: first.revision })).body.data
+          .calendarUpdates.changed,
+      ).toBe(true);
+    });
+
+    it('fails explicitly instead of silently truncating an oversized calendar window', async () => {
+      await connection
+        .db!.collection('appointments')
+        .insertMany(Array.from({ length: 5001 }, () => historical()));
+      const result = await calendar();
+      expect(result.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
+      expect(result.body.errors[0].message).toContain('narrow');
+    });
   });
 
   describe('Patient appointment list', () => {

@@ -53,6 +53,7 @@ flowchart TD
   Booking[AppointmentService and slot helper]
   Notifications[NotificationService - in-app delivery and private inbox]
   Lifecycle[AppointmentWaitlistLifecycleService]
+  Calendar[AppointmentCalendarService - snapshot polling]
   Promotion[AppointmentPromotionService - gated polling]
   Commitments[AppointmentCommitmentService]
   Waitlist[WaitlistService]
@@ -85,6 +86,8 @@ flowchart TD
   GQL -->|Public slots or guarded clinic schedule mutations| Schedule
   GQL -->|Guarded join, leave, replace| Commitments
   GQL -->|Scoped entry reads and counts| Waitlist
+  GQL -->|Authorized calendar window and revision polling| Calendar
+  Calendar -->|Read-only MongoDB snapshot: own appointments and timezone metadata| Models
   GQL -->|Own inbox/read or operator aggregate status| Notifications
   Waitlist -->|Transactional notification intents| Notifications
   Notifications -->|Fenced delivery transaction and scoped inbox queries| Models
@@ -123,6 +126,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
+| GraphQL | `myCalendar`, `calendarUpdates` | Current clinic/doctor scope; consistent snapshots and revision polling through AppointmentCalendarService |
 | GraphQL | `createClinicAppointment`, `cancelAppointment`, `setAppointmentOutcome` | Guarded actor/participant permissions; shared AppointmentService rules and transactional outbox |
 | GraphQL | `getAvailableSlots`, `setDoctorWeeklyHours`, `setDoctorDateOverrides` | Public bounded slot reads; own-clinic guarded schedule writes |
 | GraphQL | `myClinicDoctors`, `reviewDoctorAffiliation` | Own-clinic affiliation discovery/review through MemberService |
@@ -423,6 +427,46 @@ slots, booking, waitlist and replacement APIs remain unchanged. Per user directi
 frontend work for Steps9–12 is deferred; no Next.js/Vite files or session behavior
 are changed. Browser integration remains unverified and the promotion release gate
 remains closed. The next implementation scope is Step10's backend portion.
+
+### Clinic/doctor calendar synchronization (Step 10 backend only, October 31)
+
+AppointmentCalendarResolver/Service are registered within AppointmentModule, with
+calendar input/output DTOs under libs/dto/appointment. Calendar entries reuse the
+positive appointment projection now shared through libs/types/appointment.types.ts.
+The service owns read-only participant-scoped appointment/member model reads; no
+new writer, event queue or process-local subscription registry is introduced.
+
+The chosen synchronization mechanism is Bearer-authenticated GraphQL polling. Repo
+records describe a VPS but do not verify WebSocket/SSE proxy buffering/timeouts, so
+the existing HTTP transport provides a concrete supported backend path. Reconnect
+always resynchronizes authoritative state; no timestamp feed can skip a late commit.
+Each request rechecks current account/role/authVersion and reads appointments plus
+clinic timezone metadata in a primary read-only snapshot session with explicit
+cursor timeouts and a shared ten-second abort deadline. Uncommitted
+booking/replacement writes remain invisible. Replica-set persistence is required.
+
+CLINIC scope is recorded clinicId=self; optional doctorId intersects that scope.
+DOCTOR scope is doctorId=self, including their own recorded history; another doctor
+filter is forbidden. USER/ADMIN roles do not gain calendar access. UTC overlap windows
+are bounded to31 elapsed days, at most5000 records, with pages of at most100 entries.
+Additional compound clinic/doctor start-time/ID indexes support the ordering. Output
+contains existing participant fields plus clinicTimezone, never contacts or raw rows.
+
+The server hashes the full scoped window/timezone context into a revision. Polling
+returns changed/revision with a five-second advisory interval. Continuation pages
+must supply the first page revision and fail CONFLICT if state changed, preventing
+mixed revisions. The client buffers all pages then swaps its complete state; on
+reconnect or conflict it restarts. Revisions are state fingerprints, not event/audit
+sequences. Existing writes automatically appear after commit without changing their
+transaction boundaries or flags. Availability and schedule controls remain separate
+existing APIs, not inferred from a calendar notice.
+
+Real MongoDB tests cover scope isolation, time ties/bounds/offsets, revision changes,
+late/uncommitted writes, replacement atomicity, promotion, status/outcome changes,
+timezone context, cursor revisions and oversized-window errors. No frontend, live
+proxy/hosting, browser recovery or production throughput verification is implied.
+Existing onboarding/schedule/staff mutations supply the other backend contracts;
+frontend workspace/calendar controls remain deferred per user instruction.
 
 ## Shared services and external integrations
 

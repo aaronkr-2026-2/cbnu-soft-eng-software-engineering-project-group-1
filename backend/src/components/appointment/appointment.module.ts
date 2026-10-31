@@ -1,3 +1,5 @@
+import { AppointmentCalendarService } from './appointment-calendar.service.js';
+import { AppointmentCalendarResolver } from './appointment-calendar.resolver.js';
 import { AppointmentWaitlistLifecycleService } from './appointment-waitlist-lifecycle.service.js';
 import { AppointmentPromotionService } from './appointment-promotion.service.js';
 import { WaitlistModule } from '../waitlist/waitlist.module.js';
@@ -69,6 +71,8 @@ const mongoUri = getMongoUri();
   controllers: [AppointmentController],
   providers: [
     AppointmentService,
+    AppointmentCalendarService,
+    AppointmentCalendarResolver,
     AppointmentPromotionService,
     AppointmentWaitlistLifecycleService,
     AppointmentCommitmentService,

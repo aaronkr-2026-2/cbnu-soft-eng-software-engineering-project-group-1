@@ -57,6 +57,8 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   Focused tests use mocked persistence; live database integration is unverified.
 - **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
   for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
+- **Clinic/doctor calendar APIs:** Authorized, paginated calendar snapshots and
+  revision-based polling for committed changes. Frontend calendar work remains pending.
 - **My Appointments API:** Current patients can list their own appointments with
   bounded cursor pagination and optional status/UTC date filters. Screens remain pending.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
@@ -999,6 +1001,70 @@ have mode UNAVAILABLE and do not announce bookable time. With no waiting entries
 available slots also open manually outside the cutoff. Release modes are snapshots:
 workers must recheck the current generation, occupancy, schedule and actual
 allocation-time cutoff.
+
+## Clinic and doctor calendars (Step 10 backend)
+
+Calendar synchronization uses authenticated GraphQL polling over the existing HTTP
+transport. There is no WebSocket/SSE deployment configuration verified in this repo;
+this implementation needs no broker, long-lived connection or process-local feed.
+Every request verifies the current Bearer session and reads an authoritative MongoDB
+snapshot. A replica set is required. New-booking flags/migration readiness do not
+block authorized historical calendar reads.
+
+```graphql
+query Calendar($input: CalendarInput!) {
+  myCalendar(input: $input) {
+    revision nextCursor clinicTimezone
+    entries {
+      _id patientId doctorId clinicId clinicTimezone
+      specialty source version startsAt endsAt durationMinutes status
+    }
+  }
+}
+query WatchCalendar($input: CalendarUpdatesInput!) {
+  calendarUpdates(input: $input) { revision changed pollAfterSeconds }
+}
+```
+
+Both inputs require from/to DateTime bounds (UTC instants, from before to, at most
+31 elapsed days), with an optional doctorId. Clinics see only appointments recorded
+at their own clinic; a doctor filter intersects that scope. Doctors see only their
+own appointments and cannot select another doctor. Patients use myAppointments;
+ADMIN does not grant clinical calendar access. No target clinic/patient ID is accepted.
+Entries overlap the requested window (`startsAt < to && endsAt > from`) and include
+all statuses. Times stay UTC; clinicTimezone supplies display context and may be
+null for incomplete historical clinic metadata. Empty windows also return the
+clinic/current doctor's clinic timezone when available.
+
+CalendarInput additionally accepts limit (default/max100), after (the previous
+nextCursor) and revision. Pages order by startsAt then ID. Every continuation page
+requires the first page's revision. If data changed, CONFLICT requires restarting
+the first page; results are never silently truncated. Windows above5000 appointments
+must be narrowed or filtered to one doctor. These are calendar read limits, not
+booking limits. The per-clinic/per-doctor time/ID indexes support bounded reads.
+
+CalendarUpdatesInput accepts knownRevision. Poll at the returned pollAfterSeconds
+(currently5). When changed is false, retain the complete local snapshot. When true,
+fetch myCalendar from the first page, collect all pages with the same revision, and
+replace local state only after the complete window is fetched. Discard partial
+pages and restart on CONFLICT. After reconnect/reload, fetch a fresh window instead
+of assuming cached IDs are current. Deduplicate by appointment ID/version; never
+replay a booking mutation to recover a missed calendar update.
+
+Revisions hash the entire authorized appointment window plus its timezone context,
+including pages not yet fetched. They are state tokens, not event sequences or
+audit logs. Committed online, phone/walk-in, promoted and replacement bookings,
+cancellations and outcomes are reflected; uncommitted/rolled-back transactions are
+not published. Other doctors' or clinics' private changes do not invalidate a
+scope that cannot see them. Responses remain no-store and reuse appointment output
+allowlists; no patient contact or persistence-only fields are added.
+
+Calendar revisions cover appointments/timezone context. Clinic onboarding and
+schedule controls use the existing myClinicDoctors/reviewDoctorAffiliation,
+setDoctorWeeklyHours/setDoctorDateOverrides and getAvailableSlots APIs; scheduling
+availability remains authoritative only at booking time. All Next.js calendar,
+workspace, polling/reconnect and browser acceptance work is deferred. No runtime
+configuration, hosting/proxy or frontend code was changed.
 
 ## My Appointments (GraphQL, Step 9 backend)
 
