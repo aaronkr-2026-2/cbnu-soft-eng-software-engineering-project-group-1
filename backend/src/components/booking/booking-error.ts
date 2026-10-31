@@ -1,5 +1,6 @@
 import { ConflictException, ServiceUnavailableException } from '@nestjs/common';
 import type { BookingCommitment } from '../../libs/types/booking.types.js';
+import { commitmentReplacementEnabled } from './booking.config.js';
 
 export type BookingConflictReason =
   | 'COMMITMENT_CONFLICT'
@@ -7,7 +8,8 @@ export type BookingConflictReason =
   | 'SLOT_OCCUPIED'
   | 'SLOT_UNAVAILABLE'
   | 'DUPLICATE_ENTRY'
-  | 'STALE_COMMITMENT';
+  | 'STALE_COMMITMENT'
+  | 'WAITLIST_CLOSED';
 
 // Constructed only from patient-scoped service queries. Never spread raw errors,
 // member documents or persistence rows into transport responses.
@@ -46,7 +48,17 @@ export class BookingConflictException extends ConflictException {
         status:
           entry.status ?? (entry.kind === 'WAITLIST' ? 'ACTIVE' : 'CONFIRMED'),
       })),
-      choices: entries.length ? ['KEEP'] : [],
+      choices: entries.length
+        ? [
+            'KEEP',
+            ...(entries.length === 1 &&
+            +entries[0].startsAt > Date.now() &&
+            entries[0].status !== 'PENDING' &&
+            commitmentReplacementEnabled()
+              ? ['REPLACE']
+              : []),
+          ]
+        : [],
     };
     const messages: Record<BookingConflictReason, string> = {
       COMMITMENT_CONFLICT: 'Patient already has a commitment within 24 hours',
@@ -54,6 +66,8 @@ export class BookingConflictException extends ConflictException {
       SLOT_OCCUPIED: 'Appointment slot is already booked',
       SLOT_UNAVAILABLE: 'Doctor is unavailable for this slot',
       DUPLICATE_ENTRY: 'Commitment already exists',
+      WAITLIST_CLOSED:
+        'Waitlist enrollment requires an occupied slot at least 48 hours ahead',
       STALE_COMMITMENT: 'Slot allocation is pending or generation is stale',
     };
     super({

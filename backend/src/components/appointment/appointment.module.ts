@@ -1,3 +1,6 @@
+import { WaitlistModule } from '../waitlist/waitlist.module.js';
+import { AppointmentCommitmentService } from './appointment-commitment.service.js';
+import { AppointmentCommitmentResolver } from './appointment-commitment.resolver.js';
 import { AppointmentResolver } from './appointment.resolver.js';
 import MemberSchema, { MEMBER } from '../../schemas/member.model.js';
 import { MemberModule } from '../member/member.module.js';
@@ -40,6 +43,7 @@ const mongoUri = getMongoUri();
   imports: [
     MemberModule,
     BookingModule,
+    WaitlistModule,
     ...(mongoUri
       ? [
           MongooseModule.forFeature([
@@ -63,6 +67,8 @@ const mongoUri = getMongoUri();
   controllers: [AppointmentController],
   providers: [
     AppointmentService,
+    AppointmentCommitmentService,
+    AppointmentCommitmentResolver,
     AppointmentResolver,
     AppointmentScheduleService,
     AppointmentScheduleResolver,

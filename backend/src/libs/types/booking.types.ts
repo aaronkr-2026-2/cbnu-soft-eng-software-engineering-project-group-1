@@ -1,4 +1,5 @@
-import type { ClientSession, Types } from 'mongoose';
+import type { ClientSession, Types, InferSchemaType } from 'mongoose';
+import type { WaitlistSchema } from '../../schemas/waitlist.model.js';
 import type { DoctorSpecialization } from '../enum/member.enum.js';
 
 // Declare exact UTC starts. Recheck doctor/clinic eligibility and clinic-local
@@ -32,4 +33,16 @@ export type BookingTransaction = {
   ) => Promise<void>;
   holdSlot: (slot: BookingSlot) => Promise<number>;
   resolveSlot: (slot: BookingSlot, generation: number) => Promise<void>;
+  slotState: (
+    slot: BookingSlot,
+  ) => Promise<{ allocationPending: boolean; generation: number }>;
+  nextQueueSequence: (slot: BookingSlot) => Promise<number>;
+};
+
+export type BookingTarget = Omit<
+  BookingCommitment,
+  'kind' | 'commitmentId' | 'patientId' | 'version' | 'status'
+>;
+export type WaitlistRecord = InferSchemaType<typeof WaitlistSchema> & {
+  _id: Types.ObjectId;
 };

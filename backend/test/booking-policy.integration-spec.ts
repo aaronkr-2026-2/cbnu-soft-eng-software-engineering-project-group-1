@@ -63,6 +63,8 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
   const envKeys = [
     'MONGO_URI',
     'BOOKING_POLICY_V2_ENABLED',
+    'WAITLIST_ENROLLMENT_ENABLED',
+    'COMMITMENT_REPLACEMENT_ENABLED',
     'JWT_ACCESS_SECRET',
     'NODE_ENV',
   ] as const;
@@ -78,6 +80,8 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     process.env.NODE_ENV = 'test';
     process.env.JWT_ACCESS_SECRET =
       'disposable-booking-test-secret-at-least-32-bytes';
+    process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
+    process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
     process.env.BOOKING_POLICY_V2_ENABLED = 'false';
     const { AppModule } = await import('../src/app.module.js');
     const fixture = await Test.createTestingModule({
@@ -116,8 +120,11 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
   });
 
   beforeEach(async () => {
+    process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
+    process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
     process.env.BOOKING_POLICY_V2_ENABLED = 'false';
     for (const name of [
+      'waitlists',
       'appointments',
       'appointment_events',
       'members',
@@ -188,7 +195,23 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     await migration.apply();
     process.env.BOOKING_POLICY_V2_ENABLED = 'true';
   });
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.restoreAllMocks();
+    // Restore Mongoose's prototype health getter after policy-clock tests.
+    Reflect.deleteProperty(connection, 'readyState');
+  });
+
+  const freezeTime = (now: number) => {
+    jest.spyOn(Date, 'now').mockReturnValue(now);
+    // Advancing the policy clock years ahead also makes Mongoose's real
+    // heartbeat timestamp appear stale. Keep that health getter independent
+    // of the simulated policy time; the replica-set hello is still real.
+    Object.defineProperty(connection, 'readyState', {
+      configurable: true,
+      writable: true,
+      value: 1,
+    });
+  };
 
   const rest = (changes = {}, bearer = token) =>
     request(app.getHttpServer())
@@ -1242,7 +1265,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     async (remaining) => {
       const original = (await rest().expect(201)).body;
       await queueFor();
-      jest.spyOn(Date, 'now').mockReturnValue(+start - remaining);
+      freezeTime(+start - remaining);
       const result = await clinicGraphql(cancelQuery, { id: original._id });
       expect(result.body.errors).toBeUndefined();
       const event = await connection
@@ -1385,12 +1408,12 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         variables: { id: original._id, outcome: 'COMPLETED' },
       });
     expect(userOutcome.body.errors[0].extensions.code).toBe('FORBIDDEN');
-    jest.spyOn(Date, 'now').mockReturnValue(+start);
+    freezeTime(+start);
     expect(
       (await clinicGraphql(cancelQuery, { id: original._id })).body.errors[0]
         .extensions.code,
     ).toBe('CONFLICT');
-    jest.spyOn(Date, 'now').mockReturnValue(+at(30));
+    freezeTime(+at(30));
     expect(
       (
         await clinicGraphql(outcomeQuery, {
@@ -1399,5 +1422,555 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         })
       ).body.data.setAppointmentOutcome.status,
     ).toBe('COMPLETED');
+  });
+
+  describe('Waitlist enrollment and explicit replacements', () => {
+    const entryFields =
+      '_id patientId doctorId clinicId specialty startsAt endsAt status version automaticBookingConsent consentPolicyVersion queueSequence queuePosition automaticBookingEligible automaticBookingEnabled appointmentId';
+    const api = (
+      query: string,
+      variables: Record<string, unknown> = {},
+      bearer = token,
+    ) =>
+      request(app.getHttpServer())
+        .post('/graphql')
+        .set('Authorization', `Bearer ${bearer}`)
+        .send({ query, variables });
+    const join = (changes = {}, bearer = token) =>
+      api(
+        `mutation($input: JoinWaitlistInput!) { joinWaitlist(input: $input) { ${entryFields} } }`,
+        { input: { ...input, automaticBookingConsent: true, ...changes } },
+        bearer,
+      );
+    const leave = (id: string, bearer = token) =>
+      api(
+        `mutation($id: ID!) { leaveWaitlist(id: $id) { ${entryFields} } }`,
+        { id },
+        bearer,
+      );
+    const replace = (
+      originalKind: string,
+      original: { _id: string; version: string },
+      destinationKind: string,
+      changes = {},
+    ) =>
+      api(
+        `mutation($input: ReplaceCommitmentInput!) { replaceCommitment(input: $input) { kind appointment { _id status version doctorId startsAt } waitlist { ${entryFields} } } }`,
+        {
+          input: {
+            originalKind,
+            originalId: original._id,
+            originalVersion: original.version,
+            destinationKind,
+            destination: {
+              ...input,
+              automaticBookingConsent: true,
+              ...changes,
+            },
+          },
+        },
+      );
+    const destination = {
+      doctorId: String(doctor2),
+      startsAt: at(60).toISOString(),
+    };
+    const originalRecord = (id: string, collection = 'appointments') =>
+      connection
+        .db!.collection(collection)
+        .findOne({ _id: new Types.ObjectId(id) });
+    const occupied = async (changes = {}) => {
+      const result = await rest(changes, token2);
+      expect(result.status).toBe(201);
+      return result.body as { _id: string; version: string };
+    };
+    beforeEach(() => {
+      process.env.WAITLIST_ENROLLMENT_ENABLED = 'true';
+      process.env.COMMITMENT_REPLACEMENT_ENABLED = 'true';
+    });
+
+    it('joins an occupied exact slot, persists consent and FIFO, and validates startup queues', async () => {
+      await occupied();
+      const result = await join();
+      expect(result.body.errors).toBeUndefined();
+      expect(result.body.data.joinWaitlist).toMatchObject({
+        patientId: String(patient),
+        queueSequence: 1,
+        queuePosition: 1,
+        status: 'ACTIVE',
+        automaticBookingConsent: true,
+        consentPolicyVersion: 'waitlist-v1',
+        automaticBookingEligible: true,
+        automaticBookingEnabled: false,
+      });
+      expect(
+        await connection
+          .db!.collection('booking_commitments')
+          .countDocuments({ kind: 'WAITLIST' }),
+      ).toBe(1);
+      expect(
+        (await slots()).body.data.getAvailableSlots.find(
+          (slot: { startsAt: string }) => slot.startsAt === start.toISOString(),
+        ).canJoinWaitlist,
+      ).toBe(true);
+      await expect(
+        app.get(BookingPolicyService).onModuleInit(),
+      ).resolves.toBeUndefined();
+      expect(
+        (await migration.audit()).summary.issueCounts.WAITLIST_PRESENT,
+      ).toBe(1);
+      process.env.BOOKING_POLICY_V2_ENABLED = 'false';
+      await expect(migration.apply()).rejects.toThrow('unresolved');
+    });
+
+    it('rejects a free slot, missing consent, a duplicate, and a conflicting cross-doctor commitment', async () => {
+      expect((await join()).body.errors[0].extensions.booking.reason).toBe(
+        'WAITLIST_CLOSED',
+      );
+      await occupied();
+      expect(
+        (await join({ automaticBookingConsent: false })).body.errors,
+      ).toBeDefined();
+      expect((await join()).body.errors).toBeUndefined();
+      expect((await join()).body.errors[0].extensions.booking.reason).toBe(
+        'DUPLICATE_ENTRY',
+      );
+      const conflict = await rest(destination);
+      expect(conflict.status).toBe(409);
+      expect(conflict.body.booking.choices).toEqual(['KEEP', 'REPLACE']);
+    });
+
+    it.each([48 * 3600_000, 48 * 3600_000 - 1])(
+      'enforces the enrollment cutoff at %i milliseconds',
+      async (delta) => {
+        await occupied();
+        freezeTime(+start - delta);
+        const result = await clinicGraphql(
+          `mutation($input: JoinWaitlistInput!) { joinWaitlist(input: $input) { _id } }`,
+          { input: { ...input, automaticBookingConsent: true } },
+          patient,
+        );
+        expect(Boolean(result.body.errors)).toBe(delta < 48 * 3600_000);
+      },
+    );
+
+    it('withdraws idempotently while disabled and rejoins at a new FIFO position', async () => {
+      await occupied();
+      const first = (await join()).body.data.joinWaitlist;
+      process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
+      process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
+      expect((await join()).body.errors[0].extensions.booking.reason).toBe(
+        'FEATURE_DISABLED',
+      );
+      const withdrawn = (await leave(first._id)).body.data.leaveWaitlist;
+      expect(withdrawn.status).toBe('WITHDRAWN');
+      expect((await leave(first._id)).body.data.leaveWaitlist.version).toBe(
+        withdrawn.version,
+      );
+      process.env.WAITLIST_ENROLLMENT_ENABLED = 'true';
+      expect((await join()).body.data.joinWaitlist.queueSequence).toBe(2);
+    });
+
+    it('scopes detail/list reads and exposes only counts to the doctor', async () => {
+      await occupied();
+      const row = (await join()).body.data.joinWaitlist;
+      const detail = `query($id: ID!) { getWaitlist(id: $id) { ${entryFields} } }`;
+      expect(
+        (await api(detail, { id: row._id }, token2)).body.errors[0].extensions
+          .code,
+      ).toBe('NOT_FOUND');
+      const ownClinic = await clinicGraphql(detail, { id: row._id });
+      expect(ownClinic.body.data.getWaitlist.queueSequence).toBeNull();
+      expect(
+        (await clinicGraphql(detail, { id: row._id }, clinic2)).body.errors,
+      ).toBeDefined();
+      expect(
+        (await clinicGraphql(detail, { id: row._id }, doctor)).body.errors,
+      ).toBeDefined();
+      const countQuery =
+        'query($doctorId: ID!, $startsAt: DateTime!) { getWaitlistCount(doctorId: $doctorId, startsAt: $startsAt) }';
+      expect(
+        (
+          await clinicGraphql(
+            countQuery,
+            { doctorId: String(doctor), startsAt: start.toISOString() },
+            doctor,
+          )
+        ).body.data.getWaitlistCount,
+      ).toBe(1);
+      expect(
+        (
+          await api(countQuery, {
+            doctorId: String(doctor),
+            startsAt: start.toISOString(),
+          })
+        ).body.errors,
+      ).toBeDefined();
+      const list = await api(
+        `query { myWaitlist(input: {limit: 1}) { entries { ${entryFields} } nextCursor } }`,
+      );
+      expect(
+        list.body.data.myWaitlist.entries.map(
+          (entry: { _id: string }) => entry._id,
+        ),
+      ).toEqual([row._id]);
+      expect((await leave(row._id, token2)).body.errors).toBeDefined();
+    });
+
+    it.each(['APPOINTMENT', 'WAITLIST'])(
+      'atomically replaces APPOINTMENT with %s',
+      async (kind) => {
+        const original = (await rest()).body;
+        if (kind === 'WAITLIST') await occupied(destination);
+        const result = await replace(
+          'APPOINTMENT',
+          original,
+          kind,
+          destination,
+        );
+        expect(result.body.errors).toBeUndefined();
+        expect(result.body.data.replaceCommitment.kind).toBe(kind);
+        expect((await originalRecord(original._id))!.status).toBe('CANCELED');
+        expect(
+          await connection.db!.collection('appointment_events').countDocuments({
+            appointmentId: new Types.ObjectId(original._id),
+          }),
+        ).toBe(2);
+        expect(
+          await connection
+            .db!.collection('booking_commitments')
+            .countDocuments({ patientId: patient }),
+        ).toBe(1);
+      },
+    );
+
+    it.each(['APPOINTMENT', 'WAITLIST'])(
+      'atomically replaces WAITLIST with %s',
+      async (kind) => {
+        await occupied();
+        const original = (await join()).body.data.joinWaitlist;
+        if (kind === 'WAITLIST')
+          await occupied({
+            ...destination,
+            specialty: DoctorSpecialization.DENTIST,
+          });
+        const result = await replace('WAITLIST', original, kind, destination);
+        expect(result.body.errors).toBeUndefined();
+        expect((await originalRecord(original._id, 'waitlists'))!.status).toBe(
+          'WITHDRAWN',
+        );
+        expect(
+          await connection
+            .db!.collection('booking_commitments')
+            .countDocuments({ patientId: patient }),
+        ).toBe(1);
+      },
+    );
+
+    it.each(['APPOINTMENT', 'WAITLIST'])(
+      'preserves an original %s when destination booking fails',
+      async (kind) => {
+        const original =
+          kind === 'APPOINTMENT'
+            ? (await rest()).body
+            : (await occupied(), (await join()).body.data.joinWaitlist);
+        await occupied({
+          ...destination,
+          specialty: DoctorSpecialization.DENTIST,
+        });
+        const result = await replace(
+          kind,
+          original,
+          'APPOINTMENT',
+          destination,
+        );
+        expect(result.body.errors).toBeDefined();
+        expect(
+          (await originalRecord(
+            original._id,
+            kind === 'APPOINTMENT' ? 'appointments' : 'waitlists',
+          ))!.version,
+        ).toBe(original.version);
+        expect(
+          await connection
+            .db!.collection('booking_commitments')
+            .countDocuments({ patientId: patient }),
+        ).toBe(1);
+        expect(
+          await connection
+            .db!.collection('appointment_events')
+            .countDocuments(),
+        ).toBe(0);
+      },
+    );
+
+    it('rolls back original cancellation and events when destination persistence fails', async () => {
+      const original = (await rest()).body;
+      await occupied(destination);
+      const model = connection.model('Waitlist');
+      jest
+        .spyOn(model, 'create')
+        .mockRejectedValueOnce(new Error('injected failure'));
+      expect(
+        (await replace('APPOINTMENT', original, 'WAITLIST', destination)).body
+          .errors,
+      ).toBeDefined();
+      expect((await originalRecord(original._id))!.status).toBe('CONFIRMED');
+      expect(
+        await connection.db!.collection('appointment_events').countDocuments(),
+      ).toBe(0);
+    });
+
+    it('rejects stale versions, same-kind same targets, and out-of-scope originals', async () => {
+      const original = (await rest()).body;
+      expect(
+        (
+          await replace(
+            'APPOINTMENT',
+            { ...original, version: randomUUID() },
+            'APPOINTMENT',
+            destination,
+          )
+        ).body.errors[0].extensions.booking.reason,
+      ).toBe('STALE_COMMITMENT');
+      expect(
+        (await replace('APPOINTMENT', original, 'APPOINTMENT')).body.errors,
+      ).toBeDefined();
+      const foreign = await occupied({
+        ...destination,
+        specialty: DoctorSpecialization.DENTIST,
+      });
+      expect(
+        (
+          await replace('APPOINTMENT', foreign, 'APPOINTMENT', {
+            startsAt: at(120).toISOString(),
+          })
+        ).body.errors,
+      ).toBeDefined();
+      expect((await originalRecord(original._id))!.version).toBe(
+        original.version,
+      );
+    });
+
+    it('does not exclude a second conflicting commitment during replacement', async () => {
+      const original = (await rest()).body;
+      expect((await rest({ startsAt: at(24 * 60).toISOString() })).status).toBe(
+        201,
+      );
+      expect(
+        (
+          await replace('APPOINTMENT', original, 'APPOINTMENT', {
+            startsAt: at(60).toISOString(),
+          })
+        ).body.errors[0].extensions.booking.reason,
+      ).toBe('COMMITMENT_CONFLICT');
+      expect((await originalRecord(original._id))!.status).toBe('CONFIRMED');
+    });
+
+    it('blocks manual fulfillment behind a queue hold; last withdrawal releases it', async () => {
+      const booking = await occupied();
+      const entry = (await join()).body.data.joinWaitlist;
+      await cancel(booking._id, token2);
+      expect((await rest()).body.booking.reason).toBe('STALE_COMMITMENT');
+      expect((await originalRecord(entry._id, 'waitlists'))!.status).toBe(
+        'ACTIVE',
+      );
+      expect((await leave(entry._id)).body.data.leaveWaitlist.status).toBe(
+        'WITHDRAWN',
+      );
+      expect((await rest()).status).toBe(201);
+    });
+
+    it.each([false, true])(
+      'fulfills the matching entry atomically on inside-cutoff manual booking (explicit replacement %s)',
+      async (explicit) => {
+        const booking = await occupied();
+        const entry = (await join()).body.data.joinWaitlist;
+        freezeTime(+start - 47 * 3600_000);
+        await clinicGraphql(cancelQuery, { id: booking._id }, patient2);
+        const query = explicit
+          ? `mutation($input: ReplaceCommitmentInput!) { replaceCommitment(input: $input) { appointment { _id } } }`
+          : mutation;
+        const variables = explicit
+          ? {
+              input: {
+                originalKind: 'WAITLIST',
+                originalId: entry._id,
+                originalVersion: entry.version,
+                destinationKind: 'APPOINTMENT',
+                destination: input,
+              },
+            }
+          : { input };
+        const result = await clinicGraphql(query, variables, patient);
+        expect(result.body.errors).toBeUndefined();
+        const stored = (await originalRecord(entry._id, 'waitlists'))!;
+        expect(stored.status).toBe('FULFILLED');
+        expect(
+          await connection
+            .db!.collection('booking_commitments')
+            .countDocuments({ patientId: patient, kind: 'WAITLIST' }),
+        ).toBe(0);
+        expect(
+          (
+            await clinicGraphql(
+              `mutation($id: ID!) { leaveWaitlist(id: $id) { status } }`,
+              { id: entry._id },
+              patient,
+            )
+          ).body.errors,
+        ).toBeDefined();
+        expect(
+          (await originalRecord(String(stored.appointmentId)))!.status,
+        ).toBe('CONFIRMED');
+      },
+    );
+
+    it('keeps concurrent duplicate joins and competing replacements coherent', async () => {
+      await occupied();
+      const joins = await Promise.all([join(), join()]);
+      expect(joins.filter((result) => !result.body.errors)).toHaveLength(1);
+      const original = joins.find((result) => !result.body.errors)!.body.data
+        .joinWaitlist;
+      const results = await Promise.all([
+        replace('WAITLIST', original, 'APPOINTMENT', destination),
+        replace('WAITLIST', original, 'APPOINTMENT', {
+          ...destination,
+          startsAt: at(120).toISOString(),
+        }),
+      ]);
+      expect(results.filter((result) => !result.body.errors)).toHaveLength(1);
+      expect(
+        await connection
+          .db!.collection('booking_commitments')
+          .countDocuments({ patientId: patient }),
+      ).toBe(1);
+    });
+
+    it('preserves originals on failed enrollment and rechecks clinic/specialty/overlap rules', async () => {
+      const original = (await rest()).body;
+      const failed = await replace(
+        'APPOINTMENT',
+        original,
+        'WAITLIST',
+        destination,
+      );
+      expect(failed.body.errors[0].extensions.booking.reason).toBe(
+        'WAITLIST_CLOSED',
+      );
+      expect((await originalRecord(original._id))!.version).toBe(
+        original.version,
+      );
+      expect(
+        (
+          await rest({
+            doctorId: String(doctor3),
+            clinicId: String(clinic2),
+            specialty: DoctorSpecialization.DENTIST,
+          })
+        ).status,
+      ).toBe(409);
+      expect(
+        (await join({ doctorId: String(doctor2), clinicId: String(clinic2) }))
+          .body.errors,
+      ).toBeDefined();
+    });
+
+    it('orders all specialties on a doctor slot together and paginates only the caller entries', async () => {
+      await occupied({
+        doctorId: String(doctor2),
+        specialty: DoctorSpecialization.DENTIST,
+      });
+      const first = (await join({ doctorId: String(doctor2) })).body.data
+        .joinWaitlist;
+      const other = id();
+      await connection.db!.collection('members').insertOne({
+        _id: other,
+        memberType: 'USER',
+        memberStatus: 'ACTIVE',
+        authVersion: 0,
+      });
+      const bearer = await app
+        .get(JwtService)
+        .signAsync({ sub: String(other), tokenType: 'access', authVersion: 0 });
+      const second = (
+        await join(
+          {
+            doctorId: String(doctor2),
+            specialty: DoctorSpecialization.DENTIST,
+          },
+          bearer,
+        )
+      ).body.data.joinWaitlist;
+      expect([
+        first.queueSequence,
+        second.queueSequence,
+        second.queuePosition,
+      ]).toEqual([1, 2, 2]);
+      await occupied({ startsAt: at(1440).toISOString() });
+      const later = (await join({ startsAt: at(1440).toISOString() })).body.data
+        .joinWaitlist;
+      const query =
+        'query($input: MyWaitlistInput!) { myWaitlist(input: $input) { entries { _id } nextCursor } }';
+      const page = (await api(query, { input: { limit: 1 } })).body.data
+        .myWaitlist;
+      expect(page.entries).toEqual([{ _id: first._id }]);
+      const next = (
+        await api(query, { input: { limit: 1, after: page.nextCursor } })
+      ).body.data.myWaitlist;
+      expect(next.entries).toEqual([{ _id: later._id }]);
+      expect(next.nextCursor).toBeNull();
+    });
+
+    it('serializes withdrawal against manual fulfillment without cancelling the resulting appointment', async () => {
+      const booking = await occupied();
+      const entry = (await join()).body.data.joinWaitlist;
+      freezeTime(+start - 47 * 3600_000);
+      await clinicGraphql(cancelQuery, { id: booking._id }, patient2);
+      const results = await Promise.all([
+        clinicGraphql(mutation, { input }, patient),
+        clinicGraphql(
+          'mutation($id: ID!) { leaveWaitlist(id: $id) { status } }',
+          { id: entry._id },
+          patient,
+        ),
+      ]);
+      expect(results[0].body.errors).toBeUndefined();
+      const stored = (await originalRecord(entry._id, 'waitlists'))!;
+      expect(['WITHDRAWN', 'FULFILLED']).toContain(stored.status);
+      expect(
+        await connection
+          .db!.collection('booking_commitments')
+          .countDocuments({ patientId: patient, kind: 'APPOINTMENT' }),
+      ).toBe(1);
+      expect(
+        await connection
+          .db!.collection('booking_commitments')
+          .countDocuments({ patientId: patient, kind: 'WAITLIST' }),
+      ).toBe(0);
+    });
+
+    it('retains queue ordering and the old entry on failed waitlist replacement', async () => {
+      await occupied();
+      const original = (await join()).body.data.joinWaitlist;
+      expect(
+        (await replace('WAITLIST', original, 'WAITLIST', destination)).body
+          .errors,
+      ).toBeDefined();
+      const row = (await originalRecord(original._id, 'waitlists'))!;
+      expect(row.status).toBe('ACTIVE');
+      expect(row.version).toBe(original.version);
+      expect(row.queueSequence).toBe(original.queueSequence);
+    });
+
+    it('rejects startup when a waitlist ledger record drifts', async () => {
+      await occupied();
+      await join();
+      await connection
+        .db!.collection('booking_commitments')
+        .updateOne({ kind: 'WAITLIST' }, { $set: { version: randomUUID() } });
+      await expect(
+        app.get(BookingPolicyService).onModuleInit(),
+      ).rejects.toThrow(BookingUnavailableException);
+    });
   });
 });

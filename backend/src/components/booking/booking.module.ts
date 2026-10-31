@@ -1,3 +1,4 @@
+import { WAITLIST, WaitlistSchema } from '../../schemas/waitlist.model.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { getMongoUri } from '../../database/database.config.js';
@@ -30,6 +31,7 @@ import {
           { name: APPOINTMENT_MODEL_NAME, schema: AppointmentSchema },
           { name: MEMBER, schema: MemberSchema },
           { name: BOOKING_POLICY, schema: BookingPolicySchema },
+          { name: WAITLIST, schema: WaitlistSchema },
         ]),
       ]
     : [],

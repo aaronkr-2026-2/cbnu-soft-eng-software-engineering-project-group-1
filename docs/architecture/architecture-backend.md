@@ -51,6 +51,8 @@ flowchart TD
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
+  Commitments[AppointmentCommitmentService]
+  Waitlist[WaitlistService]
   Coordination[BookingCoordinationService]
   Schedule[AppointmentScheduleService]
   Models[Mongoose models and schema constraints]
@@ -78,6 +80,13 @@ flowchart TD
   Member -->|Mongoose calls: member and session reads/writes| Models
   Booking -->|Mongoose calls: eligibility/hours reads, appointment and outbox writes| Models
   GQL -->|Public slots or guarded clinic schedule mutations| Schedule
+  GQL -->|Guarded join, leave, replace| Commitments
+  GQL -->|Scoped entry reads and counts| Waitlist
+  Commitments -->|One transaction covering both commitments| Coordination
+  Commitments -->|Validated booking and cancellation| Booking
+  Commitments -->|Consent, FIFO, terminal transitions| Waitlist
+  Booking -->|Fulfill own matching entry in transaction| Waitlist
+  Waitlist -->|Mongoose session: waitlist records| Models
   Schedule -->|In-process doctor-scoped transaction callback| Coordination
   Schedule -->|Mongoose reads and schedule writes| Models
   Booking -->|In-process transaction callback: patient and slot scope| Coordination
@@ -179,7 +188,7 @@ callback. Replica-set, transaction and deployment guidance follows the
 `npm run test:booking:integration` owns temporary local MongoDB processes and tests
 real two-client races, failure rollback, retries, slot generations, unique indexes
 and standalone rejection. This does not establish Atlas deployment readiness or
-implemented public waitlist behavior.
+production queue operation. Public enrollment/replacement is covered below.
 
 ### Activation, migration and conflict responses (Step 3)
 
@@ -189,7 +198,7 @@ at startup. Every booking rechecks the marker in its transaction. The operator
 must stop all old/new writers for migration; a CLI acknowledgment cannot enforce
 another process's shutdown. Never run old writers after cutover or bypass the
 ledger with external status edits. Cancellation/outcomes update ledger and version
-atomically; future rescheduling/waitlist writes must follow the same protocol.
+atomically; replacements and waitlist writes follow the same protocol.
 
 `backend/src/tools/booking-migration.ts` uses the shared URI selector and a
 connection with automatic DDL disabled. Dry-run reads only and emits aggregate
@@ -201,7 +210,7 @@ active records block migration; the current doctor specialty list is never used
 as historical inference. Each actual metadata/status change records audit evidence;
 unchanged reruns preserve versions and add no audit entries. Failure rolls back
 all document changes, while index preparation precedes the transaction. This
-initial tool is bounded to 5000 appointments and refuses waitlist commitments.
+initial tool is bounded to 5000 appointments and refuses any waitlist records or commitments.
 The exact commands and resolution shape are in the root README. No application
 DB migration, backup rehearsal, Atlas cutover or production activation was run.
 
@@ -209,10 +218,10 @@ BookingConflictException constructs only allowlisted summaries from a query scop
 to the requesting patient. Both transports expose reason, own commitments and
 choices; GraphQL keeps its generic extensions.code and adds extensions.booking
 only for the explicit booking exception classes. Other HttpException payloads
-are not forwarded. KEEP is currently the only own-conflict choice; replacement
-will be added in Step 6. Slot conflicts expose no other patient's identity. Source,
+are not forwarded. KEEP is offered for own conflicts; REPLACE is additionally offered when enabled
+for a single future replaceable blocker. Slot conflicts expose no other patient's identity. Source,
 specialty and version are added to participant appointment reads; no generic
-status mutation, waitlist endpoint or notification worker is introduced.
+status mutation or notification worker is introduced.
 
 ### Clinic schedules and dynamic slots (Step 4, October 26)
 
@@ -231,11 +240,43 @@ appointment-slot.ts helpers generate real UTC instants, preserve local :00/:30
 alignment through DST/quarter-hour offsets, and apply weekly/custom/blocked hours.
 Occupancy reads project only time intervals; allocation holds become UNAVAILABLE.
 No empty slot documents or fixed time enum are introduced. Slot policy eligibility
-for waitlisting is distinct from actual enrollment, which remains disabled until
-Step 6. Results are advisory; mutation-time checks remain authoritative. The
+for waitlisting is distinct from actual enrollment, which requires the Step 6 flag. Results are advisory; mutation-time checks remain authoritative. The
 existing disposable API suite covers onboarding/configuration, split shifts,
 overrides, privacy, ownership, preserved commitments and concurrent booking/editing.
 No browser integration, application DB changes or deployment was performed.
+
+### Waitlists and atomic replacements (Step 6, October 31)
+
+WaitlistModule (imported by AppointmentModule) owns waitlists through WaitlistService:
+consent, per-slot FIFO sequence, participant-scoped reads and terminal updates.
+AppointmentCommitmentResolver delegates patient join/leave/replace operations to
+AppointmentCommitmentService. That orchestrator calls explicit AppointmentService
+transaction interfaces for schedule validation, occupied-slot checks, creation and
+cancellation; it does not access another service's models or private helpers.
+
+Both source/destination doctors, the patient and both slots are locked in the
+existing order. Expected original versions prevent stale replacement. Appointment
+cancellation, outbox events, waitlist withdrawal/enrollment and the ledger commit
+or roll back together. New queue entries increment the slot gate's queueSequence;
+withdrawal/rejoining never restores an old position. Patient overlap and specialty
+spacing are enforced against all remaining commitments.
+
+Booking fulfills only its own matching entry, in the booking transaction, without
+resolving an allocation hold. It therefore cannot jump queued allocation. Last
+withdrawal clears an otherwise stranded hold. Other patients' expiry is deferred
+to workers so this writer never changes entries outside its patient scope.
+
+WAITLIST_ENROLLMENT_ENABLED and COMMITMENT_REPLACEMENT_ENABLED default off and
+validate their prerequisite flags. Disabling enrollment preserves reads/withdrawal.
+Startup snapshot audit compares active appointment and waitlist metadata/ledger,
+checks queue counters/ordering and combined specialty conflicts. The initial
+migration continues to refuse all queues, including terminal history.
+
+No promotion, notification or expiry worker exists yet. Outputs explicitly return
+automaticBookingEnabled=false and compute cutoff eligibility; raw ACTIVE records
+await later persisted NOTIFICATION_ONLY/expiry transitions. Own patient/clinic
+entry reads are allowlisted; clinics receive no FIFO position, doctors only scoped
+aggregate counts. See root README for GraphQL inputs, pagination and flag behavior.
 
 ### Cancellation, clinic booking and durable events (Step 5, October 28)
 

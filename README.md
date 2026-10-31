@@ -70,7 +70,10 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   guarded GraphQL mutations. Edits preserve existing bookings and waitlist targets.
 - **Dynamic appointment slots:** Public GraphQL queries generate clinic-local
   30-minute slots for up to 31 days, showing occupancy and allocation holds without
-  patient details. Waitlist policy eligibility is shown; enrollment remains pending.
+  patient details. Waitlist policy eligibility and flag-controlled enrollment are shown.
+- **Waitlists and replacement:** Patient enrollment/withdrawal with recorded consent,
+  FIFO ordering and scoped reads. All four booking/waitlist replacements are atomic
+  and version checked. Enrollment/replacement flags default off; promotion is pending.
 - **Appointment lifecycle:** Patients/the owning clinic can cancel confirmed visits
   before start; clinics record completion/no-show at or after the end. Repeated
   identical actions are idempotent; appointment/ledger/outbox changes are atomic.
@@ -220,7 +223,7 @@ its active commitment ledger entry together under patient/doctor-slot locks.
 Booking requires a replica set; it has no standalone or legacy-write fallback.
 The integration command builds the backend and tests the real API, migration CLI,
 conflict races, rollback, activation gates, and appointment lifecycle events.
-Waitlist enrollment, event workers and notification delivery remain later steps.
+Waitlist enrollment and atomic replacements share those transactions; event workers and notification delivery remain later steps.
 
 ## Architecture
 
@@ -716,7 +719,7 @@ YYYY-MM-DD in clinic time. Returns future scheduled slots as UTC timestamps.
 AVAILABLE means unoccupied, OCCUPIED includes PENDING/CONFIRMED reservations, and
 UNAVAILABLE indicates allocation is pending. Closed/break periods return no slots.
 `waitlistEligible` describes occupied-slot policy eligibility at least 48 hours
-ahead; `canJoinWaitlist` stays false until enrollment is implemented in Step 6.
+ahead; `canJoinWaitlist` also requires WAITLIST_ENROLLMENT_ENABLED=true and booking policy V2.
 No patient identity or queue membership is exposed. Availability is advisory,
 not a reservation or proof that the patient passes booking conflict checks.
 
@@ -766,9 +769,8 @@ the unique active doctor/start index remains a final occupancy safeguard.
 REST conflicts use HTTP 409 and `booking: { reason, existingCommitments, choices }`.
 COMMITMENT_CONFLICT and PATIENT_OVERLAP include only the caller's own blocking
 commitment summaries (kind, ID/version, doctor/clinic, specialty, times and status).
-SLOT_OCCUPIED/SLOT_UNAVAILABLE expose no other patient's details. Choices currently
-contain KEEP for own commitment conflicts; replacement is not implemented until
-Step 6. Ordinary booking never cancels or replaces an existing appointment.
+SLOT_OCCUPIED/SLOT_UNAVAILABLE expose no other patient's details. Choices contain KEEP for own commitment conflicts and REPLACE when enabled for
+one future replaceable blocker. The server revalidates every replacement. Ordinary booking never cancels or replaces an existing appointment.
 
 Other errors: 400 for invalid input/specialty/slot or clinic/doctor relationships;
 401 for invalid/currently revoked sessions; 403 for non-USER callers; 503 with
@@ -823,8 +825,9 @@ Only supply decisions backed by an actual review. Historical terminal records ma
 retain unknown specialty. Past requests cannot be newly confirmed, future visits
 cannot be marked completed/no-show, and terminal status transitions are rejected.
 The tool handles at most 5000 appointments; larger datasets need a separately
-reviewed batch migration. It refuses existing waitlist commitments because this
-is the initial booking migration, before waitlist rollout.
+reviewed batch migration. It refuses any existing waitlist records or ledger entries because this
+is the initial booking migration, before waitlist rollout. Startup snapshot auditing
+separately validates active queues, FIFO counters and the combined ledger.
 
 After backup/review and stopping all writers, apply explicitly:
 
@@ -990,6 +993,63 @@ available slots also open manually outside the cutoff. Release modes are snapsho
 workers must recheck the current generation, occupancy, schedule and actual
 allocation-time cutoff.
 
+## Waitlist enrollment and replacement (GraphQL)
+
+Step 6 adds authenticated patient operations. Both new flags default to false:
+WAITLIST_ENROLLMENT_ENABLED requires BOOKING_POLICY_V2_ENABLED; then
+COMMITMENT_REPLACEMENT_ENABLED enables replacements. Invalid flag combinations
+fail startup. Reads and withdrawal remain available while enrollment is paused.
+No application environment has been enabled as part of this change.
+
+```graphql
+mutation Join($input: JoinWaitlistInput!) {
+  joinWaitlist(input: $input) {
+    _id version status startsAt queuePosition automaticBookingEligible automaticBookingEnabled
+  }
+}
+mutation Leave($id: ID!) {
+  leaveWaitlist(id: $id) { _id status version }
+}
+query Mine($input: MyWaitlistInput!) {
+  myWaitlist(input: $input) { entries { _id version status startsAt } nextCursor }
+}
+mutation Replace($input: ReplaceCommitmentInput!) {
+  replaceCommitment(input: $input) {
+    kind appointment { _id version status } waitlist { _id version status queuePosition }
+  }
+}
+```
+
+JoinWaitlistInput contains doctorId, clinicId, specialty, UTC startsAt and
+`automaticBookingConsent: true`. The exact slot must be occupied, otherwise valid,
+and at least 48 elapsed hours away (exactly 48 allowed). Consent time/policy and a
+server-assigned FIFO sequence are persisted. The same clinic/specialty 24-hour
+commitment rule applies across doctors; exactly 24 hours is allowed. Duplicate
+active entries fail. Withdrawing and joining again gets a new queue position.
+
+ReplaceCommitmentInput contains originalKind (APPOINTMENT or WAITLIST), originalId,
+originalVersion, destinationKind and destination (booking fields, plus true consent
+for a waitlist). All four directions share one transaction; only the specified
+original is excluded from conflict checks. Destination failure rolls back the
+original, queue position, ledger, holds and release events. Stale versions and
+same-kind/same-target requests fail. Replacing an appointment with a waitlist
+forfeits the confirmed appointment only when enrollment succeeds.
+
+getWaitlist(id: ID!) permits the patient or owning clinic; clinics cannot see FIFO
+sequence/position. myWaitlist accepts limit (default 20, max 100), after (the previous
+nextCursor) and optional status. Own doctors and clinics can call
+getWaitlistCount(doctorId: ID!, startsAt: DateTime!); doctors cannot read entry details.
+Other participants cannot enumerate entries through these operations.
+
+Ordinary booking of one's matching waitlist slot fulfills that entry atomically.
+It cannot jump a held queue outside the cutoff. Withdrawal of the last active
+waiter releases the hold; withdrawing a fulfilled entry never cancels its appointment.
+`automaticBookingEnabled` remains false: promotion and notification workers are
+later steps. automaticBookingEligible reflects the current cutoff, while persisted
+ACTIVE-to-NOTIFICATION_ONLY/EXPIRED transitions await those workers. Existing active
+entries remain commitments until explicitly closed. Clients must refetch after an
+uncertain/busy response before retrying or confirming a replacement.
+
 ## Deployment
 
 The project records a Hostinger VPS deployment. Its recorded status URL is
@@ -1012,8 +1072,7 @@ checkout-to-deployment procedure for the current layout.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;
   application-database cutover, frontend integration and Atlas rollout remain unverified.
-- Waitlist enrollment, automatic promotion, event workers and notification delivery
-  are not yet implemented. Stored outbox events are not delivered notifications.
+- Automatic promotion, event workers and notification delivery are not yet implemented. Stored outbox events are not delivered notifications.
 - Authentication rate limiting is per process, without a shared multi-instance store.
 - Local deployment scripts still need the alignment described above.
 

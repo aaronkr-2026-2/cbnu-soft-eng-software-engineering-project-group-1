@@ -1,3 +1,7 @@
+import { ACTIVE_WAITLIST_STATUSES } from '../../schemas/waitlist.model.js';
+import { WaitlistStatus } from '../../libs/enum/appointment.enum.js';
+import { DoctorSpecialization } from '../../libs/enum/member.enum.js';
+import type { BookingCommitment } from '../../libs/types/booking.types.js';
 import { Injectable, Optional } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import {
@@ -56,7 +60,11 @@ export class BookingMigrationService {
     >,
   ) {}
 
-  async audit(resolutions: BookingResolution[] = [], session?: ClientSession) {
+  async audit(
+    resolutions: BookingResolution[] = [],
+    session?: ClientSession,
+    includeWaitlists = false,
+  ) {
     if (!this.connection?.db || !this.members || !this.commitments)
       throw new Error('Migration persistence is unavailable');
     const rows = await this.connection.db
@@ -84,15 +92,104 @@ export class BookingMigrationService {
       .session(session ?? null)
       .lean()
       .exec();
-    if (ledger.some((entry) => entry.kind === 'WAITLIST'))
+    const queues = await this.connection.db
+      .collection('waitlists')
+      .find({}, { session })
+      .limit(5001)
+      .toArray();
+    if (queues.length > 5000)
+      throw new Error('Waitlist audit exceeds the 5000-record limit');
+    const expected: BookingCommitment[] = [...plan.commitments];
+    if (
+      !includeWaitlists &&
+      (queues.length || ledger.some((entry) => entry.kind === 'WAITLIST'))
+    )
       plan.issues.push({ code: 'WAITLIST_PRESENT' });
+    if (includeWaitlists) {
+      const sequences = new Set<string>();
+      for (const row of queues) {
+        if (
+          !Object.values(WaitlistStatus).includes(row.status as WaitlistStatus)
+        ) {
+          plan.issues.push({ code: 'INVALID_WAITLIST' });
+          continue;
+        }
+        if (!ACTIVE_WAITLIST_STATUSES.includes(row.status as WaitlistStatus))
+          continue;
+        const valid =
+          ['patientId', 'doctorId', 'clinicId'].every(
+            (key) => row[key] instanceof Types.ObjectId,
+          ) &&
+          row.startsAt instanceof Date &&
+          Number.isFinite(+row.startsAt) &&
+          row.endsAt instanceof Date &&
+          +row.endsAt - +row.startsAt === 1800000 &&
+          Object.values(DoctorSpecialization).includes(
+            row.specialty as DoctorSpecialization,
+          ) &&
+          row.automaticBookingConsent === true &&
+          row.consentedAt instanceof Date &&
+          Number.isFinite(+row.consentedAt) &&
+          row.consentPolicyVersion === 'waitlist-v1' &&
+          typeof row.version === 'string' &&
+          /^[a-f\d]{8}-(?:[a-f\d]{4}-){3}[a-f\d]{12}$/i.test(row.version) &&
+          Number.isSafeInteger(row.queueSequence) &&
+          row.queueSequence > 0;
+        if (!valid) {
+          plan.issues.push({ code: 'INVALID_WAITLIST' });
+          continue;
+        }
+        const sequenceKey = `${row.doctorId}:${+row.startsAt}:${row.queueSequence}`;
+        if (sequences.has(sequenceKey))
+          plan.issues.push({ code: 'DUPLICATE_QUEUE_SEQUENCE' });
+        sequences.add(sequenceKey);
+        const gate = await this.connection.db
+          .collection<{ _id: string; queueSequence: number }>('booking_gates')
+          .findOne(
+            { _id: `slot:${row.doctorId}:${+row.startsAt}` },
+            {
+              session,
+            },
+          );
+        if (
+          !gate ||
+          !Number.isSafeInteger(gate.queueSequence) ||
+          gate.queueSequence < row.queueSequence
+        )
+          plan.issues.push({ code: 'INVALID_QUEUE_SEQUENCE' });
+        expected.push({
+          kind: 'WAITLIST',
+          commitmentId: row._id,
+          patientId: row.patientId,
+          doctorId: row.doctorId,
+          clinicId: row.clinicId,
+          specialty: row.specialty,
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          version: row.version,
+          status: row.status,
+        } as BookingCommitment);
+      }
+      for (let i = 0; i < expected.length; i++)
+        for (let j = i + 1; j < expected.length; j++) {
+          const a = expected[i],
+            b = expected[j];
+          if (
+            String(a.patientId) === String(b.patientId) &&
+            String(a.clinicId) === String(b.clinicId) &&
+            a.specialty === b.specialty &&
+            Math.abs(+a.startsAt - +b.startsAt) < 86400000
+          )
+            plan.issues.push({ code: 'COMMITMENT_CONFLICT' });
+        }
+    }
     const byId = new Map(
       ledger.map((entry) => [`${entry.kind}:${entry.commitmentId}`, entry]),
     );
     const ledgerMatches =
-      ledger.length === plan.commitments.length &&
-      plan.commitments.every((entry) => {
-        const recorded = byId.get(`APPOINTMENT:${entry.commitmentId}`);
+      ledger.length === expected.length &&
+      expected.every((entry) => {
+        const recorded = byId.get(`${entry.kind}:${entry.commitmentId}`);
         return (
           recorded &&
           [
@@ -138,13 +235,16 @@ export class BookingMigrationService {
       throw new Error('Migration persistence is unavailable');
     const session = await this.connection.startSession();
     try {
-      return await session.withTransaction(() => this.audit([], session), {
-        readConcern: { level: 'snapshot' },
-        writeConcern: { w: 'majority' },
-        readPreference: 'primary',
-        timeoutMS: 10_000,
-        maxCommitTimeMS: 5_000,
-      });
+      return await session.withTransaction(
+        () => this.audit([], session, true),
+        {
+          readConcern: { level: 'snapshot' },
+          writeConcern: { w: 'majority' },
+          readPreference: 'primary',
+          timeoutMS: 10_000,
+          maxCommitTimeMS: 5_000,
+        },
+      );
     } finally {
       await session.endSession();
     }

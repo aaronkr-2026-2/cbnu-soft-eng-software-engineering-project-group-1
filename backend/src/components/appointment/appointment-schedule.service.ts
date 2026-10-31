@@ -1,3 +1,4 @@
+import { waitlistEnrollmentEnabled } from '../booking/booking.config.js';
 import {
   BadRequestException,
   ConflictException,
@@ -236,7 +237,11 @@ export class AppointmentScheduleService {
             : AppointmentSlotState.AVAILABLE,
         waitlistEligible:
           taken && !pending && +slot.startsAt - now >= 48 * 3600_000,
-        canJoinWaitlist: false, // Actual enrollment is delivered in Step 6.
+        canJoinWaitlist:
+          taken &&
+          !pending &&
+          +slot.startsAt - +now >= 48 * 3600_000 &&
+          waitlistEnrollmentEnabled(),
       };
     });
   }

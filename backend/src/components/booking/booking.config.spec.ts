@@ -1,10 +1,38 @@
-import { bookingPolicyEnabled } from './booking.config.js';
+import {
+  bookingPolicyEnabled,
+  waitlistEnrollmentEnabled,
+  commitmentReplacementEnabled,
+  validateWaitlistFlags,
+} from './booking.config.js';
 import { parseBookingResolutions } from './booking-migration.js';
 import { ConflictException } from '@nestjs/common';
 import { GraphQLError } from 'graphql';
 import { graphqlConfig } from '../../libs/graphql/graphql.config.js';
 
 describe('Booking activation and migration inputs', () => {
+  it('defaults queues and replacement off and validates flag dependencies', () => {
+    expect(waitlistEnrollmentEnabled({})).toBe(false);
+    expect(commitmentReplacementEnabled({})).toBe(false);
+    expect(() =>
+      validateWaitlistFlags({ WAITLIST_ENROLLMENT_ENABLED: 'true' }),
+    ).toThrow('requires booking');
+    expect(() =>
+      validateWaitlistFlags({
+        BOOKING_POLICY_V2_ENABLED: 'true',
+        COMMITMENT_REPLACEMENT_ENABLED: 'true',
+      }),
+    ).toThrow('requires waitlist');
+    expect(() =>
+      validateWaitlistFlags({ WAITLIST_ENROLLMENT_ENABLED: 'yes' }),
+    ).toThrow('true or false');
+    expect(
+      commitmentReplacementEnabled({
+        BOOKING_POLICY_V2_ENABLED: 'true',
+        WAITLIST_ENROLLMENT_ENABLED: 'true',
+        COMMITMENT_REPLACEMENT_ENABLED: 'true',
+      }),
+    ).toBe(true);
+  });
   it('does not forward arbitrary exception payloads as structured booking details', () => {
     const originalError = new ConflictException({
       message: 'Conflict',

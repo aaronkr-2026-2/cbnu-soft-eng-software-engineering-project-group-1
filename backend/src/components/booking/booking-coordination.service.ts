@@ -202,6 +202,42 @@ export class BookingCoordinationService {
               if (result.matchedCount !== 1)
                 throw new ConflictException('Slot generation is stale');
             },
+            slotState: async (slot) => {
+              requireKey(slotKey(slot));
+              const row = await gates
+                .findById(slotKey(slot))
+                .session(session)
+                .lean()
+                .exec();
+              if (!row)
+                throw new ServiceUnavailableException(
+                  'Booking gate is missing',
+                );
+              return {
+                allocationPending: row.allocationPending,
+                generation: row.generation,
+              };
+            },
+            nextQueueSequence: async (slot) => {
+              requireKey(slotKey(slot));
+              const row = await gates
+                .findOneAndUpdate(
+                  { _id: slotKey(slot) },
+                  { $inc: { queueSequence: 1 } },
+                  { session, returnDocument: 'after' },
+                )
+                .lean()
+                .exec();
+              if (
+                !row ||
+                !Number.isSafeInteger(row.queueSequence) ||
+                row.queueSequence > 2147483647
+              )
+                throw new ServiceUnavailableException(
+                  'Queue ordering is unavailable',
+                );
+              return row.queueSequence;
+            },
           });
         },
         {

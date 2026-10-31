@@ -45,6 +45,22 @@ export enum SlotReleaseMode {
   UNAVAILABLE = 'UNAVAILABLE',
 }
 
+export enum CommitmentKind {
+  APPOINTMENT = 'APPOINTMENT',
+  WAITLIST = 'WAITLIST',
+}
+registerEnumType(CommitmentKind, { name: 'CommitmentKind' });
+
+export enum WaitlistStatus {
+  ACTIVE = 'ACTIVE',
+  NOTIFICATION_ONLY = 'NOTIFICATION_ONLY',
+  FULFILLED = 'FULFILLED',
+  WITHDRAWN = 'WITHDRAWN',
+  EXPIRED = 'EXPIRED',
+  INELIGIBLE = 'INELIGIBLE',
+}
+registerEnumType(WaitlistStatus, { name: 'WaitlistStatus' });
+
 export enum DoctorChangeRequestType {
   CANCEL = 'CANCEL',
   RESCHEDULE = 'RESCHEDULE',
