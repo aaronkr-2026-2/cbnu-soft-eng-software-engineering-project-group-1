@@ -7,7 +7,7 @@ import {
 
 export const APPOINTMENT_EVENT = 'AppointmentEvent';
 
-// Durable outbox only. Workers/delivery are added in later steps; no TTL.
+// Durable outbox and promotion claims. Notification delivery remains separate; no TTL.
 export const AppointmentEventSchema = new Schema(
   {
     _id: { type: String, required: true },
@@ -32,9 +32,17 @@ export const AppointmentEventSchema = new Schema(
     slotGeneration: Number,
     releaseMode: { type: String, enum: Object.values(SlotReleaseMode) },
     occurredAt: { type: Date, required: true },
+    waitlistId: Schema.Types.ObjectId,
+    claimToken: String,
+    leaseUntil: Date,
+    attempts: { type: Number, default: 0 },
+    nextAttemptAt: Date,
+    lastFailureCode: String,
+    processedAt: Date,
+    result: String,
     state: {
       type: String,
-      enum: ['PENDING', 'PROCESSED'],
+      enum: ['PENDING', 'PROCESSING', 'PROCESSED', 'DEFERRED'],
       default: 'PENDING',
       required: true,
     },
@@ -43,3 +51,9 @@ export const AppointmentEventSchema = new Schema(
 );
 
 AppointmentEventSchema.index({ state: 1, occurredAt: 1 });
+AppointmentEventSchema.index({
+  type: 1,
+  state: 1,
+  nextAttemptAt: 1,
+  leaseUntil: 1,
+});

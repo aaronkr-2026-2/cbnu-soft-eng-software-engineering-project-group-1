@@ -73,7 +73,7 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   patient details. Waitlist policy eligibility and flag-controlled enrollment are shown.
 - **Waitlists and replacement:** Patient enrollment/withdrawal with recorded consent,
   FIFO ordering and scoped reads. All four booking/waitlist replacements are atomic
-  and version checked. Enrollment/replacement flags default off; promotion is pending.
+  and version checked. Enrollment/replacement flags default off; the FIFO worker is implemented behind a notification-delivery release gate.
 - **Appointment lifecycle:** Patients/the owning clinic can cancel confirmed visits
   before start; clinics record completion/no-show at or after the end. Repeated
   identical actions are idempotent; appointment/ledger/outbox changes are atomic.
@@ -223,7 +223,7 @@ its active commitment ledger entry together under patient/doctor-slot locks.
 Booking requires a replica set; it has no standalone or legacy-write fallback.
 The integration command builds the backend and tests the real API, migration CLI,
 conflict races, rollback, activation gates, and appointment lifecycle events.
-Waitlist enrollment and atomic replacements share those transactions; event workers and notification delivery remain later steps.
+Waitlist enrollment and atomic replacements share those transactions; the FIFO promotion worker is implemented; notification delivery remains a later step.
 
 ## Architecture
 
@@ -982,7 +982,8 @@ Status changes remove the active commitment and save APPOINTMENT_STATUS_CHANGED
 in appointment_events within the same transaction. Cancellation also saves
 SLOT_RELEASED with a stable event ID, appointment version and slot generation.
 Manual allocations advance the generation so older openings become stale. Events
-remain PENDING until later workers exist; nothing sends a notification yet.
+remain private. Step 7 consumes queue-release events; status and notification events
+await delivery integration. Nothing sends a patient notification yet.
 
 If a cancellation has waiting entries at least 48 hours before start, the slot
 stays behind its allocation gate for queue processing. Inside 48 hours it is open
@@ -1044,11 +1045,53 @@ Other participants cannot enumerate entries through these operations.
 Ordinary booking of one's matching waitlist slot fulfills that entry atomically.
 It cannot jump a held queue outside the cutoff. Withdrawal of the last active
 waiter releases the hold; withdrawing a fulfilled entry never cancels its appointment.
-`automaticBookingEnabled` remains false: promotion and notification workers are
-later steps. automaticBookingEligible reflects the current cutoff, while persisted
+`automaticBookingEnabled` remains false: the promotion worker is implemented but
+its release gate requires verified patient-visible notification delivery. automaticBookingEligible reflects the current cutoff, while persisted
 ACTIVE-to-NOTIFICATION_ONLY/EXPIRED transitions await those workers. Existing active
 entries remain commitments until explicitly closed. Clients must refetch after an
 uncertain/busy response before retrying or confirming a replacement.
+
+## FIFO promotion worker (Step 7)
+
+AppointmentPromotionService processes private SLOT_RELEASED events with QUEUE or
+UNAVAILABLE hints. It claims one event per poll using a unique token and a
+30-second lease. Expired claims are recoverable by another instance; every
+transaction fences the current token and checks the slot generation. Once enabled
+in a later release, polling runs in the Nest process at one-second intervals and
+stops on module shutdown. No worker API or new queue dependency is introduced.
+
+The worker selects ACTIVE entries by server FIFO sequence, then locks the doctor,
+patient and slot and rechecks the head. It verifies consent, current patient and
+clinic/doctor eligibility, schedule, occupancy, specialty spacing and patient
+appointment overlap. Definite eligibility failures become INELIGIBLE with a safe
+reason; database failures preserve the head and retry. NOTIFICATION_ONLY entries
+are never automatically booked. A claim handles at most 25 candidates before
+rescheduling; exhausted eligible queues release the hold for normal booking.
+
+Successful promotion atomically creates a CONFIRMED appointment with source
+WAITLIST, fulfills the selected entry, changes the active ledger, releases the hold,
+and saves WAITLIST_BOOKING_CREATED for later notification delivery. Replays and
+stale owners cannot create another booking. The cutoff is checked inside the
+allocation transaction: exactly 48 hours is allowed; inside 48 hours no automatic
+booking commits. Such releases become DEFERRED with MANUAL_CUTOFF (or SLOT_STARTED),
+and the hold is released. Step 8 will consume that durable handoff for notification
+fan-out/expiry. Existing MANUAL releases are left untouched for Step 8.
+
+Worker state is persisted in appointment_events: state, attempts, claimToken,
+leaseUntil, nextAttemptAt, lastFailureCode, processedAt and result. Failures use
+WORKER_RETRY with exponential backoff capped at 60 seconds; bounded batches use
+BATCH_LIMIT and a one-second delay. Error payloads and patient details are not logged.
+Operators can inspect aggregate pending/retrying/expired-claim counts and last safe
+failure codes through private database tooling. Public status endpoints expose no
+queue records. Full monitoring/reconciliation and process-crash rehearsal remain
+Step 12 work; recovery tests currently use fresh worker instances and abandoned leases.
+
+WAITLIST_PROMOTION_ENABLED defaults to false. Setting it to true currently rejects
+startup because no patient-visible notification channel is integrated and verified.
+This gate must be connected to verified delivery readiness in Steps 8/11 before
+production activation. Tests replace only the worker's internal enablement check;
+MongoDB claims, transactions, booking and event persistence remain real. Enrollment
+can be piloted separately with automation accurately labeled as disabled.
 
 ## Deployment
 
@@ -1072,7 +1115,9 @@ checkout-to-deployment procedure for the current layout.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;
   application-database cutover, frontend integration and Atlas rollout remain unverified.
-- Automatic promotion, event workers and notification delivery are not yet implemented. Stored outbox events are not delivered notifications.
+- The FIFO promotion worker is implemented but cannot be enabled until patient-visible
+  notification delivery is integrated and verified. Cutoff fan-out, expiry and delivery
+  remain pending. Stored outbox events are not delivered notifications.
 - Authentication rate limiting is per process, without a shared multi-instance store.
 - Local deployment scripts still need the alignment described above.
 

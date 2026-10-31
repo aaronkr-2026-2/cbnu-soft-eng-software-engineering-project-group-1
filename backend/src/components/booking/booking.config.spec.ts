@@ -3,6 +3,7 @@ import {
   waitlistEnrollmentEnabled,
   commitmentReplacementEnabled,
   validateWaitlistFlags,
+  waitlistPromotionEnabled,
 } from './booking.config.js';
 import { parseBookingResolutions } from './booking-migration.js';
 import { ConflictException } from '@nestjs/common';
@@ -10,6 +11,18 @@ import { GraphQLError } from 'graphql';
 import { graphqlConfig } from '../../libs/graphql/graphql.config.js';
 
 describe('Booking activation and migration inputs', () => {
+  it('keeps promotion off until patient-visible delivery is integrated and verified', () => {
+    expect(waitlistPromotionEnabled({})).toBe(false);
+    expect(() =>
+      waitlistPromotionEnabled({ WAITLIST_PROMOTION_ENABLED: 'true' }),
+    ).toThrow('patient-visible');
+    expect(() =>
+      validateWaitlistFlags({ WAITLIST_PROMOTION_ENABLED: 'true' }),
+    ).toThrow('patient-visible');
+    expect(() =>
+      waitlistPromotionEnabled({ WAITLIST_PROMOTION_ENABLED: '1' }),
+    ).toThrow('true or false');
+  });
   it('defaults queues and replacement off and validates flag dependencies', () => {
     expect(waitlistEnrollmentEnabled({})).toBe(false);
     expect(commitmentReplacementEnabled({})).toBe(false);

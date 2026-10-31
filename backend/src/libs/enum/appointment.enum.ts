@@ -37,6 +37,7 @@ registerEnumType(AppointmentOutcome, { name: 'AppointmentOutcome' });
 export enum AppointmentEventType {
   STATUS_CHANGED = 'APPOINTMENT_STATUS_CHANGED',
   SLOT_RELEASED = 'SLOT_RELEASED',
+  WAITLIST_BOOKING_CREATED = 'WAITLIST_BOOKING_CREATED',
 }
 
 export enum SlotReleaseMode {

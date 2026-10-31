@@ -8,6 +8,7 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { BookingConflictException } from './booking-error.js';
 import {
   Connection,
+  type Types,
   type ClientSession,
   type InferSchemaType,
   type Model,
@@ -148,6 +149,18 @@ export class BookingCoordinationService {
           };
           return work({
             session,
+            checkReservation: async (entry, generation, excludedWaitlistId) => {
+              requireKey(patientKey(entry.patientId));
+              requireKey(slotKey(entry));
+              await this.checkReservation(
+                entry,
+                generation,
+                session,
+                gates,
+                commitments,
+                excludedWaitlistId,
+              );
+            },
             reserve: async (entry, generation) => {
               requireKey(patientKey(entry.patientId));
               requireKey(slotKey(entry));
@@ -253,12 +266,13 @@ export class BookingCoordinationService {
     }
   }
 
-  private async reserve(
+  private async checkReservation(
     entry: BookingCommitment,
     generation: number | undefined,
     session: ClientSession,
     gates: Model<Gate>,
     commitments: Model<Commitment>,
+    excludedWaitlistId?: Types.ObjectId,
   ) {
     const gate = await gates
       .findById(slotKey(entry))
@@ -288,6 +302,9 @@ export class BookingCoordinationService {
     const blockers = await commitments
       .find({
         patientId: entry.patientId,
+        ...(excludedWaitlistId
+          ? { $nor: [{ kind: 'WAITLIST', commitmentId: excludedWaitlistId }] }
+          : {}),
         $or: [
           sameSpecialty,
           ...(entry.kind === 'APPOINTMENT'
@@ -328,6 +345,16 @@ export class BookingCoordinationService {
         .session(session);
       if (occupied) throw new BookingConflictException('SLOT_OCCUPIED');
     }
+  }
+
+  private async reserve(
+    entry: BookingCommitment,
+    generation: number | undefined,
+    session: ClientSession,
+    gates: Model<Gate>,
+    commitments: Model<Commitment>,
+  ) {
+    await this.checkReservation(entry, generation, session, gates, commitments);
     await commitments.create([entry], { session });
     // A new manual allocation makes earlier opening events stale. Allocators
     // using an explicit generation retain it until resolveSlot completes.

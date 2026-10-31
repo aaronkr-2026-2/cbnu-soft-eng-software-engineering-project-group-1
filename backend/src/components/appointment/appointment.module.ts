@@ -1,3 +1,4 @@
+import { AppointmentPromotionService } from './appointment-promotion.service.js';
 import { WaitlistModule } from '../waitlist/waitlist.module.js';
 import { AppointmentCommitmentService } from './appointment-commitment.service.js';
 import { AppointmentCommitmentResolver } from './appointment-commitment.resolver.js';
@@ -67,6 +68,7 @@ const mongoUri = getMongoUri();
   controllers: [AppointmentController],
   providers: [
     AppointmentService,
+    AppointmentPromotionService,
     AppointmentCommitmentService,
     AppointmentCommitmentResolver,
     AppointmentResolver,

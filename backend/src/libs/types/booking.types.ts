@@ -23,6 +23,11 @@ export type BookingCommitment = BookingSlot & {
 
 export type BookingTransaction = {
   session: ClientSession;
+  checkReservation: (
+    commitment: BookingCommitment,
+    generation: number,
+    excludedWaitlistId: Types.ObjectId,
+  ) => Promise<void>;
   reserve: (
     commitment: BookingCommitment,
     allocationGeneration?: number,

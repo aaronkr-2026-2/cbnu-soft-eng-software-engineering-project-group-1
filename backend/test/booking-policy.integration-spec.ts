@@ -1,3 +1,7 @@
+import { WaitlistService } from '../src/components/waitlist/waitlist.service.js';
+import { AppointmentEventSchema } from '../src/schemas/appointment-event.model.js';
+import type { InferSchemaType } from 'mongoose';
+import { AppointmentPromotionService } from '../src/components/appointment/appointment-promotion.service.js';
 import {
   BadRequestException,
   UnauthorizedException,
@@ -65,6 +69,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     'BOOKING_POLICY_V2_ENABLED',
     'WAITLIST_ENROLLMENT_ENABLED',
     'COMMITMENT_REPLACEMENT_ENABLED',
+    'WAITLIST_PROMOTION_ENABLED',
     'JWT_ACCESS_SECRET',
     'NODE_ENV',
   ] as const;
@@ -82,6 +87,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       'disposable-booking-test-secret-at-least-32-bytes';
     process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
     process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
+    process.env.WAITLIST_PROMOTION_ENABLED = 'false';
     process.env.BOOKING_POLICY_V2_ENABLED = 'false';
     const { AppModule } = await import('../src/app.module.js');
     const fixture = await Test.createTestingModule({
@@ -122,6 +128,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
   beforeEach(async () => {
     process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
     process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
+    process.env.WAITLIST_PROMOTION_ENABLED = 'false';
     process.env.BOOKING_POLICY_V2_ENABLED = 'false';
     for (const name of [
       'waitlists',
@@ -1971,6 +1978,447 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       await expect(
         app.get(BookingPolicyService).onModuleInit(),
       ).rejects.toThrow(BookingUnavailableException);
+    });
+
+    describe('FIFO promotion worker', () => {
+      const worker = () => app.get(AppointmentPromotionService);
+      const events = () => connection.db!.collection('appointment_events');
+      const releaseEvent = () => events().findOne({ type: 'SLOT_RELEASED' });
+      const promoted = () =>
+        connection
+          .db!.collection('appointments')
+          .find({ source: 'WAITLIST' })
+          .toArray();
+      const setup = async () => {
+        const booking = await occupied();
+        const entry = (await join()).body.data.joinWaitlist;
+        expect((await cancel(booking._id, token2)).body.errors).toBeUndefined();
+        return entry as { _id: string; version: string };
+      };
+      const addPatient = async () => {
+        const patientId = id();
+        await connection.db!.collection('members').insertOne({
+          _id: patientId,
+          memberType: 'USER',
+          memberStatus: 'ACTIVE',
+          authVersion: 0,
+        });
+        const bearer = await app.get(JwtService).signAsync({
+          sub: String(patientId),
+          tokenType: 'access',
+          authVersion: 0,
+        });
+        return { patientId, bearer };
+      };
+      const addWaiter = async () => {
+        const added = await addPatient();
+        const result = await join({}, added.bearer);
+        expect(result.body.errors).toBeUndefined();
+        return { ...added, entry: result.body.data.joinWaitlist };
+      };
+      const retryNow = () =>
+        events().updateOne(
+          { type: 'SLOT_RELEASED' },
+          { $set: { nextAttemptAt: new Date(Date.now() - 1) } },
+        );
+      const freshWorker = () => {
+        const instance = new AppointmentPromotionService(
+          app.get(BookingCoordinationService),
+          app.get(BookingPolicyService),
+          app.get(WaitlistService),
+          app.get(AppointmentService),
+          connection.model<InferSchemaType<typeof AppointmentEventSchema>>(
+            APPOINTMENT_EVENT,
+          ),
+        );
+        jest.spyOn(instance, 'isEnabled').mockReturnValue(true);
+        return instance;
+      };
+      beforeEach(() => jest.spyOn(worker(), 'isEnabled').mockReturnValue(true));
+
+      it('promotes the FIFO head and atomically persists exactly one booking notification', async () => {
+        const booking = await occupied();
+        const first = (await join()).body.data.joinWaitlist;
+        const second = await addWaiter();
+        await cancel(booking._id, token2);
+        expect(await worker().runOnce()).toBe(true);
+        const appointments = await promoted();
+        expect(appointments).toHaveLength(1);
+        expect(String(appointments[0].patientId)).toBe(String(patient));
+        expect((await originalRecord(first._id, 'waitlists'))!.status).toBe(
+          'FULFILLED',
+        );
+        expect(
+          (await originalRecord(second.entry._id, 'waitlists'))!.status,
+        ).toBe('ACTIVE');
+        expect((await releaseEvent())!.result).toBe('PROMOTED');
+        expect((await slotGate())!.allocationPending).toBe(false);
+        expect(
+          await events().countDocuments({
+            type: 'WAITLIST_BOOKING_CREATED',
+            patientId: patient,
+            appointmentId: appointments[0]._id,
+            waitlistId: new Types.ObjectId(first._id),
+          }),
+        ).toBe(1);
+        expect(await worker().runOnce()).toBe(false);
+        await app.get(BookingPolicyService).onModuleInit();
+      });
+
+      it('prevents duplicate workers, repeated openings and manual booking from allocating twice', async () => {
+        await setup();
+        const [manual, ...results] = await Promise.all([
+          rest({}, token2),
+          ...Array.from({ length: 4 }, () => worker().runOnce()),
+        ]);
+        expect(manual.status).toBe(409);
+        expect(results.filter(Boolean)).toHaveLength(1);
+        const event = (await releaseEvent())!;
+        await events().updateOne(
+          { _id: event._id },
+          { $set: { state: 'PENDING' } },
+        );
+        await worker().runOnce();
+        expect((await releaseEvent())!.result).toBe('STALE');
+        expect(await promoted()).toHaveLength(1);
+        expect(
+          await events().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+        ).toBe(1);
+      });
+
+      it.each([
+        'PATIENT_INACTIVE',
+        'INVALID_CONSENT',
+        'PATIENT_OVERLAP',
+        'COMMITMENT_CONFLICT',
+      ])(
+        'skips only established %s failures and promotes the next eligible patient',
+        async (reason) => {
+          const booking = await occupied();
+          const first = (await join()).body.data.joinWaitlist;
+          const second = await addWaiter();
+          if (reason === 'PATIENT_INACTIVE')
+            await connection
+              .db!.collection('members')
+              .updateOne(
+                { _id: patient },
+                { $set: { memberStatus: 'SUSPENDED' } },
+              );
+          if (reason === 'INVALID_CONSENT')
+            await connection
+              .db!.collection('waitlists')
+              .updateOne(
+                { _id: new Types.ObjectId(first._id) },
+                { $set: { automaticBookingConsent: false } },
+              );
+          if (reason === 'PATIENT_OVERLAP')
+            expect(
+              (
+                await rest({
+                  doctorId: String(doctor3),
+                  clinicId: String(clinic2),
+                  specialty: DoctorSpecialization.DENTIST,
+                })
+              ).status,
+            ).toBe(201);
+          if (reason === 'COMMITMENT_CONFLICT')
+            await connection.db!.collection('booking_commitments').insertOne({
+              kind: 'APPOINTMENT',
+              commitmentId: id(),
+              version: randomUUID(),
+              status: 'CONFIRMED',
+              patientId: patient,
+              doctorId: doctor2,
+              clinicId: clinic,
+              specialty: 'CARDIOLOGIST',
+              startsAt: at(60),
+              endsAt: at(90),
+            });
+          await cancel(booking._id, token2);
+          await worker().runOnce();
+          const row = (await originalRecord(first._id, 'waitlists'))!;
+          expect(row).toMatchObject({
+            status: 'INELIGIBLE',
+            closedReason: reason,
+          });
+          expect(String((await promoted())[0].patientId)).toBe(
+            String(second.patientId),
+          );
+          expect(
+            await connection
+              .db!.collection('booking_commitments')
+              .countDocuments({
+                kind: 'WAITLIST',
+                commitmentId: new Types.ObjectId(first._id),
+              }),
+          ).toBe(0);
+        },
+      );
+
+      it.each(['schedule', 'doctor', 'specialty'])(
+        'rechecks current %s and releases a queue with no eligible patients',
+        async (change) => {
+          const first = await setup();
+          if (change === 'schedule')
+            await connection
+              .db!.collection('doctor_availability')
+              .deleteMany({ doctorId: doctor });
+          if (change === 'doctor')
+            await connection
+              .db!.collection('members')
+              .updateOne(
+                { _id: doctor },
+                { $set: { memberStatus: 'SUSPENDED' } },
+              );
+          if (change === 'specialty')
+            await connection
+              .db!.collection('members')
+              .updateOne(
+                { _id: doctor },
+                { $set: { doctorSpecializations: [] } },
+              );
+          await worker().runOnce();
+          expect(await promoted()).toHaveLength(0);
+          expect(
+            (await originalRecord(first._id, 'waitlists'))!.closedReason,
+          ).toBe('DOCTOR_OR_SCHEDULE');
+          expect((await slotGate())!.allocationPending).toBe(false);
+          expect((await releaseEvent())!.result).toBe('QUEUE_EMPTY');
+        },
+      );
+
+      it.each([48 * 3600_000, 48 * 3600_000 - 1])(
+        'checks the actual allocation cutoff at %i ms',
+        async (delta) => {
+          await setup();
+          freezeTime(+start - delta);
+          await worker().runOnce();
+          expect(await promoted()).toHaveLength(
+            delta === 48 * 3600_000 ? 1 : 0,
+          );
+          expect((await releaseEvent())!.state).toBe(
+            delta === 48 * 3600_000 ? 'PROCESSED' : 'DEFERRED',
+          );
+          expect((await slotGate())!.allocationPending).toBe(false);
+        },
+      );
+
+      it('rolls back an allocation crossing the cutoff and durably defers it for manual fan-out', async () => {
+        const entry = await setup();
+        freezeTime(+start - 48 * 3600_000);
+        const appointments = app.get(AppointmentService);
+        const check = appointments.checkPromotionEligibility.bind(appointments);
+        jest
+          .spyOn(appointments, 'checkPromotionEligibility')
+          .mockImplementationOnce(async (...args) => {
+            const principal = await check(...args);
+            freezeTime(+start - 48 * 3600_000 + 1);
+            return principal;
+          });
+        await worker().runOnce();
+        expect(await promoted()).toHaveLength(0);
+        expect((await originalRecord(entry._id, 'waitlists'))!.status).toBe(
+          'ACTIVE',
+        );
+        expect((await releaseEvent())!).toMatchObject({
+          state: 'DEFERRED',
+          result: 'MANUAL_CUTOFF',
+        });
+        expect(
+          await events().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+        ).toBe(0);
+        expect((await slotGate())!.allocationPending).toBe(false);
+      });
+
+      it.each(['eligibility-read', 'notification-write'])(
+        'retries %s failure without skipping the FIFO head or leaking error payloads',
+        async (point) => {
+          const booking = await occupied();
+          const first = (await join()).body.data.joinWaitlist;
+          await addWaiter();
+          await cancel(booking._id, token2);
+          if (point === 'eligibility-read')
+            jest
+              .spyOn(app.get(AppointmentService), 'checkPromotionEligibility')
+              .mockRejectedValueOnce(new Error('private provider payload'));
+          else
+            jest
+              .spyOn(connection.model(APPOINTMENT_EVENT), 'create')
+              .mockRejectedValueOnce(new Error('private provider payload'));
+          await worker().runOnce();
+          expect(await promoted()).toHaveLength(0);
+          expect((await originalRecord(first._id, 'waitlists'))!.status).toBe(
+            'ACTIVE',
+          );
+          expect((await slotGate())!.allocationPending).toBe(true);
+          const failed = (await releaseEvent())!;
+          expect(failed).toMatchObject({
+            state: 'PENDING',
+            attempts: 1,
+            lastFailureCode: 'WORKER_RETRY',
+          });
+          expect(JSON.stringify(failed)).not.toContain(
+            'private provider payload',
+          );
+          expect(await worker().runOnce()).toBe(false);
+          await retryNow();
+          await worker().runOnce();
+          expect(String((await promoted())[0].patientId)).toBe(String(patient));
+          expect((await releaseEvent())!.attempts).toBe(2);
+          expect(
+            await events().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+          ).toBe(1);
+        },
+      );
+
+      it('recovers abandoned expired leases from a fresh worker instance', async () => {
+        await setup();
+        await events().updateOne(
+          { type: 'SLOT_RELEASED' },
+          {
+            $set: {
+              state: 'PROCESSING',
+              claimToken: randomUUID(),
+              leaseUntil: new Date(Date.now() - 1),
+              attempts: 1,
+            },
+          },
+        );
+        await freshWorker().runOnce();
+        expect(await promoted()).toHaveLength(1);
+        expect((await releaseEvent())!).toMatchObject({
+          state: 'PROCESSED',
+          attempts: 2,
+        });
+      });
+
+      it('fences a stale owner after another worker takes over its expired claim', async () => {
+        await setup();
+        let enter!: () => void, resume!: () => void;
+        const entered = new Promise<void>((resolve) => {
+          enter = resolve;
+        });
+        const resumed = new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+        const waitlists = app.get(WaitlistService);
+        const first = waitlists.firstForPromotion.bind(waitlists);
+        jest
+          .spyOn(waitlists, 'firstForPromotion')
+          .mockImplementationOnce(async (...args) => {
+            enter();
+            await resumed;
+            return first(...args);
+          });
+        const stale = worker().runOnce();
+        await entered;
+        try {
+          await events().updateOne(
+            { type: 'SLOT_RELEASED' },
+            { $set: { leaseUntil: new Date(Date.now() - 1) } },
+          );
+          await freshWorker().runOnce();
+        } finally {
+          resume();
+        }
+        await stale;
+        expect(await promoted()).toHaveLength(1);
+        expect(
+          await events().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+        ).toBe(1);
+        expect((await releaseEvent())!.result).toBe('PROMOTED');
+      });
+
+      it('serializes withdrawal versus promotion into one coherent result', async () => {
+        const entry = await setup();
+        await Promise.all([leave(entry._id), worker().runOnce()]);
+        const row = (await originalRecord(entry._id, 'waitlists'))!;
+        expect(['WITHDRAWN', 'FULFILLED']).toContain(row.status);
+        expect(await promoted()).toHaveLength(
+          row.status === 'FULFILLED' ? 1 : 0,
+        );
+        expect(
+          await connection
+            .db!.collection('booking_commitments')
+            .countDocuments({ patientId: patient, kind: 'WAITLIST' }),
+        ).toBe(0);
+        expect((await slotGate())!.allocationPending).toBe(false);
+      });
+
+      it('ignores a stale slot generation without unlocking the newer hold', async () => {
+        await setup();
+        await connection
+          .db!.collection<{ _id: string; generation: number }>('booking_gates')
+          .updateOne(
+            { _id: `slot:${doctor}:${+start}` },
+            { $inc: { generation: 1 } },
+          );
+        await worker().runOnce();
+        expect(await promoted()).toHaveLength(0);
+        expect((await releaseEvent())!.result).toBe('STALE');
+        expect((await slotGate())!.allocationPending).toBe(true);
+      });
+
+      it('never promotes notification-only entries and releases an empty eligible queue', async () => {
+        const entry = await setup();
+        await connection
+          .db!.collection('waitlists')
+          .updateOne(
+            { _id: new Types.ObjectId(entry._id) },
+            { $set: { status: 'NOTIFICATION_ONLY' } },
+          );
+        await connection
+          .db!.collection('booking_commitments')
+          .updateOne(
+            { kind: 'WAITLIST' },
+            { $set: { status: 'NOTIFICATION_ONLY' } },
+          );
+        await worker().runOnce();
+        expect(await promoted()).toHaveLength(0);
+        expect((await releaseEvent())!.result).toBe('QUEUE_EMPTY');
+        expect((await originalRecord(entry._id, 'waitlists'))!.status).toBe(
+          'NOTIFICATION_ONLY',
+        );
+        expect((await slotGate())!.allocationPending).toBe(false);
+      });
+
+      it('bounds a claim and resumes the FIFO queue on the next attempt', async () => {
+        const booking = await occupied();
+        const entries = [];
+        for (let n = 0; n < 26; n++) entries.push(await addWaiter());
+        await connection.db!.collection('members').updateMany(
+          {
+            _id: {
+              $in: entries.slice(0, 25).map((entry) => entry.patientId),
+            },
+          },
+          { $set: { memberStatus: 'SUSPENDED' } },
+        );
+        await cancel(booking._id, token2);
+        await worker().runOnce();
+        expect((await releaseEvent())!).toMatchObject({
+          state: 'PENDING',
+          lastFailureCode: 'BATCH_LIMIT',
+        });
+        expect((await slotGate())!.allocationPending).toBe(true);
+        expect(await promoted()).toHaveLength(0);
+        await retryNow();
+        await worker().runOnce();
+        expect(String((await promoted())[0].patientId)).toBe(
+          String(entries[25].patientId),
+        );
+      });
+
+      it('leaves pending work untouched when promotion is disabled', async () => {
+        await setup();
+        jest.spyOn(worker(), 'isEnabled').mockReturnValue(false);
+        expect(await worker().runOnce()).toBe(false);
+        expect((await releaseEvent())!).toMatchObject({
+          state: 'PENDING',
+          attempts: 0,
+        });
+        expect((await slotGate())!.allocationPending).toBe(true);
+      });
     });
   });
 });

@@ -20,6 +20,7 @@ import {
 import { MemberType } from '../../libs/enum/member.enum.js';
 import type {
   BookingTarget,
+  BookingSlot,
   BookingTransaction,
   WaitlistRecord,
 } from '../../libs/types/booking.types.js';
@@ -225,11 +226,29 @@ export class WaitlistService {
     return result;
   }
 
+  async firstForPromotion(slot: BookingSlot, tx?: BookingTransaction) {
+    return this.model()
+      .findOne({
+        doctorId: slot.doctorId,
+        startsAt: slot.startsAt,
+        status: WaitlistStatus.ACTIVE,
+      })
+      .select(fields)
+      .sort({ queueSequence: 1, _id: 1 })
+      .session(tx?.session ?? null)
+      .lean()
+      .exec();
+  }
+
   async close(
     row: WaitlistRecord,
-    status: WaitlistStatus.WITHDRAWN | WaitlistStatus.FULFILLED,
+    status:
+      | WaitlistStatus.WITHDRAWN
+      | WaitlistStatus.FULFILLED
+      | WaitlistStatus.INELIGIBLE,
     tx: BookingTransaction,
     appointmentId?: Types.ObjectId,
+    reason?: string,
   ) {
     if (!ACTIVE_WAITLIST_STATUSES.includes(row.status))
       throw new BookingConflictException('STALE_COMMITMENT');
@@ -246,7 +265,7 @@ export class WaitlistService {
           $set: {
             status,
             version: randomUUID(),
-            closedReason: status,
+            closedReason: reason ?? status,
             ...(appointmentId ? { appointmentId } : {}),
           },
         },

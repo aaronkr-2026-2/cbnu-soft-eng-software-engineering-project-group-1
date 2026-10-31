@@ -29,6 +29,7 @@ export function commitmentReplacementEnabled(
 }
 
 export function validateWaitlistFlags(env: NodeJS.ProcessEnv = process.env) {
+  waitlistPromotionEnabled(env);
   if (flag('WAITLIST_ENROLLMENT_ENABLED', env) && !bookingPolicyEnabled(env))
     throw new Error('Waitlist enrollment requires booking policy V2');
   if (
@@ -36,4 +37,15 @@ export function validateWaitlistFlags(env: NodeJS.ProcessEnv = process.env) {
     !waitlistEnrollmentEnabled(env)
   )
     throw new Error('Commitment replacement requires waitlist enrollment');
+}
+
+// The delivery adapter is not implemented yet. A configuration switch alone
+// cannot attest that a patient-visible channel has been integrated and verified.
+export function waitlistPromotionEnabled(env: NodeJS.ProcessEnv = process.env) {
+  const requested = flag('WAITLIST_PROMOTION_ENABLED', env);
+  if (requested)
+    throw new Error(
+      'Waitlist promotion requires verified patient-visible notification delivery (Steps 8 and 11)',
+    );
+  return false;
 }

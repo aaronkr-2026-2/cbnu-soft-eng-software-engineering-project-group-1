@@ -51,6 +51,7 @@ flowchart TD
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
+  Promotion[AppointmentPromotionService - gated polling]
   Commitments[AppointmentCommitmentService]
   Waitlist[WaitlistService]
   Coordination[BookingCoordinationService]
@@ -82,6 +83,10 @@ flowchart TD
   GQL -->|Public slots or guarded clinic schedule mutations| Schedule
   GQL -->|Guarded join, leave, replace| Commitments
   GQL -->|Scoped entry reads and counts| Waitlist
+  Promotion -->|Claim, fence and finish private release events| Models
+  Promotion -->|FIFO head and terminal transitions| Waitlist
+  Promotion -->|Eligibility and held-generation booking| Booking
+  Promotion -->|Doctor, patient and slot transaction| Coordination
   Commitments -->|One transaction covering both commitments| Coordination
   Commitments -->|Validated booking and cancellation| Booking
   Commitments -->|Consent, FIFO, terminal transitions| Waitlist
@@ -137,7 +142,8 @@ GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `ba
 | `appointments` | Participant IDs, booked specialty, source/version, UTC start/end, status, cancellation/change-request fields | AppointmentService creates confirmed bookings/reads participants; partial unique doctor/start index still includes legacy PENDING/CONFIRMED |
 | `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
 | `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty, version/status and time interval | BookingCoordinationService; appointment entries saved atomically by public booking, legacy entries populated by migration |
-| `appointment_events` | Durable status/release outbox with stable ID, appointment version, optional slot generation/mode and PENDING state | AppointmentService writes with lifecycle changes in one transaction; no worker/delivery API yet |
+| `appointment_events` | Durable status/release/booking-notice outbox, generation, fenced leases, retry/result fields | AppointmentService writes lifecycle events; AppointmentPromotionService claims releases and writes booking notices transactionally; no public event API or delivery yet |
+| `waitlists` | Exact slot/specialty, consent evidence, FIFO sequence, status/version and fulfilled appointment reference | WaitlistService owns enrollment/closure and scoped reads; promotion uses its transaction methods |
 | `booking_policy` | Migration version/readiness marker | BookingMigrationService writes offline; BookingPolicyService checks at startup and in mutation transactions |
 | `booking_migration_audit` | Metadata/status change history and review evidence references | Offline migration only; excluded from API projections and console/app logs |
 | `doctor_availability` | Weekly doctor/clinic hours | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
@@ -175,10 +181,10 @@ manually commit/abort; persist future outbox events in the supplied transaction.
 doctor occupancy. `release` removes a commitment under its patient/slot locks.
 `holdSlot` increments a generation and prevents manual reservation until allocation
 is resolved; allocator reservations and `resolveSlot` require the expected
-generation. Generation checks provide concurrency foundations, not a FIFO worker
-or a notification worker. Domain records and their ledger entries must be
-created/changed atomically. Booking and lifecycle mutations now do this; later
-waitlist services must follow the same protocol. Historical appointments enter the ledger
+generation. Generation checks provide the shared concurrency foundation; Step 7 adds FIFO
+processing above it, while notification delivery remains separate. Domain records
+and their ledger entries are created/changed atomically by booking, lifecycle,
+waitlist and replacement services. Historical appointments enter the ledger
 only through explicit offline migration before policy V2 is enabled. The existing appointment unique active
 doctor/start index is unchanged.
 
@@ -272,7 +278,8 @@ Startup snapshot audit compares active appointment and waitlist metadata/ledger,
 checks queue counters/ordering and combined specialty conflicts. The initial
 migration continues to refuse all queues, including terminal history.
 
-No promotion, notification or expiry worker exists yet. Outputs explicitly return
+The Step 7 promotion worker is described below; notification delivery and expiry
+remain pending. Outputs explicitly return
 automaticBookingEnabled=false and compute cutoff eligibility; raw ACTIVE records
 await later persisted NOTIFICATION_ONLY/expiry transitions. Own patient/clinic
 entry reads are allowlisted; clinics receive no FIFO position, doctors only scoped
@@ -299,11 +306,50 @@ Cancellation increments slot generation and writes SLOT_RELEASED plus a status
 change event with stable IDs. A queue at >=48h retains the allocation hold;
 manual openings release it. Closed/ineligible schedules produce UNAVAILABLE hints
 and never bypass booking's schedule checks. Manual reservations increment the
-generation to stale earlier releases. Future workers must recheck actual cutoff,
+generation to stale earlier releases. The promotion worker rechecks actual cutoff,
 generation and current occupancy/schedule, rather than treating an event hint as
-current availability. Outbox records are private and have no TTL, worker, retry
-processor or delivery channel in this step. No application DB migration,
+current availability. Outbox records are private and have no TTL. Step 7 adds
+claims/retries; delivery remains unimplemented. No application DB migration,
 frontend integration or deployment was performed.
+
+### FIFO promotion and durable claim recovery (Step 7, October 31)
+
+`backend/src/components/appointment/appointment-promotion.service.ts` is an internal
+AppointmentModule provider. It owns no transport route and uses the existing
+appointment_events outbox. A bounded polling loop claims queue/unavailable release
+events with a token, 30-second lease and attempt counter. Expired claims can be
+reclaimed after restart. Each transaction writes the token fence after locking the
+doctor/patient/slot, so a stale owner cannot book after takeover. Slot generation
+checks prevent old releases from touching a newer hold.
+
+WaitlistService selects the FIFO ACTIVE head and performs version-conditional
+INELIGIBLE/fulfilled transitions; notification-only entries are excluded.
+AppointmentService checks current consent/patient/doctor/clinic/schedule eligibility.
+BookingCoordinationService exposes a read-only reservation preflight that excludes
+only the selected waitlist, sharing specialty/overlap checks with actual reservation.
+Only typed, established eligibility failures skip a patient; infrastructure failures
+abort the transaction and retry the same head with bounded backoff. A claim handles
+at most 25 candidates before yielding; empty eligible queues resolve their hold.
+
+Promotion uses the existing booking transaction with source WAITLIST and the held
+generation. Appointment creation, queue fulfillment, ledger changes, hold resolution,
+WAITLIST_BOOKING_CREATED and release-event completion commit together. Cutoff checks
+before and after writes roll back a booking that crosses inside 48 hours. A fenced
+follow-up transaction releases the same generation and marks DEFERRED for Step 8;
+manual-opening events are not consumed by this worker. Remaining queue expiry and
+notification fan-out belong to Step 8.
+
+Persisted claim/retry/result fields provide private failure visibility; poll failures
+log only a fixed safe code. The worker stops polling and waits for its current poll
+on shutdown. Tests use real MongoDB for worker contention, FIFO, rollback, abandoned
+leases, fresh instances, stale-owner fencing and cutoff/withdrawal races. Actual
+process-kill recovery and operational monitoring remain Step 12 validation.
+
+WAITLIST_PROMOTION_ENABLED defaults off and rejects true while verified patient-visible
+delivery is absent. Tests override internal enablement, not persistence or booking.
+The worker is implemented but production activation awaits Steps 8/11; persisted
+notification events alone do not satisfy delivery readiness. No application DB,
+production configuration or hosting changes were made.
 
 ## Shared services and external integrations
 

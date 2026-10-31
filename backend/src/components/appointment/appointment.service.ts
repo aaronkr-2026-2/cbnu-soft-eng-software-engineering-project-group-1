@@ -1,4 +1,9 @@
 import {
+  PromotionIneligible,
+  PromotionCutoff,
+} from './appointment-promotion-error.js';
+import type { WaitlistRecord } from '../../libs/types/booking.types.js';
+import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
@@ -294,6 +299,7 @@ export class AppointmentService {
     _id = new Types.ObjectId(),
     version = randomUUID(),
     allowOwnWaitlist = true,
+    allocationGeneration?: number,
   ) {
     if (
       member.memberType !== MemberType.USER &&
@@ -336,18 +342,21 @@ export class AppointmentService {
       tx,
       allowOwnWaitlist,
     );
-    await tx.reserve({
-      kind: 'APPOINTMENT',
-      commitmentId: _id,
-      version,
-      status: 'CONFIRMED',
-      patientId,
-      doctorId,
-      clinicId,
-      specialty: input.specialty,
-      startsAt,
-      endsAt: target.endsAt,
-    });
+    await tx.reserve(
+      {
+        kind: 'APPOINTMENT',
+        commitmentId: _id,
+        version,
+        status: 'CONFIRMED',
+        patientId,
+        doctorId,
+        clinicId,
+        specialty: input.specialty,
+        startsAt,
+        endsAt: target.endsAt,
+      },
+      allocationGeneration,
+    );
     await this.requireFreeSlot(
       input.doctorId,
       startsAt,
@@ -356,6 +365,11 @@ export class AppointmentService {
       tx.session,
     );
     this.requireFutureStart(startsAt);
+    if (
+      source === AppointmentSource.WAITLIST &&
+      +startsAt - Date.now() < 48 * 3600_000
+    )
+      throw new PromotionCutoff();
     const [appointment] = await models.appointments.create(
       [
         {
@@ -376,6 +390,108 @@ export class AppointmentService {
     );
     const { __v, ...result } = appointment.toObject();
     return result;
+  }
+
+  async isSlotOccupied(
+    slot: { doctorId: Types.ObjectId; startsAt: Date },
+    tx: BookingTransaction,
+  ) {
+    return Boolean(
+      await this.bookingModels()
+        .appointments.exists({
+          doctorId: slot.doctorId,
+          status: {
+            $in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED],
+          },
+          startsAt: { $lt: new Date(+slot.startsAt + 30 * 60_000) },
+          endsAt: { $gt: slot.startsAt },
+        })
+        .session(tx.session),
+    );
+  }
+
+  async checkPromotionEligibility(
+    entry: WaitlistRecord,
+    tx: BookingTransaction,
+    generation: number,
+  ) {
+    if (+entry.startsAt - Date.now() < 48 * 3600_000)
+      throw new PromotionCutoff();
+    if (!this.policy)
+      throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
+    await this.policy.assertReady(tx.session);
+    if (
+      entry.automaticBookingConsent !== true ||
+      entry.consentPolicyVersion !== 'waitlist-v1' ||
+      !(entry.consentedAt instanceof Date) ||
+      !Number.isFinite(+entry.consentedAt) ||
+      +entry.startsAt - +entry.consentedAt < 48 * 3600_000 ||
+      +entry.endsAt - +entry.startsAt !== 30 * 60_000
+    )
+      throw new PromotionIneligible('INVALID_CONSENT');
+    const patient = await this.bookingModels()
+      .members.findOne({
+        _id: entry.patientId,
+        memberType: MemberType.USER,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select({ _id: 1, memberType: 1, authVersion: 1 })
+      .session(tx.session)
+      .lean()
+      .exec();
+    if (!patient) throw new PromotionIneligible('PATIENT_INACTIVE');
+    const principal: MemberPrincipal = {
+      _id: patient._id,
+      memberType: MemberType.USER,
+      authVersion: patient.authVersion ?? 0,
+    };
+    try {
+      await this.validateSlot(
+        {
+          doctorId: String(entry.doctorId),
+          clinicId: String(entry.clinicId),
+          specialty: entry.specialty,
+          startsAt: entry.startsAt.toISOString(),
+        },
+        principal,
+        tx,
+      );
+    } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        (error instanceof BookingConflictException &&
+          error.booking.reason === 'SLOT_UNAVAILABLE')
+      )
+        throw new PromotionIneligible('DOCTOR_OR_SCHEDULE');
+      throw error;
+    }
+    try {
+      await tx.checkReservation(
+        {
+          kind: 'APPOINTMENT',
+          commitmentId: new Types.ObjectId(),
+          patientId: entry.patientId,
+          doctorId: entry.doctorId,
+          clinicId: entry.clinicId,
+          specialty: entry.specialty,
+          startsAt: entry.startsAt,
+          endsAt: entry.endsAt,
+          status: 'CONFIRMED',
+        },
+        generation,
+        entry._id,
+      );
+    } catch (error) {
+      if (
+        error instanceof BookingConflictException &&
+        (error.booking.reason === 'COMMITMENT_CONFLICT' ||
+          error.booking.reason === 'PATIENT_OVERLAP')
+      )
+        throw new PromotionIneligible(error.booking.reason);
+      throw error;
+    }
+    return principal;
   }
 
   private bookingModels() {
