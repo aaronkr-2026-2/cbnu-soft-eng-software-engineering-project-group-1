@@ -22,6 +22,13 @@ export class NotificationResolver {
   ) {
     return this.notifications.list(input, req.member);
   }
+  @Query(() => NotificationOutput)
+  getNotification(
+    @Args('id', { type: () => ID }) id: string,
+    @Context('req') req: AuthenticatedRequest,
+  ) {
+    return this.notifications.get(id, req.member);
+  }
   @Query(() => NotificationDeliveryStatus)
   notificationDeliveryStatus(@Context('req') req: AuthenticatedRequest) {
     return this.notifications.deliveryStatus(req.member);

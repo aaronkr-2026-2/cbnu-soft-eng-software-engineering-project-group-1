@@ -41,7 +41,8 @@ export function validateWaitlistFlags(env: NodeJS.ProcessEnv = process.env) {
     throw new Error('Commitment replacement requires waitlist enrollment');
 }
 
-// The delivery adapter is not implemented yet. A configuration switch alone
+// The in-app API exists, but the patient-facing browser flow is still deferred.
+// A configuration switch alone
 // cannot attest that a patient-visible channel has been integrated and verified.
 export function waitlistPromotionEnabled(env: NodeJS.ProcessEnv = process.env) {
   const requested = flag('WAITLIST_PROMOTION_ENABLED', env);

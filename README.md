@@ -1268,12 +1268,65 @@ with nextCursor passed as after. Read is idempotent. DeliveryStatus requires ADM
 and returns aggregate counts only. Private outbox event IDs, claims, failure payloads
 and other patients' appointment IDs are never included in patient output.
 
-Targets are structured references: use appointmentId with getAppointment, or
-clinicId/doctorId/time with getAvailableSlots. The browser must fetch current state
+Targets can now be resolved through notificationContext (Step 11 backend), which
+returns current appointment/slot/waitlist data with the needed specialty. Existing
+getAppointment/getAvailableSlots reads remain available. The browser must fetch current state
 before booking or treating an old notice as confirmation. The Step 11 notification
 center/link flow has not been built or browser-verified. No email/SMS provider is
 configured; IN_APP is the implemented delivery adapter. Automatic promotion remains
 disabled until the patient-facing flow is integrated and verified.
+
+## Notification center backend (Step 11)
+
+The existing in-app channel now has owned detail and current-target lookups.
+`getNotification(id: ID!)` returns the patient's historical notice without marking
+it read. `myNotifications(input: {unreadOnly: true})` filters unread items while
+unreadCount remains the patient's total unread count. Its cursor remains usable
+after that cursor notice is marked read. Default/all-item pagination is unchanged.
+
+```graphql
+query NoticeTarget($id: ID!) {
+  notificationContext(id: $id) {
+    notification { _id type message readAt }
+    targetKind checkedAt
+    appointment { _id status source version startsAt endsAt }
+    slot { doctorId clinicId specialty startsAt clinicTimezone state }
+    waitlist { _id specialty status appointmentId }
+  }
+}
+```
+
+Only the notification ID is accepted; patient and target references are resolved
+server-side after ownership validation. Current USER authentication is required for
+both lookups. Foreign IDs return NOT_FOUND; staff roles cannot read patient notices.
+These queries are no-store and do not change read state. Use markNotificationRead
+explicitly when the future UI decides the notice has been seen.
+
+| targetKind | Current data |
+| --- | --- |
+| APPOINTMENT | The patient's current appointment, including cancellation/completion/no-show status |
+| SLOT | Current public slot data; inspect state, which can be OCCUPIED or UNAVAILABLE |
+| WAITLIST | The patient's current entry, including terminal state and recorded specialty |
+| UNAVAILABLE | Missing reference, past/closed slot or ineligible target; the historical notice remains readable |
+
+Manual alerts are historical opening events, never reservations. A delayed alert
+can resolve to OCCUPIED after another patient books; no new owner's appointment or
+identity is returned. Exact-slot lookup uses the clinic-local date (including UTC
+day boundaries) and the existing schedule/eligibility rules. checkedAt is the server
+evaluation time, not a reservation or atomic booking guarantee. Availability remains
+advisory; creation must revalidate conflicts/occupancy. Database failures remain
+request errors instead of being reported as a known closed target.
+
+In-app delivery is verified through the real MongoDB/HTTP API from promotion to
+inbox, including current status after cancellation, late/manual alerts, unread
+paging, outage/restart retries, duplicate replay and stale-claim takeover. Required
+booking intents remain pending during delivery outages and can drain while new
+booking/enrollment are paused. There is no delivery-preference API that suppresses
+required booking notices; unreadOnly changes only a read view. IN_APP is the only
+configured channel; no external email/SMS provider has been selected or contacted.
+Browser notification-center/link behavior remains deferred. Promotion stays disabled
+until that patient-facing flow is integrated and verified; this backend work does
+not activate any feature flag or deployment.
 
 ## Deployment
 

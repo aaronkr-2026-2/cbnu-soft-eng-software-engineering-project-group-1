@@ -1,3 +1,4 @@
+import type { BookAppointmentDto } from '../../libs/dto/appointment/book-appointment.dto.js';
 import { waitlistEnrollmentEnabled } from '../booking/booking.config.js';
 import {
   BadRequestException,
@@ -158,6 +159,26 @@ export class AppointmentScheduleService {
     )
       throw new BadRequestException('Doctor does not offer this specialty');
     return clinic;
+  }
+
+  async getSlotForTarget(input: BookAppointmentDto) {
+    const startsAt = new Date(input.startsAt);
+    if (!Number.isFinite(+startsAt))
+      throw new BadRequestException('Invalid slot time');
+    if (+startsAt <= Date.now()) return null;
+    const clinic = await this.doctor(
+      input.doctorId,
+      input.clinicId,
+      undefined,
+      input.specialty,
+    );
+    const date = appointmentSlot(startsAt, clinic.clinicTimezone!).date;
+    const slots = await this.getAvailableSlots({
+      ...input,
+      fromDate: date,
+      toDate: date,
+    });
+    return slots.find((slot) => +slot.startsAt === +startsAt) ?? null;
   }
 
   async getAvailableSlots(input: AvailableSlotsInput) {

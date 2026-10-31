@@ -1,3 +1,10 @@
+import { AppointmentScheduleService } from '../src/components/appointment/appointment-schedule.service.js';
+import {
+  NotificationSchema,
+  NotificationOutboxSchema,
+  NOTIFICATION,
+  NOTIFICATION_OUTBOX,
+} from '../src/schemas/notification.model.js';
 import { AppointmentCalendarService } from '../src/components/appointment/appointment-calendar.service.js';
 import { AppointmentSource } from '../src/libs/enum/appointment.enum.js';
 import { NotificationService } from '../src/components/notification/notification.service.js';
@@ -3181,8 +3188,14 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     describe('Cutoff lifecycle and in-app notification delivery', () => {
       const lifecycle = () => app.get(AppointmentWaitlistLifecycleService);
       const delivery = () => app.get(NotificationService);
-      const outbox = () => connection.db!.collection('notification_outbox');
-      const inbox = () => connection.db!.collection('notifications');
+      const outbox = () =>
+        connection.db!.collection<
+          InferSchemaType<typeof NotificationOutboxSchema>
+        >('notification_outbox');
+      const inbox = () =>
+        connection.db!.collection<InferSchemaType<typeof NotificationSchema>>(
+          'notifications',
+        );
       const noticesQuery =
         'query($input: MyNotificationsInput!) { myNotifications(input:$input) { entries { _id type message waitlistId appointmentId doctorId clinicId startsAt occurredAt readAt } nextCursor unreadCount } }';
       const mine = (owner = patient, input: Record<string, unknown> = {}) =>
@@ -3593,9 +3606,9 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         await delivery().runOnce();
         expect(await inbox().countDocuments()).toBe(1);
         expect((await mine()).body.data.myNotifications.unreadCount).toBe(0);
-        expect((await inbox().findOne({ _id: id }))!.readAt.toISOString()).toBe(
-          first.readAt,
-        );
+        expect(
+          (await inbox().findOne({ _id: id }))!.readAt!.toISOString(),
+        ).toBe(first.readAt);
       });
 
       it('scopes inbox/read/cursors and exposes only aggregate failure status to operators', async () => {
@@ -3661,6 +3674,405 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         jest.spyOn(delivery(), 'isEnabled').mockReturnValue(false);
         expect(await delivery().runOnce()).toBe(false);
         expect(await outbox().countDocuments({ state: 'PENDING' })).toBe(2);
+      });
+
+      describe('Notification center backend journeys', () => {
+        const contextQuery =
+          'query($id:ID!){notificationContext(id:$id){targetKind checkedAt notification{_id type message readAt} appointment{_id status version source startsAt doctorId clinicId} slot{doctorId clinicId specialty startsAt clinicTimezone state} waitlist{_id specialty status appointmentId}}}';
+        const context = (id: string, owner = patient) =>
+          clinicGraphql(contextQuery, { id }, owner);
+        const detail = (id: string, owner = patient) =>
+          clinicGraphql(
+            'query($id:ID!){getNotification(id:$id){_id type message readAt}}',
+            { id },
+            owner,
+          );
+        const read = (id: string, owner = patient) =>
+          clinicGraphql(
+            'mutation($id:ID!){markNotificationRead(id:$id){_id readAt}}',
+            { id },
+            owner,
+          );
+        const promote = async () => {
+          const booking = await occupied();
+          const joined = (await join()).body.data.joinWaitlist;
+          await cancel(booking._id, token2);
+          jest
+            .spyOn(app.get(AppointmentPromotionService), 'isEnabled')
+            .mockReturnValue(true);
+          await app.get(AppointmentPromotionService).runOnce();
+          const appointment = (await connection
+            .db!.collection('appointments')
+            .findOne({ source: 'WAITLIST' }))!;
+          return { joined, appointment };
+        };
+        const freshDelivery = () => {
+          const worker = new NotificationService(
+            app.get(BookingPolicyService),
+            connection,
+            connection.model<InferSchemaType<typeof NotificationOutboxSchema>>(
+              NOTIFICATION_OUTBOX,
+            ),
+            connection.model<InferSchemaType<typeof NotificationSchema>>(
+              NOTIFICATION,
+            ),
+          );
+          jest.spyOn(worker, 'isEnabled').mockReturnValue(true);
+          return worker;
+        };
+
+        it('delivers a promotion to the patient API and resolves its current appointment without auto-reading the notice', async () => {
+          const { appointment } = await promote();
+          await flush(delivery());
+          const notices = (await mine()).body.data.myNotifications;
+          const notice = notices.entries.find(
+            (row: { type: string }) => row.type === 'WAITLIST_BOOKING_CREATED',
+          );
+          expect(notice).toBeDefined();
+          expect(notices.unreadCount).toBe(2);
+          const current = (await context(notice._id)).body;
+          expect(current.errors).toBeUndefined();
+          expect(current.data.notificationContext).toMatchObject({
+            targetKind: 'APPOINTMENT',
+            notification: { readAt: null },
+            appointment: {
+              _id: String(appointment._id),
+              status: 'CONFIRMED',
+              source: 'WAITLIST',
+            },
+          });
+          expect(
+            (await detail(notice._id)).body.data.getNotification.readAt,
+          ).toBeNull();
+          const marked = (await read(notice._id)).body.data
+            .markNotificationRead;
+          expect(marked.readAt).not.toBeNull();
+          expect(
+            (await read(notice._id)).body.data.markNotificationRead.readAt,
+          ).toBe(marked.readAt);
+          await clinicGraphql(
+            cancelQuery,
+            { id: String(appointment._id) },
+            patient,
+          );
+          expect(
+            (await context(notice._id)).body.data.notificationContext
+              .appointment.status,
+          ).toBe('CANCELED');
+          expect(
+            await connection
+              .db!.collection('appointments')
+              .countDocuments({ source: 'WAITLIST' }),
+          ).toBe(1);
+        });
+
+        it('resolves a late manual alert as occupied without disclosing the new patient or appointment', async () => {
+          const { booking } = await setup();
+          await manualOpening(booking);
+          const other = await clinicGraphql(mutation, { input }, patient2);
+          expect(other.body.errors).toBeUndefined();
+          await flush(lifecycle());
+          await flush(delivery());
+          const notice = (await inbox().findOne({
+            patientId: patient,
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }))!;
+          const result = (await context(String(notice._id))).body;
+          expect(result.errors).toBeUndefined();
+          expect(result.data.notificationContext).toMatchObject({
+            targetKind: 'SLOT',
+            notification: { type: 'SLOT_OPEN_FOR_MANUAL_BOOKING' },
+            slot: { state: 'OCCUPIED', specialty: 'CARDIOLOGIST' },
+            waitlist: { status: 'EXPIRED' },
+          });
+          expect(result.data.notificationContext.appointment).toBeNull();
+          expect(
+            result.data.notificationContext.notification.message,
+          ).toContain('not reserved');
+          expect(JSON.stringify(result)).not.toContain(
+            other.body.data.bookAppointment._id,
+          );
+          expect(JSON.stringify(result)).not.toContain(String(patient2));
+        });
+
+        it('resolves current availability, schedule closure and past slots instead of trusting the old alert', async () => {
+          const { booking } = await setup();
+          await manualOpening(booking);
+          await flush(delivery());
+          const notice = (await inbox().findOne({
+            patientId: patient,
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }))!;
+          const available = (await context(String(notice._id))).body.data
+            .notificationContext;
+          expect(available.targetKind).toBe('SLOT');
+          expect(available.slot).toMatchObject({
+            state: 'AVAILABLE',
+            clinicTimezone: 'Asia/Seoul',
+            startsAt: start.toISOString(),
+          });
+          await connection
+            .db!.collection('doctor_availability')
+            .deleteMany({ doctorId: doctor });
+          const closed = (await context(String(notice._id))).body.data
+            .notificationContext;
+          expect(closed).toMatchObject({
+            targetKind: 'UNAVAILABLE',
+            slot: null,
+          });
+          freezeTime(+start);
+          const past = (await context(String(notice._id))).body.data
+            .notificationContext;
+          expect(past).toMatchObject({ targetKind: 'UNAVAILABLE', slot: null });
+        });
+
+        it('resolves the target on its clinic-local date across a UTC day boundary', async () => {
+          const { booking } = await setup();
+          await manualOpening(booking);
+          await flush(delivery());
+          await connection
+            .db!.collection('members')
+            .updateOne(
+              { _id: clinic },
+              { $set: { clinicTimezone: 'America/Anchorage' } },
+            );
+          const notice = (await inbox().findOne({
+            patientId: patient,
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }))!;
+          const current = (await context(String(notice._id))).body.data
+            .notificationContext;
+          expect(current).toMatchObject({
+            targetKind: 'SLOT',
+            slot: {
+              state: 'AVAILABLE',
+              clinicTimezone: 'America/Anchorage',
+              startsAt: start.toISOString(),
+            },
+          });
+        });
+
+        it('keeps infrastructure errors distinct from a known unavailable target', async () => {
+          const { booking } = await setup();
+          await manualOpening(booking);
+          await flush(delivery());
+          const notice = (await inbox().findOne({
+            patientId: patient,
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }))!;
+          jest
+            .spyOn(app.get(AppointmentScheduleService), 'getSlotForTarget')
+            .mockRejectedValueOnce(
+              new BookingUnavailableException('BOOKING_UNAVAILABLE'),
+            );
+          expect(
+            (await context(String(notice._id))).body.errors[0].extensions.code,
+          ).toBe('SERVICE_UNAVAILABLE');
+          expect(
+            (await context(String(notice._id))).body.data.notificationContext
+              .slot.state,
+          ).toBe('AVAILABLE');
+        });
+
+        it('filters unread notices with stable cursors even after the cursor notice is read', async () => {
+          const { booking } = await setup();
+          await manualOpening(booking);
+          await flush(delivery());
+          const first = (await mine(patient, { limit: 1, unreadOnly: true }))
+            .body.data.myNotifications;
+          expect(first.unreadCount).toBe(2);
+          await read(first.entries[0]._id);
+          const next = (
+            await mine(patient, {
+              limit: 1,
+              after: first.nextCursor,
+              unreadOnly: true,
+            })
+          ).body.data.myNotifications;
+          expect(next.entries).toHaveLength(1);
+          expect(next.entries[0]._id).not.toBe(first.entries[0]._id);
+          expect(next.unreadCount).toBe(1);
+          expect(
+            (await mine(patient, { unreadOnly: true })).body.data
+              .myNotifications.entries,
+          ).toHaveLength(1);
+          expect(
+            (await mine(patient, { unreadOnly: false })).body.data
+              .myNotifications.entries,
+          ).toHaveLength(2);
+        });
+
+        it('retries a required booking notice after an outage while booking/enrollment are paused', async () => {
+          const { appointment } = await promote();
+          await outbox().updateMany(
+            { type: { $ne: 'WAITLIST_BOOKING_CREATED' } },
+            { $set: { state: 'DELIVERED' } },
+          );
+          jest
+            .spyOn(connection.model(NOTIFICATION), 'updateOne')
+            .mockRejectedValueOnce(new Error('private provider failure'));
+          await delivery().runOnce();
+          expect(
+            await inbox().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+          ).toBe(0);
+          expect(
+            (await connection
+              .db!.collection('appointments')
+              .findOne({ _id: appointment._id }))!.status,
+          ).toBe('CONFIRMED');
+          process.env.BOOKING_POLICY_V2_ENABLED = 'false';
+          process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
+          process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
+          const pending = (await outbox().findOne({
+            type: 'WAITLIST_BOOKING_CREATED',
+          }))!;
+          expect(pending).toMatchObject({
+            state: 'PENDING',
+            lastFailureCode: 'IN_APP_DELIVERY_RETRY',
+          });
+          expect(JSON.stringify(pending)).not.toContain(
+            'private provider failure',
+          );
+          await outbox().updateOne(
+            { _id: pending._id },
+            { $set: { nextAttemptAt: new Date(Date.now() - 1) } },
+          );
+          await freshDelivery().runOnce();
+          await outbox().updateOne(
+            { _id: pending._id },
+            { $set: { state: 'PENDING' } },
+          );
+          await Promise.all([delivery().runOnce(), freshDelivery().runOnce()]);
+          expect(
+            await inbox().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+          ).toBe(1);
+          expect(
+            await connection
+              .db!.collection('appointments')
+              .countDocuments({ source: 'WAITLIST' }),
+          ).toBe(1);
+          expect(
+            (await detail(String(pending._id))).body.data.getNotification.type,
+          ).toBe('WAITLIST_BOOKING_CREATED');
+        });
+
+        it('fences a stale delivery owner after expired-lease takeover', async () => {
+          await promote();
+          await outbox().updateMany(
+            { type: { $ne: 'WAITLIST_BOOKING_CREATED' } },
+            { $set: { state: 'DELIVERED' } },
+          );
+          let enter!: () => void, resume!: () => void;
+          const entered = new Promise<void>((resolve) => {
+            enter = resolve;
+          });
+          const resumed = new Promise<void>((resolve) => {
+            resume = resolve;
+          });
+          const startSession = connection.startSession.bind(connection);
+          jest
+            .spyOn(connection, 'startSession')
+            .mockImplementationOnce(async (...args) => {
+              enter();
+              await resumed;
+              return startSession(...args);
+            });
+          const stale = delivery().runOnce();
+          await entered;
+          try {
+            await outbox().updateOne(
+              { type: 'WAITLIST_BOOKING_CREATED' },
+              { $set: { leaseUntil: new Date(Date.now() - 1) } },
+            );
+            await freshDelivery().runOnce();
+          } finally {
+            resume();
+          }
+          await stale;
+          expect(
+            await inbox().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+          ).toBe(1);
+          expect(
+            (await outbox().findOne({ type: 'WAITLIST_BOOKING_CREATED' }))!,
+          ).toMatchObject({ state: 'DELIVERED', attempts: 2 });
+        });
+
+        it('resolves joined/expired records and safely handles a missing retained target', async () => {
+          const { first } = await setup();
+          await flush(delivery());
+          const notice = (await inbox().findOne({
+            patientId: patient,
+            type: 'WAITLIST_JOINED',
+          }))!;
+          expect(
+            (await context(String(notice._id))).body.data.notificationContext,
+          ).toMatchObject({
+            targetKind: 'WAITLIST',
+            waitlist: {
+              _id: first._id,
+              status: 'ACTIVE',
+              specialty: 'CARDIOLOGIST',
+            },
+          });
+          freezeTime(+start);
+          await flush(lifecycle());
+          await flush(delivery());
+          const expired = (await inbox().findOne({
+            patientId: patient,
+            type: 'WAITLIST_EXPIRED',
+          }))!;
+          expect(
+            (await context(String(expired._id))).body.data.notificationContext
+              .waitlist.status,
+          ).toBe('EXPIRED');
+          await connection
+            .db!.collection('waitlists')
+            .deleteOne({ _id: new Types.ObjectId(first._id) });
+          expect(
+            (await context(String(notice._id))).body.data.notificationContext
+              .targetKind,
+          ).toBe('UNAVAILABLE');
+        });
+
+        it('rejects foreign, malformed, anonymous, staff and revoked detail/context reads', async () => {
+          await occupied();
+          await join();
+          await flush(delivery());
+          const notice = (await inbox().findOne({ patientId: patient }))!;
+          const key = String(notice._id);
+          expect(
+            (await detail(key, patient2)).body.errors[0].extensions.code,
+          ).toBe('NOT_FOUND');
+          expect(
+            (await context(key, patient2)).body.errors[0].extensions.code,
+          ).toBe('NOT_FOUND');
+          expect(
+            (await context(key, clinic)).body.errors[0].extensions.code,
+          ).toBe('FORBIDDEN');
+          expect(
+            (await context(key, doctor)).body.errors[0].extensions.code,
+          ).toBe('FORBIDDEN');
+          expect(
+            (await context('invalid')).body.errors[0].extensions.code,
+          ).toBe('BAD_USER_INPUT');
+          const anonymous = await request(app.getHttpServer())
+            .post('/graphql')
+            .send({ query: contextQuery, variables: { id: key } });
+          expect(anonymous.body.errors[0].extensions.code).toBe(
+            'UNAUTHENTICATED',
+          );
+          await connection
+            .db!.collection('members')
+            .updateOne({ _id: patient }, { $set: { authVersion: 1 } });
+          const revoked = await request(app.getHttpServer())
+            .post('/graphql')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ query: contextQuery, variables: { id: key } });
+          expect(revoked.body.errors[0].extensions.code).toBe(
+            'UNAUTHENTICATED',
+          );
+          expect((await inbox().findOne({ _id: key }))!.readAt).toBeUndefined();
+        });
       });
     });
   });

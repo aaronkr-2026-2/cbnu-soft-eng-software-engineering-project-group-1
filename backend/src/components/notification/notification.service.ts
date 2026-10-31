@@ -158,7 +158,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
       throw new ServiceUnavailableException('Notifications unavailable');
     return this.inbox;
   }
-  private view(row: object & { type: string }) {
+  private view<T extends { type: string }>(row: T) {
     return {
       ...row,
       message:
@@ -188,6 +188,7 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     const rows = await model
       .find({
         patientId: member._id,
+        ...(input.unreadOnly ? { readAt: { $exists: false } } : {}),
         ...(cursor
           ? {
               $or: [
@@ -210,6 +211,18 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
         readAt: { $exists: false },
       }),
     };
+  }
+  async get(id: string, member: MemberPrincipal) {
+    const model = this.patient(member);
+    if (!/^[a-f\d]{64}$/.test(id))
+      throw new BadRequestException('Invalid notification ID');
+    const row = await model
+      .findOne({ _id: id, patientId: member._id })
+      .select(projection)
+      .lean()
+      .exec();
+    if (!row) throw new NotFoundException('Notification not found');
+    return this.view(row);
   }
   async read(id: string, member: MemberPrincipal) {
     const model = this.patient(member);

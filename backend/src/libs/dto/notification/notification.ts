@@ -6,9 +6,20 @@ import {
   Int,
   ObjectType,
 } from '@nestjs/graphql';
-import { IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  Matches,
+  Max,
+  Min,
+} from 'class-validator';
 @InputType()
 export class MyNotificationsInput {
+  @Field(() => Boolean, { nullable: true })
+  @IsOptional()
+  @IsBoolean()
+  unreadOnly?: boolean;
   @Field({ nullable: true })
   @IsOptional()
   @Matches(/^[a-f\d]{64}$/)

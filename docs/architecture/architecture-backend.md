@@ -51,6 +51,7 @@ flowchart TD
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
+  NoticeTarget[AppointmentNotificationService]
   Notifications[NotificationService - in-app delivery and private inbox]
   Lifecycle[AppointmentWaitlistLifecycleService]
   Calendar[AppointmentCalendarService - snapshot polling]
@@ -88,6 +89,11 @@ flowchart TD
   GQL -->|Scoped entry reads and counts| Waitlist
   GQL -->|Authorized calendar window and revision polling| Calendar
   Calendar -->|Read-only MongoDB snapshot: own appointments and timezone metadata| Models
+  GQL -->|Owned notification target query| NoticeTarget
+  NoticeTarget -->|Owned notice| Notifications
+  NoticeTarget -->|Own current appointment| Booking
+  NoticeTarget -->|Current owned entry| Waitlist
+  NoticeTarget -->|Current exact-slot availability| Schedule
   GQL -->|Own inbox/read or operator aggregate status| Notifications
   Waitlist -->|Transactional notification intents| Notifications
   Notifications -->|Fenced delivery transaction and scoped inbox queries| Models
@@ -126,6 +132,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
+| GraphQL | `getNotification`, `notificationContext`, `myNotifications`, `markNotificationRead` | Guarded patient-owned inbox/current-target reads and read state; separate ADMIN delivery-status counts |
 | GraphQL | `myCalendar`, `calendarUpdates` | Current clinic/doctor scope; consistent snapshots and revision polling through AppointmentCalendarService |
 | GraphQL | `createClinicAppointment`, `cancelAppointment`, `setAppointmentOutcome` | Guarded actor/participant permissions; shared AppointmentService rules and transactional outbox |
 | GraphQL | `getAvailableSlots`, `setDoctorWeeklyHours`, `setDoctorDateOverrides` | Public bounded slot reads; own-clinic guarded schedule writes |
@@ -467,6 +474,36 @@ timezone context, cursor revisions and oversized-window errors. No frontend, liv
 proxy/hosting, browser recovery or production throughput verification is implied.
 Existing onboarding/schedule/staff mutations supply the other backend contracts;
 frontend workspace/calendar controls remain deferred per user instruction.
+
+### Notification target resolution and delivery journeys (Step 11 backend only)
+
+NotificationService now exposes getNotification and unread-only list filtering;
+its generic positive-view mapper preserves the selected record type. Read/detail
+lookups remain owner-scoped, with separate idempotent markNotificationRead.
+AppointmentNotificationResolver/Service orchestrate notification ownership, existing
+appointment/waitlist services and the shared exact-slot schedule lookup. The
+orchestrator lives in AppointmentModule, which imports NotificationModule's public
+interface; NotificationModule does not import appointment services, avoiding a cycle.
+DTOs and target-kind enum remain under libs/dto/notification and libs/enum.
+
+notificationContext accepts only an owned notification ID. Booking notices resolve
+the current owned appointment status; manual notices resolve the retained owned
+waitlist reference's specialty and clinic-local slot through the existing public
+slot rules. Known absent/closed/past targets return UNAVAILABLE, while infrastructure
+errors propagate. A late opening can return SLOT/OCCUPIED without revealing the
+occupant. Historical text never becomes proof of a live reservation. checkedAt is
+an advisory evaluation time, not a snapshot/booking guarantee. Join/expiry notices
+return current waitlist state. None of these queries marks a notification read.
+
+The existing IN_APP outbox/inbox pipeline is tested end to end through real HTTP
+and MongoDB: promotion delivery, current cancellation state, delayed manual alerts,
+UTC/local-day boundaries, unread cursors, retry during paused creation, replay and
+fresh-worker expired-lease takeover/stale-owner fencing. Required booking intents
+remain durable, and notification retry never recreates an appointment. No channel
+preference API suppresses required delivery; unread filtering affects reads only.
+External provider adapters remain unconfigured. Frontend center/link verification
+and promotion activation remain deferred by the backend-first scope. No application
+DB, feature flags, hosting or frontend files were changed.
 
 ## Shared services and external integrations
 

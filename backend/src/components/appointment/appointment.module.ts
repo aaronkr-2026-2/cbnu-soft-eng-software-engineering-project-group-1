@@ -1,3 +1,6 @@
+import { NotificationModule } from '../notification/notification.module.js';
+import { AppointmentNotificationService } from './appointment-notification.service.js';
+import { AppointmentNotificationResolver } from './appointment-notification.resolver.js';
 import { AppointmentCalendarService } from './appointment-calendar.service.js';
 import { AppointmentCalendarResolver } from './appointment-calendar.resolver.js';
 import { AppointmentWaitlistLifecycleService } from './appointment-waitlist-lifecycle.service.js';
@@ -48,6 +51,7 @@ const mongoUri = getMongoUri();
     MemberModule,
     BookingModule,
     WaitlistModule,
+    NotificationModule,
     ...(mongoUri
       ? [
           MongooseModule.forFeature([
@@ -71,6 +75,8 @@ const mongoUri = getMongoUri();
   controllers: [AppointmentController],
   providers: [
     AppointmentService,
+    AppointmentNotificationService,
+    AppointmentNotificationResolver,
     AppointmentCalendarService,
     AppointmentCalendarResolver,
     AppointmentPromotionService,
