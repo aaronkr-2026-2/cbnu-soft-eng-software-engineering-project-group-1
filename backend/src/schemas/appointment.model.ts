@@ -104,5 +104,6 @@ AppointmentSchema.index(
 );
 AppointmentSchema.index({ clinicId: 1, startsAt: 1 });
 AppointmentSchema.index({ patientId: 1, startsAt: -1 });
+AppointmentSchema.index({ patientId: 1, startsAt: 1, _id: 1 });
 
 export default AppointmentSchema;

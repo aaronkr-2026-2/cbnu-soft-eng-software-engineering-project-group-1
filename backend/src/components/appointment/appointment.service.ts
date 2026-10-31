@@ -55,6 +55,7 @@ import {
 } from '../../libs/enum/appointment.enum.js';
 import type { BookAppointmentDto } from '../../libs/dto/appointment/book-appointment.dto.js';
 import type { ClinicAppointmentInput } from '../../libs/dto/appointment/clinic-appointment.input.js';
+import type { MyAppointmentsInput } from '../../libs/dto/appointment/my-appointments.input.js';
 import {
   APPOINTMENT_EVENT,
   AppointmentEventSchema,
@@ -912,6 +913,87 @@ export class AppointmentService {
     return {
       ...changed,
       source: changed.source ?? AppointmentSource.LEGACY,
+    };
+  }
+
+  async myAppointments(input: MyAppointmentsInput, member: MemberPrincipal) {
+    if (member.memberType !== MemberType.USER)
+      throw new ForbiddenException('Only patients can list their appointments');
+    if (!this.appointments)
+      throw new ServiceUnavailableException('Appointments are unavailable');
+    const after = input.after ?? undefined;
+    const status = input.status ?? undefined;
+    const from = input.from ?? undefined;
+    const to = input.to ?? undefined;
+    const limit = input.limit ?? 20;
+    if (
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > 100 ||
+      (after !== undefined && !/^[a-f\d]{24}$/i.test(after)) ||
+      (status !== undefined &&
+        !Object.values(AppointmentStatus).includes(status)) ||
+      [from, to].some(
+        (value) =>
+          value !== undefined &&
+          (!(value instanceof Date) || !Number.isFinite(+value)),
+      ) ||
+      (from && to && from >= to)
+    )
+      throw new BadRequestException(
+        'Invalid appointment pagination or filters',
+      );
+
+    // Cursor lookup is also patient scoped: foreign IDs cannot probe dates.
+    const cursor = after
+      ? await this.appointments
+          .findOne({
+            _id: new Types.ObjectId(after),
+            patientId: member._id,
+          })
+          .select({ startsAt: 1 })
+          .lean()
+          .exec()
+      : null;
+    if (after && !cursor)
+      throw new BadRequestException('Invalid appointment cursor');
+    const rows = await this.appointments
+      .find({
+        patientId: member._id,
+        ...(status ? { status: status } : {}),
+        ...(from || to
+          ? {
+              startsAt: {
+                ...(from ? { $gte: from } : {}),
+                ...(to ? { $lt: to } : {}),
+              },
+            }
+          : {}),
+        ...(cursor
+          ? {
+              $or: [
+                { startsAt: { $gt: cursor.startsAt } },
+                {
+                  startsAt: cursor.startsAt,
+                  _id: { $gt: new Types.ObjectId(after!) },
+                },
+              ],
+            }
+          : {}),
+      })
+      .select(appointmentFields)
+      .sort({ startsAt: 1, _id: 1 })
+      .limit(limit + 1)
+      .lean()
+      .exec();
+    return {
+      entries: rows
+        .slice(0, limit)
+        .map((row) => ({
+          ...row,
+          source: row.source ?? AppointmentSource.LEGACY,
+        })),
+      nextCursor: rows.length > limit ? String(rows[limit - 1]._id) : null,
     };
   }
 

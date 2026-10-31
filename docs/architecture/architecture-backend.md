@@ -122,7 +122,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
-| GraphQL | `bookAppointment(input)`, `getAppointment(id)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
+| GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
 | GraphQL | `createClinicAppointment`, `cancelAppointment`, `setAppointmentOutcome` | Guarded actor/participant permissions; shared AppointmentService rules and transactional outbox |
 | GraphQL | `getAvailableSlots`, `setDoctorWeeklyHours`, `setDoctorDateOverrides` | Public bounded slot reads; own-clinic guarded schedule writes |
 | GraphQL | `myClinicDoctors`, `reviewDoctorAffiliation` | Own-clinic affiliation discovery/review through MemberService |
@@ -401,6 +401,28 @@ deduplication and retry are tested against real MongoDB/HTTP. Browser inbox/link
 integration is Step 11; external email/SMS adapters remain unconfigured. Promotion's
 release gate remains closed until the patient-facing flow is verified. No real
 application DB, runtime activation or deployment changed.
+
+### Patient appointment list (Step 9 backend only, October 31)
+
+AppointmentResolver exposes guarded myAppointments with MyAppointmentsInput and
+AppointmentPage DTOs. AppointmentService derives patientId from the USER principal,
+scopes both cursor lookup and result queries to that patient, reuses the appointment
+projection and normalizes missing historical source to LEGACY. It accepts no target
+patient identity. MemberAccessGuard continues to verify current role/status/token
+version; GraphQL responses remain no-store.
+
+The query caps pages at100 (default20), orders startsAt then _id ascending, and uses
+an owned appointment ID as the cursor. Status and inclusive-from/exclusive-to UTC
+filters support upcoming/history views. Time ties use _id to avoid skipped records;
+status changes on the anchor do not invalidate an owned cursor. The new compound
+patientId/startsAt/_id index supports the ordering. Reads do not require booking's
+creation flag or migration marker, matching participant lookup behavior.
+
+This supplies the missing backend list for the patient journey. Existing auth/refresh,
+slots, booking, waitlist and replacement APIs remain unchanged. Per user direction,
+frontend work for Steps9–12 is deferred; no Next.js/Vite files or session behavior
+are changed. Browser integration remains unverified and the promotion release gate
+remains closed. The next implementation scope is Step10's backend portion.
 
 ## Shared services and external integrations
 

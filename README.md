@@ -57,6 +57,8 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
   Focused tests use mocked persistence; live database integration is unverified.
 - **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
   for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
+- **My Appointments API:** Current patients can list their own appointments with
+  bounded cursor pagination and optional status/UTC date filters. Screens remain pending.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
   creating an immediately CONFIRMED, specialty-aware 30-minute appointment. Writes
   require policy V2 activation and completed migration; disabled by default.
@@ -998,6 +1000,49 @@ available slots also open manually outside the cutoff. Release modes are snapsho
 workers must recheck the current generation, occupancy, schedule and actual
 allocation-time cutoff.
 
+## My Appointments (GraphQL, Step 9 backend)
+
+`myAppointments` returns only the current patient's appointments. It requires a
+current USER Bearer token, accepts no patient ID, and remains readable while
+booking is paused. The response uses the same allowlisted fields and legacy source
+fallback as getAppointment; it is marked Cache-Control: no-store.
+
+```graphql
+query MyAppointments($input: MyAppointmentsInput!) {
+  myAppointments(input: $input) {
+    entries {
+      _id doctorId clinicId specialty source version
+      startsAt endsAt durationMinutes status createdAt updatedAt
+    }
+    nextCursor
+  }
+}
+```
+
+Input is optional (defaults to `{}`). Supported fields:
+
+| Field | Behavior |
+| --- | --- |
+| limit | Default 20; integer from 1 to 100 |
+| after | Pass the previous nextCursor; it must reference an appointment owned by this patient |
+| status | Optional AppointmentStatus filter |
+| from | Optional inclusive UTC start-time lower bound (DateTime) |
+| to | Optional exclusive UTC start-time upper bound (DateTime); must be after from |
+
+Results are ordered by startsAt, then ID, ascending. Without date/status filters,
+history and future appointments are included; an upcoming view can supply from.
+A null nextCursor means the final page. Invalid or foreign cursors produce the same
+generic BAD_USER_INPUT response. An owned cursor remains usable if that appointment
+changes status; pages read current state and are not a frozen snapshot. Refetch the
+first page after changing filters or after an uncertain booking/replacement result.
+
+This returns a page object, not an appointment array. The postponed Next.js screen
+must use entries/nextCursor when it is implemented. Existing backend login/refresh,
+booking, lookup, slots, waitlist and replacement operations supply the other Step 9
+contracts. Browser session persistence and all screens remain frontend work.
+Per the October 31 scope change, remaining steps are being completed backend first;
+this change does not implement any Next.js or Vite behavior.
+
 ## Waitlist enrollment and replacement (GraphQL)
 
 Step 6 adds authenticated patient operations. Both new flags default to false:
@@ -1050,8 +1095,9 @@ Ordinary booking of one's matching waitlist slot fulfills that entry atomically.
 It cannot jump a held queue outside the cutoff. Withdrawal of the last active
 waiter releases the hold; withdrawing a fulfilled entry never cancels its appointment.
 `automaticBookingEnabled` remains false: the promotion worker is implemented but
-its release gate requires verified patient-visible notification delivery. automaticBookingEligible reflects the current cutoff, while persisted
-ACTIVE-to-NOTIFICATION_ONLY/EXPIRED transitions await those workers. Existing active
+its release gate awaits verification of the patient-facing flow. automaticBookingEligible
+reflects the current cutoff; the Step 8 lifecycle worker persists
+NOTIFICATION_ONLY/EXPIRED transitions when enabled. Existing active
 entries remain commitments until explicitly closed. Clients must refetch after an
 uncertain/busy response before retrying or confirming a replacement.
 

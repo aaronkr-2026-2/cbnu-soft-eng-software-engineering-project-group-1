@@ -1442,6 +1442,234 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     ).toBe('COMPLETED');
   });
 
+  describe('Patient appointment list', () => {
+    const listQuery =
+      'query($input: MyAppointmentsInput!) { myAppointments(input: $input) { entries { _id patientId doctorId clinicId specialty source version status startsAt endsAt durationMinutes createdAt updatedAt } nextCursor } }';
+    const list = (input = {}, bearer = token) =>
+      request(app.getHttpServer())
+        .post('/graphql')
+        .set('Authorization', `Bearer ${bearer}`)
+        .send({ query: listQuery, variables: { input } });
+    const history = (changes: Record<string, unknown> = {}) =>
+      legacy({
+        status: 'CANCELED',
+        createdAt: at(-1440),
+        updatedAt: at(-1440),
+        ...changes,
+      });
+
+    it('returns an empty page by default with no shared caching', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/graphql')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ query: '{ myAppointments { entries { _id } nextCursor } }' });
+      expect(response.body.errors).toBeUndefined();
+      expect(response.body.data.myAppointments).toEqual({
+        entries: [],
+        nextCursor: null,
+      });
+      expect(response.headers['cache-control']).toBe('no-store');
+    });
+
+    it('paginates in appointment-time/ID order, including ties, with patient isolation', async () => {
+      const first = new Types.ObjectId('100000000000000000000001'),
+        second = new Types.ObjectId('100000000000000000000002'),
+        third = new Types.ObjectId('100000000000000000000003');
+      await connection
+        .db!.collection('appointments')
+        .insertMany([
+          history({ _id: third, startsAt: at(60), endsAt: at(90) }),
+          history({ _id: second }),
+          history({ _id: first }),
+          history({ patientId: patient2 }),
+        ]);
+      const ids: string[] = [];
+      let after: string | null = null;
+      for (let n = 0; n < 3; n++) {
+        const result = (await list({ limit: 1, ...(after ? { after } : {}) }))
+          .body;
+        expect(result.errors).toBeUndefined();
+        const page: {
+          entries: Array<{ _id: string; patientId: string }>;
+          nextCursor: string | null;
+        } = result.data.myAppointments;
+        ids.push(page.entries[0]._id);
+        expect(page.entries[0].patientId).toBe(String(patient));
+        after = page.nextCursor;
+      }
+      expect(ids).toEqual([String(first), String(second), String(third)]);
+      expect(after).toBeNull();
+      expect(
+        (await list({ after: String(third) })).body.data.myAppointments,
+      ).toEqual({ entries: [], nextCursor: null });
+    });
+
+    it('bounds page sizes at the default20 and maximum100', async () => {
+      await connection
+        .db!.collection('appointments')
+        .insertMany(
+          Array.from({ length: 101 }, (_, n) =>
+            history({ startsAt: at(n * 30), endsAt: at(n * 30 + 30) }),
+          ),
+        );
+      const standard = (await list()).body.data.myAppointments;
+      const maximum = (await list({ limit: 100 })).body.data.myAppointments;
+      expect(standard.entries).toHaveLength(20);
+      expect(standard.nextCursor).toBe(standard.entries[19]._id);
+      expect(maximum.entries).toHaveLength(100);
+      expect(maximum.nextCursor).toBe(maximum.entries[99]._id);
+    });
+
+    it('filters status and UTC start ranges with inclusive from and exclusive to', async () => {
+      const early = history(),
+        middle = history({
+          status: 'COMPLETED',
+          startsAt: at(60),
+          endsAt: at(90),
+        }),
+        late = history({ startsAt: at(120), endsAt: at(150) });
+      await connection
+        .db!.collection('appointments')
+        .insertMany([late, middle, early]);
+      const window = {
+        from: '2035-01-01T10:00:00+09:00',
+        to: '2035-01-01T12:00:00+09:00',
+      };
+      expect(
+        (await list(window)).body.data.myAppointments.entries.map(
+          (row: { _id: string }) => row._id,
+        ),
+      ).toEqual([String(early._id), String(middle._id)]);
+      expect(
+        (
+          await list({ ...window, status: 'CANCELED' })
+        ).body.data.myAppointments.entries.map(
+          (row: { _id: string }) => row._id,
+        ),
+      ).toEqual([String(early._id)]);
+      expect(
+        (
+          await list({ from: at(120).toISOString() })
+        ).body.data.myAppointments.entries.map(
+          (row: { _id: string }) => row._id,
+        ),
+      ).toEqual([String(late._id)]);
+      expect(
+        (await list({ to: start.toISOString() })).body.data.myAppointments
+          .entries,
+      ).toEqual([]);
+    });
+
+    it('reads historical legacy metadata while booking is paused, and keeps persistence-only fields private', async () => {
+      await connection
+        .db!.collection('appointments')
+        .insertOne(history({ internalOnly: 'private-provider-data', __v: 17 }));
+      process.env.BOOKING_POLICY_V2_ENABLED = 'false';
+      await connection.db!.collection('booking_policy').deleteMany({});
+      const response = await list({
+        after: null,
+        from: null,
+        to: null,
+        status: null,
+      });
+      expect(response.body.errors).toBeUndefined();
+      expect(response.body.data.myAppointments.entries[0]).toMatchObject({
+        source: 'LEGACY',
+        specialty: null,
+        version: null,
+        status: 'CANCELED',
+      });
+      const raw = await app
+        .get(AppointmentService)
+        .myAppointments(
+          { limit: 20 },
+          { _id: patient, memberType: MemberType.USER, authVersion: 0 },
+        );
+      expect(raw.entries[0]).not.toHaveProperty('internalOnly');
+      expect(raw.entries[0]).not.toHaveProperty('__v');
+      expect(JSON.stringify(response.body)).not.toContain(
+        'private-provider-data',
+      );
+    });
+
+    it('uses patient-scoped cursors and does not accept a target patient ID', async () => {
+      const foreign = history({ patientId: patient2 });
+      await connection.db!.collection('appointments').insertOne(foreign);
+      const foreignCursor = await list({ after: String(foreign._id) });
+      const missing = await list({ after: String(id()) });
+      expect(foreignCursor.body.errors[0]).toEqual(missing.body.errors[0]);
+      expect(foreignCursor.body.errors[0].extensions.code).toBe(
+        'BAD_USER_INPUT',
+      );
+      expect(
+        (await list({ patientId: String(patient2) })).body.errors,
+      ).toBeDefined();
+      expect(
+        (await list({}, token2)).body.data.myAppointments.entries,
+      ).toHaveLength(1);
+      expect((await list()).body.data.myAppointments.entries).toHaveLength(0);
+    });
+
+    it('continues paging after the previous confirmed appointment is cancelled', async () => {
+      const first = (await rest()).body;
+      const second = (await rest({ startsAt: at(1440).toISOString() })).body;
+      const page = (await list({ limit: 1, status: 'CONFIRMED' })).body.data
+        .myAppointments;
+      expect(page.nextCursor).toBe(first._id);
+      await cancel(first._id);
+      const next = (
+        await list({ limit: 1, status: 'CONFIRMED', after: page.nextCursor })
+      ).body.data.myAppointments;
+      expect(next.entries.map((row: { _id: string }) => row._id)).toEqual([
+        second._id,
+      ]);
+      expect(next.nextCursor).toBeNull();
+    });
+
+    it.each([
+      { limit: 0 },
+      { limit: 101 },
+      { limit: 1.5 },
+      { after: 'invalid' },
+      { status: 'INVALID' },
+      { from: 'not-a-date' },
+      { from: start.toISOString(), to: start.toISOString() },
+      { from: at(60).toISOString(), to: start.toISOString() },
+    ])('rejects invalid pagination/filters %j', async (input) => {
+      expect((await list(input)).body.errors).toBeDefined();
+    });
+
+    it.each([clinic, doctor])(
+      'does not turn a staff or doctor session into a patient list (%s)',
+      async (owner) => {
+        const result = await clinicGraphql(listQuery, { input: {} }, owner);
+        expect(result.body.errors[0].extensions.code).toBe('FORBIDDEN');
+      },
+    );
+
+    it('rejects anonymous, inactive and revoked sessions', async () => {
+      const anonymous = await request(app.getHttpServer())
+        .post('/graphql')
+        .send({ query: listQuery, variables: { input: {} } });
+      expect(anonymous.body.errors[0].extensions.code).toBe('UNAUTHENTICATED');
+      await connection
+        .db!.collection('members')
+        .updateOne({ _id: patient }, { $set: { memberStatus: 'SUSPENDED' } });
+      expect((await list()).body.errors[0].extensions.code).toBe(
+        'UNAUTHENTICATED',
+      );
+      await connection
+        .db!.collection('members')
+        .updateOne(
+          { _id: patient },
+          { $set: { memberStatus: 'ACTIVE', authVersion: 1 } },
+        );
+      expect((await list()).body.errors[0].extensions.code).toBe(
+        'UNAUTHENTICATED',
+      );
+    });
+  });
+
   describe('Waitlist enrollment and explicit replacements', () => {
     const entryFields =
       '_id patientId doctorId clinicId specialty startsAt endsAt status version automaticBookingConsent consentPolicyVersion queueSequence queuePosition automaticBookingEligible automaticBookingEnabled appointmentId';
