@@ -71,6 +71,9 @@ in `frontend/`; see its [README](frontend/README.md) for frontend instructions.
 - **Dynamic appointment slots:** Public GraphQL queries generate clinic-local
   30-minute slots for up to 31 days, showing occupancy and allocation holds without
   patient details. Waitlist policy eligibility and flag-controlled enrollment are shown.
+- **In-app notifications:** Durable waitlist notices, private paginated inbox/read APIs,
+  retryable delivery and operator aggregate status. Lifecycle and delivery flags
+  default off; the browser notification center remains Step 11 work.
 - **Waitlists and replacement:** Patient enrollment/withdrawal with recorded consent,
   FIFO ordering and scoped reads. All four booking/waitlist replacements are atomic
   and version checked. Enrollment/replacement flags default off; the FIFO worker is implemented behind a notification-delivery release gate.
@@ -223,7 +226,7 @@ its active commitment ledger entry together under patient/doctor-slot locks.
 Booking requires a replica set; it has no standalone or legacy-write fallback.
 The integration command builds the backend and tests the real API, migration CLI,
 conflict races, rollback, activation gates, and appointment lifecycle events.
-Waitlist enrollment and atomic replacements share those transactions; the FIFO promotion worker is implemented; notification delivery remains a later step.
+Waitlist enrollment and atomic replacements share those transactions; FIFO promotion, cutoff lifecycle and in-app delivery workers are implemented behind default-off flags.
 
 ## Architecture
 
@@ -983,12 +986,13 @@ in appointment_events within the same transaction. Cancellation also saves
 SLOT_RELEASED with a stable event ID, appointment version and slot generation.
 Manual allocations advance the generation so older openings become stale. Events
 remain private. Step 7 consumes queue-release events; status and notification events
-await delivery integration. Nothing sends a patient notification yet.
+are handled by the Step 8 delivery outbox. The in-app inbox API is implemented;
+its browser notification center remains Step 11 work.
 
 If a cancellation has waiting entries at least 48 hours before start, the slot
 stays behind its allocation gate for queue processing. Inside 48 hours it is open
 for manual competition if current schedule/eligibility permits; the release event
-will feed later notification work. Release events for closed/ineligible schedules
+feeds the Step 8 notification/lifecycle work. Release events for closed/ineligible schedules
 have mode UNAVAILABLE and do not announce bookable time. With no waiting entries,
 available slots also open manually outside the cutoff. Release modes are snapshots:
 workers must recheck the current generation, occupancy, schedule and actual
@@ -1070,12 +1074,12 @@ rescheduling; exhausted eligible queues release the hold for normal booking.
 
 Successful promotion atomically creates a CONFIRMED appointment with source
 WAITLIST, fulfills the selected entry, changes the active ledger, releases the hold,
-and saves WAITLIST_BOOKING_CREATED for later notification delivery. Replays and
+and saves WAITLIST_BOOKING_CREATED plus the Step 8 delivery intent. Replays and
 stale owners cannot create another booking. The cutoff is checked inside the
 allocation transaction: exactly 48 hours is allowed; inside 48 hours no automatic
 booking commits. Such releases become DEFERRED with MANUAL_CUTOFF (or SLOT_STARTED),
-and the hold is released. Step 8 will consume that durable handoff for notification
-fan-out/expiry. Existing MANUAL releases are left untouched for Step 8.
+and the hold is released. The Step 8 lifecycle worker consumes that durable handoff for notification
+fan-out/expiry. Existing MANUAL releases are consumed by the separate Step 8 lifecycle worker.
 
 Worker state is persisted in appointment_events: state, attempts, claimToken,
 leaseUntil, nextAttemptAt, lastFailureCode, processedAt and result. Failures use
@@ -1087,11 +1091,77 @@ queue records. Full monitoring/reconciliation and process-crash rehearsal remain
 Step 12 work; recovery tests currently use fresh worker instances and abandoned leases.
 
 WAITLIST_PROMOTION_ENABLED defaults to false. Setting it to true currently rejects
-startup because no patient-visible notification channel is integrated and verified.
-This gate must be connected to verified delivery readiness in Steps 8/11 before
+startup until the patient-facing notification flow is integrated and verified.
+The in-app backend delivery path now exists; Step 11 must verify the browser flow before
 production activation. Tests replace only the worker's internal enablement check;
 MongoDB claims, transactions, booking and event persistence remain real. Enrollment
 can be piloted separately with automation accurately labeled as disabled.
+
+## Cutoff lifecycle and in-app notifications (Step 8)
+
+Inside 48 hours, cancellation atomically captures one manual-opening delivery intent
+per active recipient. It checks current schedule/occupancy and the slot generation;
+no automatic booking is created. Recipients are captured before the cancellation
+commits, so delayed delivery or subsequent withdrawal cannot lose the opening's
+recipient snapshot. Replay uses the same event ID; a distinct opening event may
+produce another notice. Alerts explicitly promise no reservation.
+
+AppointmentWaitlistLifecycleService handles manual/deferred releases, moves ACTIVE
+entries to NOTIFICATION_ONLY strictly inside 48 hours, and expires unfilled entries
+at slot start. Status/version and the active ledger change together under the
+existing doctor/patient/slot locks. Withdrawal remains supported. When a booking
+succeeds, it records a durable queue-sequence high-water mark; cleanup closes the
+remaining old entries with SLOT_TAKEN. Later enrollments survive older cleanup jobs.
+Entries pending that cleanup cannot be promoted or reused for replacement; a fresh
+same-slot enrollment closes one's old entry and gets a new FIFO position. Cleanup
+is eventual and resumes after a pause/restart, rather than locking every patient
+inside the booking transaction.
+
+The private notification_outbox stores WAITLIST_JOINED, WAITLIST_BOOKING_CREATED,
+SLOT_OPEN_FOR_MANUAL_BOOKING and WAITLIST_EXPIRED intents. Event + recipient + IN_APP
+is unique. NotificationService claims deliveries with a token/30-second lease and
+atomically upserts the inbox item and acknowledges delivery on a replica set.
+Retries/backoff and expired-lease recovery never recreate appointments or undo
+successful bookings. Replays preserve read state. Safe failure code
+IN_APP_DELIVERY_RETRY and aggregate operator counts expose failures without payloads.
+
+Two independent flags default to false: WAITLIST_LIFECYCLE_ENABLED runs cutoff and
+cleanup work; WAITLIST_NOTIFICATIONS_ENABLED runs in-app delivery. Both require the
+verified migration marker, including while new booking is paused. Pausing delivery
+preserves pending intents and does not pause lifecycle processing. Each worker polls
+once per second, processes at most 25 units per poll and drains its current unit on
+shutdown. No application configuration was activated by this change.
+
+```graphql
+query Inbox($input: MyNotificationsInput!) {
+  myNotifications(input: $input) {
+    entries {
+      _id type message waitlistId doctorId clinicId startsAt endsAt
+      appointmentId occurredAt readAt
+    }
+    nextCursor unreadCount
+  }
+}
+mutation Read($id: ID!) {
+  markNotificationRead(id: $id) { _id readAt }
+}
+query DeliveryStatus {
+  notificationDeliveryStatus { pending processing delivered retrying expiredClaims }
+}
+```
+
+Inbox/read operations require a current USER Bearer token and always scope to that
+patient. Pagination is newest occurrence first; limit defaults to 20 (max 100),
+with nextCursor passed as after. Read is idempotent. DeliveryStatus requires ADMIN
+and returns aggregate counts only. Private outbox event IDs, claims, failure payloads
+and other patients' appointment IDs are never included in patient output.
+
+Targets are structured references: use appointmentId with getAppointment, or
+clinicId/doctorId/time with getAvailableSlots. The browser must fetch current state
+before booking or treating an old notice as confirmation. The Step 11 notification
+center/link flow has not been built or browser-verified. No email/SMS provider is
+configured; IN_APP is the implemented delivery adapter. Automatic promotion remains
+disabled until the patient-facing flow is integrated and verified.
 
 ## Deployment
 
@@ -1115,9 +1185,9 @@ checkout-to-deployment procedure for the current layout.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;
   application-database cutover, frontend integration and Atlas rollout remain unverified.
-- The FIFO promotion worker is implemented but cannot be enabled until patient-visible
-  notification delivery is integrated and verified. Cutoff fan-out, expiry and delivery
-  remain pending. Stored outbox events are not delivered notifications.
+- FIFO promotion remains gated until the patient-facing notification flow is verified.
+  Cutoff lifecycle and in-app inbox delivery are implemented; their flags default off.
+  Browser notification screens and external delivery providers remain pending.
 - Authentication rate limiting is per process, without a shared multi-instance store.
 - Local deployment scripts still need the alignment described above.
 

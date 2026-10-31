@@ -6,7 +6,7 @@ Source inspection date: 2026-10-15; uploader update: 2026-10-18 (Asia/Seoul). Th
 
 The backend is a single NestJS application serving member authentication, public member profiles, appointment booking/lookup, and operational health endpoints. Feature modules run in the same Node.js process; they are not independent microservices. MongoDB stores application records and refresh sessions.
 
-`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, upload, and internal booking coordination modules. Booking policy V2 was integrated October 25, 2026 (Asia/Seoul); writes require the activation flag and verified migration on a replica set.
+`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, notification, health, upload, and internal booking coordination modules. Booking policy V2 was integrated October 25, 2026 (Asia/Seoul); writes require the activation flag and verified migration on a replica set.
 
 | Layer | Responsibility | Source |
 | --- | --- | --- |
@@ -51,6 +51,8 @@ flowchart TD
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
+  Notifications[NotificationService - in-app delivery and private inbox]
+  Lifecycle[AppointmentWaitlistLifecycleService]
   Promotion[AppointmentPromotionService - gated polling]
   Commitments[AppointmentCommitmentService]
   Waitlist[WaitlistService]
@@ -83,6 +85,12 @@ flowchart TD
   GQL -->|Public slots or guarded clinic schedule mutations| Schedule
   GQL -->|Guarded join, leave, replace| Commitments
   GQL -->|Scoped entry reads and counts| Waitlist
+  GQL -->|Own inbox/read or operator aggregate status| Notifications
+  Waitlist -->|Transactional notification intents| Notifications
+  Notifications -->|Fenced delivery transaction and scoped inbox queries| Models
+  Lifecycle -->|Current slot availability| Booking
+  Lifecycle -->|Cutoff and expiry transitions| Waitlist
+  Lifecycle -->|Doctor/patient/slot transactions| Coordination
   Promotion -->|Claim, fence and finish private release events| Models
   Promotion -->|FIFO head and terminal transitions| Waitlist
   Promotion -->|Eligibility and held-generation booking| Booking
@@ -142,8 +150,11 @@ GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `ba
 | `appointments` | Participant IDs, booked specialty, source/version, UTC start/end, status, cancellation/change-request fields | AppointmentService creates confirmed bookings/reads participants; partial unique doctor/start index still includes legacy PENDING/CONFIRMED |
 | `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
 | `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty, version/status and time interval | BookingCoordinationService; appointment entries saved atomically by public booking, legacy entries populated by migration |
-| `appointment_events` | Durable status/release/booking-notice outbox, generation, fenced leases, retry/result fields | AppointmentService writes lifecycle events; AppointmentPromotionService claims releases and writes booking notices transactionally; no public event API or delivery yet |
+| `appointment_events` | Durable status/release/booking-notice outbox, generation, fenced leases, retry/result fields | AppointmentService writes lifecycle events; AppointmentPromotionService claims releases and writes booking notices transactionally; no public event API; Step 8 emits separate in-app delivery intents |
 | `waitlists` | Exact slot/specialty, consent evidence, FIFO sequence, status/version and fulfilled appointment reference | WaitlistService owns enrollment/closure and scoped reads; promotion uses its transaction methods |
+| `waitlist_cleanup` | Slot sequence high-water marks for pending queue expiry | WaitlistService records atomically with booking; lifecycle worker closes old entries under their patient locks |
+| `notification_outbox` | Deduplicated event/recipient/channel intents and claim/retry state | NotificationService; feature transactions emit intents, separate worker delivers |
+| `notifications` | Private in-app message references and read state | NotificationService; patient-owned inbox/read API, no public collection access |
 | `booking_policy` | Migration version/readiness marker | BookingMigrationService writes offline; BookingPolicyService checks at startup and in mutation transactions |
 | `booking_migration_audit` | Metadata/status change history and review evidence references | Offline migration only; excluded from API projections and console/app logs |
 | `doctor_availability` | Weekly doctor/clinic hours | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
@@ -278,10 +289,8 @@ Startup snapshot audit compares active appointment and waitlist metadata/ledger,
 checks queue counters/ordering and combined specialty conflicts. The initial
 migration continues to refuse all queues, including terminal history.
 
-The Step 7 promotion worker is described below; notification delivery and expiry
-remain pending. Outputs explicitly return
-automaticBookingEnabled=false and compute cutoff eligibility; raw ACTIVE records
-await later persisted NOTIFICATION_ONLY/expiry transitions. Own patient/clinic
+The Step 7 promotion and Step 8 lifecycle/delivery workers are described below. Outputs explicitly return
+automaticBookingEnabled=false and compute cutoff eligibility; the lifecycle worker persists NOTIFICATION_ONLY/expiry transitions. Own patient/clinic
 entry reads are allowlisted; clinics receive no FIFO position, doctors only scoped
 aggregate counts. See root README for GraphQL inputs, pagination and flag behavior.
 
@@ -309,7 +318,7 @@ and never bypass booking's schedule checks. Manual reservations increment the
 generation to stale earlier releases. The promotion worker rechecks actual cutoff,
 generation and current occupancy/schedule, rather than treating an event hint as
 current availability. Outbox records are private and have no TTL. Step 7 adds
-claims/retries; delivery remains unimplemented. No application DB migration,
+claims/retries; Step 8 adds in-app delivery. No application DB migration,
 frontend integration or deployment was performed.
 
 ### FIFO promotion and durable claim recovery (Step 7, October 31)
@@ -346,10 +355,52 @@ leases, fresh instances, stale-owner fencing and cutoff/withdrawal races. Actual
 process-kill recovery and operational monitoring remain Step 12 validation.
 
 WAITLIST_PROMOTION_ENABLED defaults off and rejects true while verified patient-visible
-delivery is absent. Tests override internal enablement, not persistence or booking.
-The worker is implemented but production activation awaits Steps 8/11; persisted
+the patient-facing flow has not been browser-verified. Tests override internal enablement, not persistence or booking.
+The worker is implemented but production activation awaits the verified patient-facing flow in Step 11; persisted
 notification events alone do not satisfy delivery readiness. No application DB,
 production configuration or hosting changes were made.
+
+### Cutoff lifecycle and in-app delivery (Step 8, October 31)
+
+NotificationModule owns notification_outbox and notifications through
+`backend/src/components/notification/notification.service.ts`; WaitlistModule imports
+its exported interface. AppointmentModule's AppointmentWaitlistLifecycleService
+owns background coordination and uses public appointment/waitlist methods. This
+keeps inbox/delivery independent of appointment creation and avoids a module cycle.
+Notification transport is a guarded resolver with user-scoped pagination/read state
+and ADMIN-only aggregate delivery counters. DTOs and Notice types remain under libs.
+
+Cancellation writes recipient intents inside its transaction, capturing active
+manual-opening recipients under the doctor/slot gate. Later delivery does not
+reconstruct the original snapshot from changing queue state. Promotion's cutoff
+handoff similarly writes manual-opening intents. The lifecycle worker also handles
+manual/deferred events and queued holds reaching the cutoff when promotion is off;
+current generation, occupancy and schedule checks prevent stale availability alerts.
+
+Successful booking records a per-physical-slot sequence high-water mark in
+waitlist_cleanup. Per-patient transactions expire the remaining old entries and
+write expiry intents without a transaction spanning every patient. Newer enrollments
+survive old jobs; entries pending cleanup are excluded from promotion/replacement.
+Cutoff transitions update queue and ledger versions together; slot-start expiry
+releases the commitment. Cleanup and delivery each process at most 25 units per
+one-second poll and resume from durable data after restart.
+
+NotificationService.emit upserts event/recipient/IN_APP delivery intents in the
+caller's transaction. Its IN_APP adapter separately claims a token/30-second lease,
+fences ownership, upserts a private inbox record and acknowledges delivery in one
+MongoDB transaction. Failed delivery cannot change a booking; safe backoff metadata
+and operator aggregate counters expose failures. No provider errors or contacts are
+returned. Replay preserves read state. Hash notification IDs do not reveal the
+source cancellation's other-patient appointment ID. Patient messages distinguish
+an unreserved opening from a historical booking event and require current-state reads.
+
+WAITLIST_LIFECYCLE_ENABLED and WAITLIST_NOTIFICATIONS_ENABLED independently default
+off and require migrated replica-set persistence. Captured intents survive pauses;
+lifecycle is independent of delivery availability. In-app API delivery, privacy,
+deduplication and retry are tested against real MongoDB/HTTP. Browser inbox/link
+integration is Step 11; external email/SMS adapters remain unconfigured. Promotion's
+release gate remains closed until the patient-facing flow is verified. No real
+application DB, runtime activation or deployment changed.
 
 ## Shared services and external integrations
 

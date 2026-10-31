@@ -29,6 +29,7 @@ export const AppointmentEventSchema = new Schema(
     actorId: { type: Schema.Types.ObjectId, required: true },
     startsAt: { type: Date, required: true },
     endsAt: { type: Date, required: true },
+    specialty: String,
     slotGeneration: Number,
     releaseMode: { type: String, enum: Object.values(SlotReleaseMode) },
     occurredAt: { type: Date, required: true },

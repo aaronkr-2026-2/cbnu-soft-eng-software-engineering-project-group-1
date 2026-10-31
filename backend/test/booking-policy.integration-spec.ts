@@ -1,3 +1,5 @@
+import { NotificationService } from '../src/components/notification/notification.service.js';
+import { AppointmentWaitlistLifecycleService } from '../src/components/appointment/appointment-waitlist-lifecycle.service.js';
 import { WaitlistService } from '../src/components/waitlist/waitlist.service.js';
 import { AppointmentEventSchema } from '../src/schemas/appointment-event.model.js';
 import type { InferSchemaType } from 'mongoose';
@@ -70,6 +72,8 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     'WAITLIST_ENROLLMENT_ENABLED',
     'COMMITMENT_REPLACEMENT_ENABLED',
     'WAITLIST_PROMOTION_ENABLED',
+    'WAITLIST_NOTIFICATIONS_ENABLED',
+    'WAITLIST_LIFECYCLE_ENABLED',
     'JWT_ACCESS_SECRET',
     'NODE_ENV',
   ] as const;
@@ -88,6 +92,8 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
     process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
     process.env.WAITLIST_PROMOTION_ENABLED = 'false';
+    process.env.WAITLIST_NOTIFICATIONS_ENABLED = 'false';
+    process.env.WAITLIST_LIFECYCLE_ENABLED = 'false';
     process.env.BOOKING_POLICY_V2_ENABLED = 'false';
     const { AppModule } = await import('../src/app.module.js');
     const fixture = await Test.createTestingModule({
@@ -129,9 +135,14 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     process.env.WAITLIST_ENROLLMENT_ENABLED = 'false';
     process.env.COMMITMENT_REPLACEMENT_ENABLED = 'false';
     process.env.WAITLIST_PROMOTION_ENABLED = 'false';
+    process.env.WAITLIST_NOTIFICATIONS_ENABLED = 'false';
+    process.env.WAITLIST_LIFECYCLE_ENABLED = 'false';
     process.env.BOOKING_POLICY_V2_ENABLED = 'false';
     for (const name of [
       'waitlists',
+      'waitlist_cleanup',
+      'notifications',
+      'notification_outbox',
       'appointments',
       'appointment_events',
       'members',
@@ -2418,6 +2429,492 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
           attempts: 0,
         });
         expect((await slotGate())!.allocationPending).toBe(true);
+      });
+    });
+
+    describe('Cutoff lifecycle and in-app notification delivery', () => {
+      const lifecycle = () => app.get(AppointmentWaitlistLifecycleService);
+      const delivery = () => app.get(NotificationService);
+      const outbox = () => connection.db!.collection('notification_outbox');
+      const inbox = () => connection.db!.collection('notifications');
+      const noticesQuery =
+        'query($input: MyNotificationsInput!) { myNotifications(input:$input) { entries { _id type message waitlistId appointmentId doctorId clinicId startsAt occurredAt readAt } nextCursor unreadCount } }';
+      const mine = (owner = patient, input: Record<string, unknown> = {}) =>
+        clinicGraphql(noticesQuery, { input }, owner);
+      const flush = async (
+        service: { runOnce(): Promise<boolean> },
+        max = 100,
+      ) => {
+        for (let n = 0; n < max; n++) if (!(await service.runOnce())) return;
+        throw new Error('Test drain exceeded its bound');
+      };
+      const extraWaiter = async () => {
+        const patientId = id();
+        await connection.db!.collection('members').insertOne({
+          _id: patientId,
+          memberType: 'USER',
+          memberStatus: 'ACTIVE',
+          authVersion: 0,
+        });
+        const bearer = await app.get(JwtService).signAsync({
+          sub: String(patientId),
+          tokenType: 'access',
+          authVersion: 0,
+        });
+        const result = await join({}, bearer);
+        expect(result.body.errors).toBeUndefined();
+        return { patientId, entry: result.body.data.joinWaitlist };
+      };
+      const setup = async () => {
+        const booking = await occupied();
+        const first = (await join()).body.data.joinWaitlist;
+        const second = await extraWaiter();
+        return { booking, first, second };
+      };
+      const manualOpening = async (booking: { _id: string }) => {
+        freezeTime(+start - (47 * 60 + 59) * 60_000);
+        const result = await clinicGraphql(
+          cancelQuery,
+          { id: booking._id },
+          patient2,
+        );
+        expect(result.body.errors).toBeUndefined();
+      };
+      beforeEach(() => {
+        jest.spyOn(lifecycle(), 'isEnabled').mockReturnValue(true);
+        jest.spyOn(delivery(), 'isEnabled').mockReturnValue(true);
+      });
+
+      it('captures every active recipient at a 47h59 opening, creates no automatic booking and delivers unreserved alerts', async () => {
+        const { booking, first, second } = await setup();
+        await manualOpening(booking);
+        const rows = await outbox()
+          .find({ type: 'SLOT_OPEN_FOR_MANUAL_BOOKING' })
+          .toArray();
+        expect(rows.map((row) => String(row.patientId)).sort()).toEqual(
+          [String(patient), String(second.patientId)].sort(),
+        );
+        expect(rows.every((row) => !row.appointmentId)).toBe(true);
+        await flush(lifecycle());
+        await flush(delivery());
+        expect(
+          await connection
+            .db!.collection('appointments')
+            .countDocuments({ source: 'WAITLIST' }),
+        ).toBe(0);
+        expect((await originalRecord(first._id, 'waitlists'))!.status).toBe(
+          'NOTIFICATION_ONLY',
+        );
+        const result = (await mine()).body.data.myNotifications;
+        expect(
+          result.entries.find(
+            (row: { type: string }) =>
+              row.type === 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          ).message,
+        ).toContain('not reserved');
+        expect(JSON.stringify(result)).not.toContain(booking._id);
+        expect(result.entries).toHaveLength(2);
+        expect(
+          (await mine(second.patientId)).body.data.myNotifications.entries,
+        ).toHaveLength(2);
+      });
+
+      it('preserves the opening snapshot after withdrawal and deduplicates cancellation/worker replay', async () => {
+        const { booking, first } = await setup();
+        await manualOpening(booking);
+        await clinicGraphql(
+          'mutation($id:ID!){leaveWaitlist(id:$id){status}}',
+          { id: first._id },
+          patient,
+        );
+        await clinicGraphql(cancelQuery, { id: booking._id }, patient2);
+        await Promise.all([lifecycle().runOnce(), lifecycle().runOnce()]);
+        await flush(delivery());
+        expect(
+          await inbox().countDocuments({
+            patientId: patient,
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }),
+        ).toBe(1);
+        expect(
+          await outbox().countDocuments({
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }),
+        ).toBe(2);
+      });
+
+      it('deduplicates each event/recipient/channel while allowing a distinct opening event', async () => {
+        const { booking, first } = await setup();
+        await manualOpening(booking);
+        const existing = (await outbox().findOne({
+          type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          patientId: patient,
+        }))!;
+        const notice = {
+          eventId: 'distinct-opening',
+          patientId: patient,
+          waitlistId: new Types.ObjectId(first._id),
+          type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          doctorId: doctor,
+          clinicId: clinic,
+          startsAt: start,
+          endsAt: at(30),
+          occurredAt: new Date(Date.now()),
+        };
+        await app.get(BookingCoordinationService).run(
+          {
+            doctorIds: [doctor],
+            patientIds: [patient],
+            slots: [{ doctorId: doctor, startsAt: start }],
+          },
+          async (tx) => {
+            await delivery().emit([notice, notice], tx.session);
+          },
+        );
+        await flush(delivery());
+        expect(
+          await inbox().countDocuments({
+            patientId: patient,
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }),
+        ).toBe(2);
+        expect(existing.eventId).not.toBe('distinct-opening');
+      });
+
+      it('moves queues to notification-only strictly inside48 and keeps their ledger commitments/version in sync', async () => {
+        await occupied();
+        const entry = (await join()).body.data.joinWaitlist;
+        freezeTime(+start - 48 * 3600_000);
+        expect(await lifecycle().runOnce()).toBe(false);
+        freezeTime(+start - 48 * 3600_000 + 1);
+        expect(await lifecycle().runOnce()).toBe(true);
+        const row = (await originalRecord(entry._id, 'waitlists'))!;
+        const ledger = await connection
+          .db!.collection('booking_commitments')
+          .findOne({
+            kind: 'WAITLIST',
+            commitmentId: new Types.ObjectId(entry._id),
+          });
+        expect(row.status).toBe('NOTIFICATION_ONLY');
+        expect(row.version).not.toBe(entry.version);
+        expect(ledger!.version).toBe(row.version);
+        expect(ledger!.status).toBe('NOTIFICATION_ONLY');
+        const withdrawal = await clinicGraphql(
+          'mutation($id:ID!){leaveWaitlist(id:$id){status}}',
+          { id: entry._id },
+          patient,
+        );
+        expect(withdrawal.body.data.leaveWaitlist.status).toBe('WITHDRAWN');
+      });
+
+      it('rolls back a cutoff transition rather than silently repairing a mismatched ledger version', async () => {
+        await occupied();
+        const entry = (await join()).body.data.joinWaitlist;
+        await connection
+          .db!.collection('booking_commitments')
+          .updateOne({ kind: 'WAITLIST' }, { $set: { version: randomUUID() } });
+        freezeTime(+start - 48 * 3600_000 + 1);
+        await expect(lifecycle().runOnce()).rejects.toThrow();
+        expect((await originalRecord(entry._id, 'waitlists'))!).toMatchObject({
+          status: 'ACTIVE',
+          version: entry.version,
+        });
+      });
+
+      it('releases a held queued opening at cutoff even with promotion disabled', async () => {
+        const { booking } = await setup();
+        await cancel(booking._id, token2);
+        expect((await slotGate())!.allocationPending).toBe(true);
+        freezeTime(+start - 48 * 3600_000 + 1);
+        await flush(lifecycle());
+        expect((await slotGate())!.allocationPending).toBe(false);
+        expect(
+          await outbox().countDocuments({
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }),
+        ).toBe(2);
+        expect(
+          await connection
+            .db!.collection('appointments')
+            .countDocuments({ source: 'WAITLIST' }),
+        ).toBe(0);
+      });
+
+      it('expires unfilled entries at slot start and emits exactly one expiry notice per entry', async () => {
+        const { first } = await setup();
+        freezeTime(+start);
+        await Promise.all([lifecycle().runOnce(), lifecycle().runOnce()]);
+        await flush(lifecycle());
+        await flush(delivery());
+        expect((await originalRecord(first._id, 'waitlists'))!).toMatchObject({
+          status: 'EXPIRED',
+          closedReason: 'SLOT_STARTED',
+        });
+        expect(
+          await connection
+            .db!.collection('booking_commitments')
+            .countDocuments({ kind: 'WAITLIST' }),
+        ).toBe(0);
+        expect(await inbox().countDocuments({ type: 'WAITLIST_EXPIRED' })).toBe(
+          2,
+        );
+      });
+
+      it('closes remaining entries after manual fulfillment and keeps delivery separate from booking', async () => {
+        const { booking, first, second } = await setup();
+        await manualOpening(booking);
+        const booked = await clinicGraphql(mutation, { input }, patient);
+        expect(booked.body.errors).toBeUndefined();
+        await flush(lifecycle());
+        expect((await originalRecord(first._id, 'waitlists'))!.status).toBe(
+          'FULFILLED',
+        );
+        expect(
+          (await originalRecord(second.entry._id, 'waitlists'))!,
+        ).toMatchObject({ status: 'EXPIRED', closedReason: 'SLOT_TAKEN' });
+        expect(
+          await outbox().countDocuments({
+            patientId: patient,
+            type: 'WAITLIST_BOOKING_CREATED',
+          }),
+        ).toBe(1);
+        await outbox().updateMany(
+          { type: { $ne: 'WAITLIST_BOOKING_CREATED' } },
+          { $set: { state: 'DELIVERED' } },
+        );
+        jest
+          .spyOn(connection.model('Notification'), 'updateOne')
+          .mockRejectedValueOnce(new Error('private provider payload'));
+        await delivery().runOnce();
+        expect(
+          (await originalRecord(booked.body.data.bookAppointment._id))!.status,
+        ).toBe('CONFIRMED');
+        const pending = (await outbox().findOne({
+          type: 'WAITLIST_BOOKING_CREATED',
+        }))!;
+        expect(pending).toMatchObject({
+          state: 'PENDING',
+          lastFailureCode: 'IN_APP_DELIVERY_RETRY',
+        });
+        expect(JSON.stringify(pending)).not.toContain(
+          'private provider payload',
+        );
+        await outbox().updateOne(
+          { _id: pending._id },
+          { $set: { nextAttemptAt: new Date(Date.now() - 1) } },
+        );
+        await delivery().runOnce();
+        expect(
+          await inbox().countDocuments({
+            type: 'WAITLIST_BOOKING_CREATED',
+            appointmentId: new Types.ObjectId(
+              booked.body.data.bookAppointment._id,
+            ),
+          }),
+        ).toBe(1);
+      });
+
+      it('cleanup of an older booking preserves later enrollments and later opening recipients', async () => {
+        const { booking, second } = await setup();
+        await cancel(booking._id, token2);
+        jest
+          .spyOn(app.get(AppointmentPromotionService), 'isEnabled')
+          .mockReturnValue(true);
+        await app.get(AppointmentPromotionService).runOnce();
+        const later = await extraWaiter();
+        await flush(lifecycle());
+        expect(
+          (await originalRecord(second.entry._id, 'waitlists'))!.status,
+        ).toBe('EXPIRED');
+        expect(
+          (await originalRecord(later.entry._id, 'waitlists'))!.status,
+        ).toBe('ACTIVE');
+        const confirmed = (await connection
+          .db!.collection('appointments')
+          .findOne({ source: 'WAITLIST' }))!;
+        freezeTime(+start - 47 * 3600_000);
+        await clinicGraphql(
+          cancelQuery,
+          { id: String(confirmed._id) },
+          patient,
+        );
+        const opening = await outbox()
+          .find({ type: 'SLOT_OPEN_FOR_MANUAL_BOOKING' })
+          .toArray();
+        expect(opening.map((row) => String(row.patientId))).toEqual([
+          String(later.patientId),
+        ]);
+      });
+
+      it('rejects reuse of a queue entry pending cleanup, while allowing a fresh enrollment at the back', async () => {
+        const { booking, second } = await setup();
+        await cancel(booking._id, token2);
+        jest
+          .spyOn(app.get(AppointmentPromotionService), 'isEnabled')
+          .mockReturnValue(true);
+        await app.get(AppointmentPromotionService).runOnce();
+        const old = await app.get(WaitlistService).get(second.entry._id, {
+          _id: second.patientId,
+          memberType: MemberType.USER,
+          authVersion: 0,
+        });
+        expect(
+          (
+            await app.get(WaitlistService).view(old, {
+              _id: second.patientId,
+              memberType: MemberType.USER,
+              authVersion: 0,
+            })
+          ).automaticBookingEligible,
+        ).toBe(false);
+        const replaced = await clinicGraphql(
+          'mutation($input:ReplaceCommitmentInput!){replaceCommitment(input:$input){kind}}',
+          {
+            input: {
+              originalKind: 'WAITLIST',
+              originalId: second.entry._id,
+              originalVersion: second.entry.version,
+              destinationKind: 'APPOINTMENT',
+              destination: { ...input, ...destination },
+            },
+          },
+          second.patientId,
+        );
+        expect(replaced.body.errors[0].extensions.booking.reason).toBe(
+          'STALE_COMMITMENT',
+        );
+        const rejoined = await clinicGraphql(
+          'mutation($input:JoinWaitlistInput!){joinWaitlist(input:$input){_id queueSequence}}',
+          { input: { ...input, automaticBookingConsent: true } },
+          second.patientId,
+        );
+        expect(rejoined.body.errors).toBeUndefined();
+        expect(rejoined.body.data.joinWaitlist.queueSequence).toBe(3);
+        expect(
+          (await originalRecord(second.entry._id, 'waitlists'))!.status,
+        ).toBe('EXPIRED');
+        await flush(lifecycle());
+        expect(
+          (await originalRecord(
+            rejoined.body.data.joinWaitlist._id,
+            'waitlists',
+          ))!.status,
+        ).toBe('ACTIVE');
+      });
+
+      it('stale release generations and closed schedules never announce bookable time', async () => {
+        const { booking } = await setup();
+        await cancel(booking._id, token2);
+        await connection
+          .db!.collection('doctor_availability')
+          .deleteMany({ doctorId: doctor });
+        freezeTime(+start - 47 * 3600_000);
+        await lifecycle().runOnce();
+        expect(
+          await outbox().countDocuments({
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }),
+        ).toBe(0);
+        expect((await slotGate())!.allocationPending).toBe(false);
+      });
+
+      it('delivers idempotently under concurrent workers and replay without resetting read state', async () => {
+        await occupied();
+        await join();
+        await Promise.all(
+          Array.from({ length: 4 }, () => delivery().runOnce()),
+        );
+        const result = (await mine()).body.data.myNotifications;
+        expect(result.entries).toHaveLength(1);
+        const id = result.entries[0]._id;
+        const readQuery =
+          'mutation($id:ID!){markNotificationRead(id:$id){_id readAt}}';
+        const first = (await clinicGraphql(readQuery, { id }, patient)).body
+          .data.markNotificationRead;
+        const again = (await clinicGraphql(readQuery, { id }, patient)).body
+          .data.markNotificationRead;
+        expect(again.readAt).toBe(first.readAt);
+        await outbox().updateOne(
+          { _id: id },
+          {
+            $set: {
+              state: 'PROCESSING',
+              claimToken: randomUUID(),
+              leaseUntil: new Date(Date.now() - 1),
+            },
+          },
+        );
+        await delivery().runOnce();
+        expect(await inbox().countDocuments()).toBe(1);
+        expect((await mine()).body.data.myNotifications.unreadCount).toBe(0);
+        expect((await inbox().findOne({ _id: id }))!.readAt.toISOString()).toBe(
+          first.readAt,
+        );
+      });
+
+      it('scopes inbox/read/cursors and exposes only aggregate failure status to operators', async () => {
+        const { booking } = await setup();
+        await manualOpening(booking);
+        await flush(delivery());
+        const firstPage = (await mine(patient, { limit: 1 })).body.data
+          .myNotifications;
+        const next = (
+          await mine(patient, { limit: 1, after: firstPage.nextCursor })
+        ).body.data.myNotifications;
+        expect(firstPage.entries[0]._id).not.toBe(next.entries[0]._id);
+        expect(next.nextCursor).toBeNull();
+        const id = firstPage.entries[0]._id;
+        const foreign = await clinicGraphql(
+          'mutation($id:ID!){markNotificationRead(id:$id){_id}}',
+          { id },
+          patient2,
+        );
+        expect(foreign.body.errors[0].extensions.code).toBe('NOT_FOUND');
+        expect((await mine(clinic)).body.errors[0].extensions.code).toBe(
+          'FORBIDDEN',
+        );
+        expect(
+          (await mine(patient2, { after: id })).body.errors[0].extensions.code,
+        ).toBe('BAD_USER_INPUT');
+        const statusQuery =
+          'query {notificationDeliveryStatus {pending processing delivered retrying expiredClaims}}';
+        expect(
+          (await clinicGraphql(statusQuery, {}, patient)).body.errors[0]
+            .extensions.code,
+        ).toBe('FORBIDDEN');
+        const admin = new Types.ObjectId();
+        await connection.db!.collection('members').insertOne({
+          _id: admin,
+          memberType: 'ADMIN',
+          memberStatus: 'ACTIVE',
+          authVersion: 0,
+        });
+        const status = await clinicGraphql(statusQuery, {}, admin);
+        expect(status.body.errors).toBeUndefined();
+        expect(status.body.data.notificationDeliveryStatus.delivered).toBe(4);
+      });
+
+      it('a failure to capture notices rolls back cancellation; delivery being disabled does not discard notices', async () => {
+        const { booking } = await setup();
+        freezeTime(+start - 47 * 3600_000);
+        jest
+          .spyOn(connection.model('NotificationOutbox'), 'bulkWrite')
+          .mockRejectedValueOnce(new Error('storage failure'));
+        const result = await clinicGraphql(
+          cancelQuery,
+          { id: booking._id },
+          patient2,
+        );
+        expect(result.body.errors).toBeDefined();
+        expect((await originalRecord(booking._id))!.status).toBe('CONFIRMED');
+        expect(
+          await outbox().countDocuments({
+            type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+          }),
+        ).toBe(0);
+        jest.spyOn(delivery(), 'isEnabled').mockReturnValue(false);
+        expect(await delivery().runOnce()).toBe(false);
+        expect(await outbox().countDocuments({ state: 'PENDING' })).toBe(2);
       });
     });
   });

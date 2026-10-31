@@ -137,6 +137,14 @@ export class AppointmentCommitmentService {
               ))
         )
           throw new BookingConflictException('STALE_COMMITMENT');
+        if (
+          input.originalKind === CommitmentKind.WAITLIST &&
+          (await this.waitlists.isClosedByBooking(
+            await this.waitlists.get(input.originalId, member, tx),
+            tx,
+          ))
+        )
+          throw new BookingConflictException('STALE_COMMITMENT');
         const target = await this.appointments.validateSlot(
           input.destination,
           member,

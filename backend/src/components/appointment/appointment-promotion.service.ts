@@ -145,6 +145,13 @@ export class AppointmentPromotionService
               return 'DONE';
             }
             if (+event.startsAt - Date.now() < 48 * 3600_000) {
+              const head = await this.waitlists.openingCandidate(event, tx);
+              if (
+                head &&
+                +event.startsAt > Date.now() &&
+                (await this.appointments.canReopenSlot(head, tx))
+              )
+                await this.waitlists.notifyOpening(event, event._id, tx);
               await tx.resolveSlot(event, gate.generation);
               await this.finish(
                 event,
@@ -243,6 +250,13 @@ export class AppointmentPromotionService
               await this.finish(event, tx, 'PROCESSED', 'STALE');
               return;
             }
+            const head = await this.waitlists.openingCandidate(event, tx);
+            if (
+              head &&
+              +event.startsAt > Date.now() &&
+              (await this.appointments.canReopenSlot(head, tx))
+            )
+              await this.waitlists.notifyOpening(event, event._id, tx);
             await tx.resolveSlot(event, gate.generation);
             await this.finish(event, tx, 'DEFERRED', 'MANUAL_CUTOFF');
           },

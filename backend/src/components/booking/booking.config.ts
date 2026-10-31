@@ -30,6 +30,8 @@ export function commitmentReplacementEnabled(
 
 export function validateWaitlistFlags(env: NodeJS.ProcessEnv = process.env) {
   waitlistPromotionEnabled(env);
+  waitlistNotificationsEnabled(env);
+  waitlistLifecycleEnabled(env);
   if (flag('WAITLIST_ENROLLMENT_ENABLED', env) && !bookingPolicyEnabled(env))
     throw new Error('Waitlist enrollment requires booking policy V2');
   if (
@@ -48,4 +50,14 @@ export function waitlistPromotionEnabled(env: NodeJS.ProcessEnv = process.env) {
       'Waitlist promotion requires verified patient-visible notification delivery (Steps 8 and 11)',
     );
   return false;
+}
+
+export function waitlistNotificationsEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  return flag('WAITLIST_NOTIFICATIONS_ENABLED', env);
+}
+
+export function waitlistLifecycleEnabled(env: NodeJS.ProcessEnv = process.env) {
+  return flag('WAITLIST_LIFECYCLE_ENABLED', env);
 }

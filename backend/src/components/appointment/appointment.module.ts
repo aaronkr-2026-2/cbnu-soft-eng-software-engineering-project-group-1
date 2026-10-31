@@ -1,3 +1,4 @@
+import { AppointmentWaitlistLifecycleService } from './appointment-waitlist-lifecycle.service.js';
 import { AppointmentPromotionService } from './appointment-promotion.service.js';
 import { WaitlistModule } from '../waitlist/waitlist.module.js';
 import { AppointmentCommitmentService } from './appointment-commitment.service.js';
@@ -69,6 +70,7 @@ const mongoUri = getMongoUri();
   providers: [
     AppointmentService,
     AppointmentPromotionService,
+    AppointmentWaitlistLifecycleService,
     AppointmentCommitmentService,
     AppointmentCommitmentResolver,
     AppointmentResolver,

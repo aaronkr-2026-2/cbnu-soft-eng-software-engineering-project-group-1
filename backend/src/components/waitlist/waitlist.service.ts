@@ -1,3 +1,9 @@
+import { NotificationService } from '../notification/notification.service.js';
+import {
+  WAITLIST_CLEANUP,
+  WaitlistCleanupSchema,
+} from '../../schemas/waitlist-cleanup.model.js';
+import type { InferSchemaType } from 'mongoose';
 import {
   BadRequestException,
   ForbiddenException,
@@ -57,6 +63,12 @@ export class WaitlistService {
     @Optional()
     @InjectModel(WAITLIST)
     private readonly entries?: Model<Omit<WaitlistRecord, '_id'>>,
+    @Optional() private readonly notifications?: NotificationService,
+    @Optional()
+    @InjectModel(WAITLIST_CLEANUP)
+    private readonly cleanup?: Model<
+      InferSchemaType<typeof WaitlistCleanupSchema>
+    >,
   ) {}
 
   async prepare() {
@@ -65,6 +77,8 @@ export class WaitlistService {
     this.initialization ??= (async () => {
       await this.entries!.createCollection();
       await this.entries!.createIndexes();
+      await this.cleanup?.createCollection();
+      await this.notifications?.prepare();
     })().catch((error: unknown) => {
       this.initialization = undefined;
       throw error;
@@ -98,11 +112,32 @@ export class WaitlistService {
     return row;
   }
 
+  private async closedSequence(slot: BookingSlot, tx?: BookingTransaction) {
+    return (
+      (
+        await this.cleanup
+          ?.findById(`slot:${slot.doctorId}:${+slot.startsAt}`)
+          .session(tx?.session ?? null)
+          .lean()
+          .exec()
+      )?.sequenceMax ?? 0
+    );
+  }
+  async isClosedByBooking(
+    row: Pick<WaitlistRecord, 'doctorId' | 'startsAt' | 'queueSequence'>,
+    tx: BookingTransaction,
+  ) {
+    return row.queueSequence <= (await this.closedSequence(row, tx));
+  }
+
   async view(row: WaitlistRecord, member: MemberPrincipal) {
     const own =
       member.memberType === MemberType.USER &&
       String(row.patientId) === String(member._id);
-    const active = ACTIVE_WAITLIST_STATUSES.includes(row.status);
+    const closed = await this.closedSequence(row);
+    const active =
+      ACTIVE_WAITLIST_STATUSES.includes(row.status) &&
+      row.queueSequence > closed;
     const position =
       own && active
         ? 1 +
@@ -110,7 +145,7 @@ export class WaitlistService {
             doctorId: row.doctorId,
             startsAt: row.startsAt,
             status: { $in: ACTIVE_WAITLIST_STATUSES },
-            queueSequence: { $lt: row.queueSequence },
+            queueSequence: { $lt: row.queueSequence, $gt: closed },
           }))
         : null;
     return {
@@ -118,6 +153,7 @@ export class WaitlistService {
       queueSequence: own ? row.queueSequence : null,
       queuePosition: position,
       automaticBookingEligible:
+        active &&
         row.status === WaitlistStatus.ACTIVE &&
         +row.startsAt - Date.now() >= 48 * 3600_000,
       automaticBookingEnabled: false,
@@ -183,7 +219,7 @@ export class WaitlistService {
     if (+target.startsAt - Date.now() < 48 * 3600_000)
       throw new BookingConflictException('WAITLIST_CLOSED');
     const duplicate = await this.model()
-      .exists({
+      .findOne({
         patientId: member._id,
         doctorId: target.doctorId,
         clinicId: target.clinicId,
@@ -191,8 +227,21 @@ export class WaitlistService {
         startsAt: target.startsAt,
         status: { $in: ACTIVE_WAITLIST_STATUSES },
       })
-      .session(tx.session);
-    if (duplicate) throw new BookingConflictException('DUPLICATE_ENTRY');
+      .select(fields)
+      .session(tx.session)
+      .lean()
+      .exec();
+    if (duplicate) {
+      if (await this.isClosedByBooking(duplicate, tx))
+        await this.close(
+          duplicate,
+          WaitlistStatus.EXPIRED,
+          tx,
+          undefined,
+          'SLOT_TAKEN',
+        );
+      else throw new BookingConflictException('DUPLICATE_ENTRY');
+    }
     const _id = new Types.ObjectId(),
       version = randomUUID();
     await tx.reserve({
@@ -223,15 +272,22 @@ export class WaitlistService {
       { session: tx.session },
     );
     const { __v, ...result } = row.toObject();
+    await this.notice(result, 'WAITLIST_JOINED', `waitlist-joined:${_id}`, tx);
     return result;
   }
 
   async firstForPromotion(slot: BookingSlot, tx?: BookingTransaction) {
+    const closed = await this.cleanup
+      ?.findById(`slot:${slot.doctorId}:${+slot.startsAt}`)
+      .session(tx?.session ?? null)
+      .lean()
+      .exec();
     return this.model()
       .findOne({
         doctorId: slot.doctorId,
         startsAt: slot.startsAt,
         status: WaitlistStatus.ACTIVE,
+        queueSequence: { $gt: closed?.sequenceMax ?? 0 },
       })
       .select(fields)
       .sort({ queueSequence: 1, _id: 1 })
@@ -245,7 +301,8 @@ export class WaitlistService {
     status:
       | WaitlistStatus.WITHDRAWN
       | WaitlistStatus.FULFILLED
-      | WaitlistStatus.INELIGIBLE,
+      | WaitlistStatus.INELIGIBLE
+      | WaitlistStatus.EXPIRED,
     tx: BookingTransaction,
     appointmentId?: Types.ObjectId,
     reason?: string,
@@ -275,6 +332,21 @@ export class WaitlistService {
       .lean()
       .exec();
     if (!changed) throw new BookingConflictException('STALE_COMMITMENT');
+    if (status === WaitlistStatus.FULFILLED && appointmentId)
+      await this.notice(
+        row,
+        'WAITLIST_BOOKING_CREATED',
+        `waitlist-booked:${row._id}:${appointmentId}`,
+        tx,
+        appointmentId,
+      );
+    if (status === WaitlistStatus.EXPIRED)
+      await this.notice(
+        row,
+        'WAITLIST_EXPIRED',
+        `waitlist-expired:${row._id}`,
+        tx,
+      );
     if (status === WaitlistStatus.WITHDRAWN) {
       const remaining = await this.model()
         .exists({
@@ -288,6 +360,178 @@ export class WaitlistService {
         await tx.resolveSlot(row, gate.generation);
     }
     return changed;
+  }
+
+  private async notice(
+    row: WaitlistRecord,
+    type: string,
+    eventId: string,
+    tx: BookingTransaction,
+    appointmentId?: Types.ObjectId,
+  ) {
+    if (!this.notifications)
+      throw new ServiceUnavailableException('Notifications unavailable');
+    await this.notifications.emit(
+      [
+        {
+          eventId,
+          type,
+          patientId: row.patientId,
+          waitlistId: row._id,
+          doctorId: row.doctorId,
+          clinicId: row.clinicId,
+          startsAt: row.startsAt,
+          endsAt: row.endsAt,
+          appointmentId,
+          occurredAt: new Date(Date.now()),
+        },
+      ],
+      tx.session,
+    );
+  }
+
+  async recordSlotTaken(target: BookingTarget, tx: BookingTransaction) {
+    if (!this.cleanup)
+      throw new ServiceUnavailableException('Waitlist cleanup unavailable');
+    const gate = await tx.slotState(target);
+    if (!gate.queueSequence) return;
+    await this.cleanup.updateOne(
+      { _id: `slot:${target.doctorId}:${+target.startsAt}` },
+      {
+        $setOnInsert: { doctorId: target.doctorId, startsAt: target.startsAt },
+        $max: { sequenceMax: gate.queueSequence },
+      },
+      { upsert: true, session: tx.session },
+    );
+  }
+
+  async notifyOpening(
+    target: BookingSlot,
+    eventId: string,
+    tx: BookingTransaction,
+  ) {
+    if (!this.cleanup || !this.notifications)
+      throw new ServiceUnavailableException('Waitlist notices unavailable');
+    const cutoff = await this.cleanup
+      .findById(`slot:${target.doctorId}:${+target.startsAt}`)
+      .session(tx.session)
+      .lean()
+      .exec();
+    const recipients = await this.model()
+      .find({
+        doctorId: target.doctorId,
+        startsAt: target.startsAt,
+        status: { $in: ACTIVE_WAITLIST_STATUSES },
+        queueSequence: { $gt: cutoff?.sequenceMax ?? 0 },
+      })
+      .select(fields)
+      .session(tx.session)
+      .lean()
+      .exec();
+    await this.notifications.emit(
+      recipients.map((row) => ({
+        eventId,
+        patientId: row.patientId,
+        waitlistId: row._id,
+        type: 'SLOT_OPEN_FOR_MANUAL_BOOKING',
+        doctorId: row.doctorId,
+        clinicId: row.clinicId,
+        startsAt: row.startsAt,
+        endsAt: row.endsAt,
+        occurredAt: new Date(Date.now()),
+      })),
+      tx.session,
+    );
+  }
+
+  async openingCandidate(slot: BookingSlot, tx: BookingTransaction) {
+    const closed = await this.closedSequence(slot, tx);
+    return this.model()
+      .findOne({
+        doctorId: slot.doctorId,
+        startsAt: slot.startsAt,
+        status: { $in: ACTIVE_WAITLIST_STATUSES },
+        queueSequence: { $gt: closed },
+      })
+      .select(fields)
+      .session(tx.session)
+      .lean()
+      .exec();
+  }
+  async lifecycleCurrent(row: WaitlistRecord, tx: BookingTransaction) {
+    return this.model()
+      .findOne({
+        _id: row._id,
+        version: row.version,
+        status: { $in: ACTIVE_WAITLIST_STATUSES },
+      })
+      .select(fields)
+      .session(tx.session)
+      .lean()
+      .exec();
+  }
+  async cleanupTarget() {
+    return this.cleanup?.findOne().lean().exec();
+  }
+  async cleanupCandidate(
+    target: { doctorId: Types.ObjectId; startsAt: Date; sequenceMax: number },
+    tx?: BookingTransaction,
+  ) {
+    return this.model()
+      .findOne({
+        doctorId: target.doctorId,
+        startsAt: target.startsAt,
+        queueSequence: { $lte: target.sequenceMax },
+        status: { $in: ACTIVE_WAITLIST_STATUSES },
+      })
+      .select(fields)
+      .sort({ queueSequence: 1 })
+      .session(tx?.session ?? null)
+      .lean()
+      .exec();
+  }
+  async finishCleanup(
+    target: { _id: string; sequenceMax: number },
+    tx: BookingTransaction,
+  ) {
+    await this.cleanup!.deleteOne(
+      { _id: target._id, sequenceMax: target.sequenceMax },
+      { session: tx.session },
+    );
+  }
+  async timedCandidate(now: Date) {
+    return this.model()
+      .findOne({
+        $or: [
+          {
+            status: { $in: ACTIVE_WAITLIST_STATUSES },
+            startsAt: { $lte: now },
+          },
+          {
+            status: WaitlistStatus.ACTIVE,
+            startsAt: { $lt: new Date(+now + 48 * 3600_000) },
+          },
+        ],
+      })
+      .select(fields)
+      .sort({ startsAt: 1, queueSequence: 1 })
+      .lean()
+      .exec();
+  }
+  async notificationOnly(row: WaitlistRecord, tx: BookingTransaction) {
+    const version = randomUUID();
+    const changed = await this.model().updateOne(
+      { _id: row._id, version: row.version, status: WaitlistStatus.ACTIVE },
+      { $set: { status: WaitlistStatus.NOTIFICATION_ONLY, version } },
+      { session: tx.session },
+    );
+    if (changed.modifiedCount !== 1) return;
+    await tx.updateWaitlistStatus(
+      row._id,
+      row.version,
+      version,
+      'NOTIFICATION_ONLY',
+    );
   }
 
   // This releases only the booking patient's matching entry. Other patients'
@@ -313,6 +557,16 @@ export class WaitlistService {
       .lean()
       .exec();
     if (!row) return;
+    if (await this.isClosedByBooking(row, tx)) {
+      await this.close(
+        row,
+        WaitlistStatus.EXPIRED,
+        tx,
+        undefined,
+        'SLOT_TAKEN',
+      );
+      return;
+    }
     if (!allow)
       throw new BookingConflictException('COMMITMENT_CONFLICT', [
         {

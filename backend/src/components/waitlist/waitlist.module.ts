@@ -1,3 +1,8 @@
+import { NotificationModule } from '../notification/notification.module.js';
+import {
+  WAITLIST_CLEANUP,
+  WaitlistCleanupSchema,
+} from '../../schemas/waitlist-cleanup.model.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { getMongoUri } from '../../database/database.config.js';
@@ -8,10 +13,12 @@ import { WaitlistService } from './waitlist.service.js';
 @Module({
   imports: [
     MemberModule,
+    NotificationModule,
     ...(getMongoUri()
       ? [
           MongooseModule.forFeature([
             { name: WAITLIST, schema: WaitlistSchema },
+            { name: WAITLIST_CLEANUP, schema: WaitlistCleanupSchema },
           ]),
         ]
       : []),

@@ -172,6 +172,31 @@ export class BookingCoordinationService {
                 commitments,
               );
             },
+            updateWaitlistStatus: async (
+              commitmentId,
+              previousVersion,
+              version,
+              status,
+            ) => {
+              const entry = await commitments
+                .findOne({ kind: 'WAITLIST', commitmentId })
+                .session(session)
+                .lean()
+                .exec();
+              if (
+                !entry ||
+                entry.version !== previousVersion ||
+                entry.status !== 'ACTIVE'
+              )
+                throw new BookingConflictException('STALE_COMMITMENT');
+              requireKey(patientKey(entry.patientId));
+              requireKey(slotKey(entry));
+              await commitments.updateOne(
+                { _id: entry._id },
+                { $set: { version, status } },
+                { session },
+              );
+            },
             release: async (kind, commitmentId) => {
               const entry = await commitments
                 .findOne({ kind, commitmentId })
@@ -229,6 +254,7 @@ export class BookingCoordinationService {
               return {
                 allocationPending: row.allocationPending,
                 generation: row.generation,
+                queueSequence: row.queueSequence ?? 0,
               };
             },
             nextQueueSequence: async (slot) => {

@@ -32,15 +32,23 @@ export type BookingTransaction = {
     commitment: BookingCommitment,
     allocationGeneration?: number,
   ) => Promise<void>;
+  updateWaitlistStatus: (
+    id: Types.ObjectId,
+    previousVersion: string,
+    version: string,
+    status: 'NOTIFICATION_ONLY',
+  ) => Promise<void>;
   release: (
     kind: BookingCommitment['kind'],
     id: Types.ObjectId,
   ) => Promise<void>;
   holdSlot: (slot: BookingSlot) => Promise<number>;
   resolveSlot: (slot: BookingSlot, generation: number) => Promise<void>;
-  slotState: (
-    slot: BookingSlot,
-  ) => Promise<{ allocationPending: boolean; generation: number }>;
+  slotState: (slot: BookingSlot) => Promise<{
+    allocationPending: boolean;
+    generation: number;
+    queueSequence: number;
+  }>;
   nextQueueSequence: (slot: BookingSlot) => Promise<number>;
 };
 

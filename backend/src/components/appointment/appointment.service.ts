@@ -188,6 +188,7 @@ export class AppointmentService {
     if (!this.coordination || !this.policy)
       throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
     await this.policy.assertReady();
+    await this.waitlists?.prepare();
     if (
       ![input.doctorId, input.clinicId].every((value) =>
         /^[a-f\d]{24}$/i.test(value),
@@ -388,6 +389,7 @@ export class AppointmentService {
       ],
       { session: tx.session },
     );
+    await this.waitlists?.recordSlotTaken(target, tx);
     const { __v, ...result } = appointment.toObject();
     return result;
   }
@@ -645,8 +647,21 @@ export class AppointmentService {
     );
   }
 
+  async canReopenSlot(
+    target: Pick<
+      AppointmentRecord,
+      'doctorId' | 'clinicId' | 'specialty' | 'startsAt'
+    >,
+    tx: BookingTransaction,
+  ) {
+    return this.canReopen(target, this.bookingModels(), tx.session);
+  }
+
   private async canReopen(
-    appointment: AppointmentRecord,
+    appointment: Pick<
+      AppointmentRecord,
+      'doctorId' | 'clinicId' | 'specialty' | 'startsAt'
+    >,
     models: ReturnType<AppointmentService['bookingModels']>,
     session: ClientSession,
   ) {
@@ -717,6 +732,7 @@ export class AppointmentService {
   }
 
   async prepareLifecycle() {
+    await this.waitlists?.prepare();
     if (!this.outbox)
       throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
     this.outboxInitialization ??= (async () => {
@@ -837,6 +853,7 @@ export class AppointmentService {
       startsAt: current.startsAt,
       endsAt: current.endsAt,
       occurredAt: now,
+      specialty: current.specialty,
     };
     let slotGeneration: number | undefined;
     let releaseMode: SlotReleaseMode | undefined;
@@ -864,6 +881,12 @@ export class AppointmentService {
           ? SlotReleaseMode.QUEUE
           : SlotReleaseMode.MANUAL;
       if (!queued) await tx.resolveSlot(slot, slotGeneration);
+      if (available && +current.startsAt - +now < 48 * 3600_000)
+        await this.waitlists?.notifyOpening(
+          current,
+          `release:${id.toLowerCase()}:${version}`,
+          tx,
+        );
     }
     await this.outbox!.create(
       [
