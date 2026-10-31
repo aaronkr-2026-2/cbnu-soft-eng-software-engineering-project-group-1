@@ -419,3 +419,23 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** I keep calendar days as clinic-local YYYY-MM-DD values and let the backend return actual appointment instants, so browser timezone and daylight-saving changes cannot shift the chosen day.
+
+## Step 10 clinic/doctor workspace and live calendar — 2026-10-31
+
+**Tool(s) used:** Codex, local/reference source inspection, shell/Python, Yarn/TypeScript/Prettier/Next build, Node tests, real Nest services with disposable MongoDB replica set, GraphQL schema validation, and Chrome computer use.
+
+**What I asked for:** Implement Step10 in Next.js after Step9. Leave commits/pushes to me and supply a branch-scoped commit message.
+
+**Pre-planning:** I checked clean next HEAD 284a116, current instructions/continuity/lessons, MediBridge role-aware workspace organization, installed Pages Router guides, actual guarded calendar/schedule/member/staff-booking/outcome contracts, and snapshot/release constraints. Backend/Vite folders remained protected.
+
+**Planning:** I used the implemented authorized revision-polling API instead of assuming SSE/WebSocket hosting. I buffered complete consistent snapshots and kept date math in the clinic timezone. I kept saved-hours forms explicit replacement drafts because no saved-schedule read API exists, with acknowledgement/review and no mutation replay.
+
+**Implementation process:** I added /workspace with clinic day/seven-day calendars, doctor filtering/fresh details, self-scoped doctor views, pending affiliation review, weekly/date schedule replacement and effective-slot preview, existing-patient phone/walk-in booking, cancellation and final-outcome controls. The polling hook pauses/resyncs, marks stale state and backs off; paginated reads restart on revision conflicts and publish deduplicated complete snapshots. Reviews check source state and reconcile ambiguous appointment/affiliation responses through owned reads. Navigation/auth return and profile clinicId selection were integrated. All41 Node tests, typecheck, final production build without fixture URLs,26 real-schema operations and documentation/private-shell/whitespace checks passed. Real Nest/disposable MongoDB Chrome checks verified staff/doctor flows, patient denial, mobile/keyboard details, lost phone response recovery and automatic recovery after a proxy outage with online/promoted records once each. The real frontend loader also restarted after a committed later-page change and returned150 unique records. Foreign-clinic reads exposed none and a foreign-doctor query was forbidden. Promotion ran only through a fixture-local worker enable hook, with the real gate unchanged. Preview/fixture processes and dependency symlink were removed. No frontend sprint covers this date.
+
+**What I kept as-is:** I preserved backend/Vite source, API ownership, current feature/release gates, session security, patient booking/replacement/waitlist flows and the visual calendar. No dependencies, application database/configuration, provider/account traffic, deployment, staging, commit or push changed.
+
+**What I changed or rejected, and why:** I avoided partial calendar-page rendering and blind mutation retries. I used complete schedule drafts and recorded the saved-hours read limitation rather than claiming blank fields were current configuration. Doctor/clinic registration UI and Step11 notifications/Step12 rollout remain separate. Production load/proxy/concurrency and full OS-offline behavior were not tested; outage checks used a controlled local proxy.
+
+**Something the AI got wrong that I had to catch:** The actual API rejected the AI's disposable historical outcome fixture because it omitted the active-commitment ledger. The AI corrected that fixture and reran completion successfully; this was not a frontend defect or a mistake I personally reported. No backend source was changed to accommodate the fixture.
+
+**One decision I can explain without AI:** I bind all calendar pages to one server revision and discard the partial result if it changes, so reconnecting or concurrent bookings cannot combine different snapshots into a misleading calendar.

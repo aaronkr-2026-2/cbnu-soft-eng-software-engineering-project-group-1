@@ -61,6 +61,9 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
   fresh details, cancellation, and replacement links.
 - `/waitlist`: patient-scoped paginated entries, status filters, queue position,
   consent/details, withdrawal, and replacement links.
+- `/workspace`: clinic/doctor day and seven-day calendars with live revision polling;
+  clinic doctor-application reviews, schedule replacement drafts, phone/walk-in
+  booking for existing patients, cancellation and completion/no-show controls.
 
 Discovery uses public `getDoctors` (at most 100 active approved doctors), resolves
 unique clinics through public `getMember`, and filters those doctors for clinic
@@ -169,7 +172,7 @@ layout and keyboard slot selection/review/confirmation passed.
 This is local integration evidence, not deployment verification. Google login,
 production TLS/proxy/multi-instance behavior, timed natural access-token expiry,
 and live profile image/storage/password flows were not exercised here. Clinic
-calendar/live updates and notification UI remain Steps 10 and 11; the promotion
+notification UI remains Step 11; the promotion
 release gate remains closed. No frontend sprint covers October 31; no sprint was
 created. See [Next architecture](../docs/architecture/architecture-next.md).
 
@@ -179,3 +182,63 @@ and date-only day movement. Chrome with a synthetic API fixture verified past-da
 blocking, keyboard month-boundary selection, month navigation retaining selection,
 weekend selection, clearing a stale time, correct waitlist review date, and a 390px
 layout. This UI follow-up did not repeat Step 9's real Nest/database acceptance.
+
+## Clinic and doctor workspace (Step 10)
+
+Sign in with an existing CLINIC or DOCTOR account and use **Workspace** in desktop
+or mobile navigation. Patients/admins cannot use this workspace. Nest scopes every
+private read/write; a doctor has only their own read-only schedule, without clinic
+staff controls. Doctor/clinic registration forms remain separate future work;
+clinic onboarding here reviews existing pending doctor affiliation applications.
+
+The day view or seven days starting on the selected clinic-local date show current
+appointment status/source, with doctor filtering for clinics. Cards open a fresh
+owned detail read; clinics can cancel confirmed future appointments and record
+COMPLETED/NO_SHOW after the end. Confirmation checks the record/version again.
+Compact card times share the workspace timezone; details label their clinic timezone.
+The client resyncs its date window if authoritative clinic timezone context changes.
+
+`myCalendar` pages are buffered with the same revision and published together.
+A later-page conflict discards partial results and restarts, with bounded retries.
+`calendarUpdates` checks the same authorized window about every five seconds;
+changed revisions load a full snapshot. Errors retain a visibly stale snapshot and
+back off up to 30 seconds; hidden/offline tabs pause, and returning/reconnecting
+forces a full resync. No SSE/WebSocket deployment support is assumed. Calendar
+snapshot limits remain 100 per page/5,000 per window; choose day view or a doctor
+when the backend asks for a narrower window. Polling observes committed changes;
+it never replays a booking mutation.
+
+Clinic controls use `myClinicDoctors` (first 100 active records), pending application
+approve/reject, and complete weekly/date override replacement mutations. The API
+has no saved-hours read query, so schedule forms are explicitly blank replacement
+drafts, require acknowledgement/review, and never imply they loaded current hours.
+Split intervals, weekends, half-hour boundaries, custom hours, full/partial closures,
+and clearing overrides are supported. A public effective-slots preview helps inspect
+the result; Nest protects working hours needed by bookings/waitlists.
+
+Phone/walk-in creation requires an existing active patient ID, approved doctor,
+specialty and fresh available slot; clinic identity comes from Nest authentication.
+There is no patient-account creation/search shortcut. Writes require a review and
+are never automatically retried. Lost appointment/affiliation responses offer owned
+read checks. A lost schedule-write response cannot be verified as saved configuration
+through the current API: the UI explains that limit and blocks further local writes.
+
+Step 10 verification (October 31): typecheck, production build, all 41 Node tests,
+and 26 executable operations against the real API schema passed. Chrome used real
+Nest services and a disposable MongoDB replica set: clinic calendar, approval,
+weekly replacement, date closure, phone/walk-in creation, completion/cancellation,
+failed hours removal preserving existing commitments, doctor-only view, patient
+denial, and mobile/keyboard details passed. A committed phone response was dropped;
+read reconciliation found one booking. A controlled proxy outage marked the prior
+calendar stale; automatic recovery included missed online and WAITLIST-source
+bookings once each. That promotion used the real worker with a fixture-only enable
+hook, matching backend tests; the release gate/production flags remain unchanged.
+Foreign-clinic reads exposed no records, and a doctor's foreign-doctor scope was
+forbidden. A real 150-record, two-page read with a committed later-page change
+restarted and returned 150 unique records. A historical outcome fixture initially
+lacked its ledger; correcting that disposable fixture made completion pass.
+
+No deployment, application database/configuration, backend/Vite files, real provider
+traffic or promotion release activation changed. This step does not deliver Step 11
+notifications or Step 12 rollout. Production proxy/load/concurrency and full browser
+OS-offline simulation were not verified; outage recovery used the controlled proxy.

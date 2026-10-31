@@ -75,9 +75,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
 - **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
   for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
 - **Clinic/doctor calendar APIs:** Authorized, paginated calendar snapshots and
-  revision-based polling for committed changes. Frontend calendar work remains pending.
+  revision-based polling for committed changes. The Next.js workspace consumes these APIs.
 - **My Appointments API:** Current patients can list their own appointments with
-  bounded cursor pagination and optional status/UTC date filters. Screens remain pending.
+  bounded cursor pagination and optional status/UTC date filters. The Next.js patient screen consumes this API.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
   creating an immediately CONFIRMED, specialty-aware 30-minute appointment. Writes
   require policy V2 activation and completed migration; disabled by default.
@@ -131,8 +131,17 @@ this does not establish deployed integration or enable automatic waitlist bookin
   read reconciliation without automatic mutation replay. Chrome with real Nest
   and disposable MongoDB verified these journeys, target-race rollback, the
   48-hour explanation, and mobile/keyboard booking. Backend flags/release gates
-  still govern availability; automatic promotion remains paused. Calendar and
-  notification screens remain pending.
+  still govern availability; automatic promotion remains paused. Notification
+  screens remain pending.
+- **Next.js staff workspace:** `/workspace` offers clinic/doctor day and seven-day
+  calendars with revision polling, consistent paginated snapshots and reconnect
+  resync. Clinics review doctor applications, replace schedules, create phone/walk-in
+  visits for existing patient IDs, cancel future visits and record final outcomes.
+  Doctors see their own read-only schedule. Lost responses are checked without
+  mutation replay. Saved schedule configuration cannot be read through the API;
+  those forms are explicit replacement drafts. Local real-API/browser checks passed,
+  including outage recovery, promoted-source visibility under a fixture-only worker
+  hook, foreign-scope denial, mobile details and 150-row pagination/restart.
 - **Next.js My Page:** `/mypage` provides private profile editing, optional password
   changes, and image preview/upload/removal. Earlier focused tests and a local
   browser fixture passed; live profile storage/password flows remain unverified.
@@ -1102,9 +1111,10 @@ allowlists; no patient contact or persistence-only fields are added.
 Calendar revisions cover appointments/timezone context. Clinic onboarding and
 schedule controls use the existing myClinicDoctors/reviewDoctorAffiliation,
 setDoctorWeeklyHours/setDoctorDateOverrides and getAvailableSlots APIs; scheduling
-availability remains authoritative only at booking time. All Next.js calendar,
-workspace, polling/reconnect and browser acceptance work is deferred. No runtime
-configuration, hosting/proxy or frontend code was changed.
+availability remains authoritative only at booking time. The Next.js Step 10 workspace
+now implements these controls and polling/reconnect behavior; see its
+[verification details and limits](next/README.md#clinic-and-doctor-workspace-step-10).
+Runtime release flags and hosting/proxy configuration remain unchanged.
 
 ## My Appointments (GraphQL, Step 9 backend)
 

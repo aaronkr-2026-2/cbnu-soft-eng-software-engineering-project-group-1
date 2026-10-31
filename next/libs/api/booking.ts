@@ -309,3 +309,7 @@ export async function targetRecords(
     'There is too much history to verify this request safely. Review My Care before continuing.',
   );
 }
+
+// Reuse the authenticated, no-store transport and no-replay error semantics for
+// clinic/doctor operations; Nest remains the authorization boundary.
+export { request as careRequest };

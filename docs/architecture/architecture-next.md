@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated October 31, 2026 for patient booking/waitlist Step 9. This document covers
+Updated October 31, 2026 for patient booking/waitlist Step 9 and staff workspace Step 10. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
 
@@ -14,7 +14,7 @@ not patient records. Patient data is fetched only after session restoration.
 
 ```mermaid
 flowchart TD
-  Routes[Pages and shared layout] --> Features[Discovery, Auth, Profile, Patient Care]
+  Routes[Pages and shared layout] --> Features[Discovery, Auth, Profile, Patient Care, Workspace]
   Features --> Transport[libs/api fetch helpers and GraphQL documents]
   Features --> Session[Memory session store]
   Session --> Bridge[Next session API bridge]
@@ -97,7 +97,55 @@ of production deployment or real Google sign-in.
   A future server request-ID contract could improve recovery without unsafe replay.
 
 Google account login, production TLS/proxy/session concurrency, natural timed access
-expiry, and live profile storage/password flows remain unverified. Step 10 clinic
-calendar/live UI and Step 11 notifications are pending. Automatic promotion remains
+expiry, and live profile storage/password flows remain unverified. Step 11
+notifications and Step 12 rollout remain pending. Automatic promotion remains
 blocked by the backend patient-visible notification delivery gate; this step does
 not activate workers, change flags, or migrate an application database.
+
+## Staff workspace and live calendar
+
+`pages/workspace.tsx` composes `components/workspace/WorkspacePage.tsx`. Its guarded
+client subtree is keyed by signed-in identity, so role changes/sign-out unmount
+private state. Profiles supply clinic/timezone context; CLINIC accounts load owned
+`myClinicDoctors`. DOCTOR accounts have a read-only self calendar. Client role gates
+are presentation only: Nest guards and principal-derived scope enforce all access.
+The existing session bridge is unchanged; `/workspace` is an allowlisted auth return.
+
+`LiveCalendar` renders day/seven-day views and fresh details. `useLiveCalendar`
+performs sequential, abortable revision polling, pauses on hidden/offline tabs,
+marks stale state and backs off after failures, and fully resyncs on reconnect.
+`libs/api/workspace.ts` reuses the booking no-store/bearer/error transport. Its
+snapshot loader buffers at most 50 pages, binds every continuation to the first
+revision, discards inconsistent partial reads, and retries read conflicts at most
+three times. IDs are deduplicated before publishing. Scope/window changes never
+merge old snapshots. Forbidden/expired sessions clear the private view.
+
+`libs/workspace.ts` maps clinic-local dates into exact UTC overlap windows, including
+23/25-hour DST dates and midnight gaps; no browser-local midnight assumption is
+used. Compact cards are grouped/displayed in the workspace timezone; details label
+their clinic timezone. Authoritative timezone-context changes resync the window.
+
+`TeamSchedules` owns affiliation reviews and acknowledged complete schedule drafts.
+`StaffBooking` uses public slots plus patient-ID validation, with Nest deriving clinic
+identity. `WorkspaceReview` requires a single explicit mutation confirmation and
+keeps uncertain outcomes in read-check mode. Appointment/status checks reread owned
+records; staff creation compares owned target IDs from before/after the request.
+No mutation retry is automatic. No direct database access exists in production Next.
+The current API cannot read saved schedule configuration, so blank drafts never
+masquerade as current settings, and unknown schedule writes remain locally blocked.
+
+No new real-time server or dependency was added. The existing deployment diagram
+still applies: revision requests use authenticated browser→Nest GraphQL, never an
+assumed SSE/WebSocket channel. Next renders only public static shells, with no
+private calendar data in serialized props/shared caches/browser storage.
+
+Step 10 verification: 41 Node tests, typecheck/build and 26 actual-schema operations
+passed. Local Chrome with real Nest/disposable MongoDB verified staff and doctor
+flows, patient denial, schedule protection, mobile/keyboard details, dropped-response
+staff reconciliation and outage recovery including online/promoted bookings without
+duplicates. Promotion ran only via a fixture-local worker enable hook; the release
+gate remains closed. Foreign-clinic reads returned no records and foreign-doctor
+scope was forbidden. The real frontend loader handled 150 records and a committed
+between-page revision change by restarting without duplicates. Proxy outages were
+controlled test faults; production transport/load and full OS-offline behavior were
+not exercised. Backend, Vite, application data and deployment were unchanged.

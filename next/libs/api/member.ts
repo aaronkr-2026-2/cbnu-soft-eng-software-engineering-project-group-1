@@ -7,6 +7,7 @@ import {
 import type { AuthMember } from './auth';
 
 export interface SelfProfile extends AuthMember {
+  clinicId?: string | null;
   memberEmail?: string | null;
   memberPhone?: string | null;
   memberAddress?: string | null;
@@ -36,7 +37,10 @@ export type MemberUpdate = Partial<
   >
 >;
 export class ProfileError extends Error {
-  constructor(message: string, public code = '') {
+  constructor(
+    message: string,
+    public code = '',
+  ) {
     super(message);
   }
 }

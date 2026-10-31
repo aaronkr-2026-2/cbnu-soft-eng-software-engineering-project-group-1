@@ -12,6 +12,7 @@ const SELF_FIELDS = gql`
     memberDesc
     memberImage
     canChangePassword
+    clinicId
     clinicName
     location
     clinicTimezone
