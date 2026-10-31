@@ -22,6 +22,46 @@ export enum AppointmentSource {
 }
 registerEnumType(AppointmentSource, { name: 'AppointmentSource' });
 
+export enum ClinicBookingSource {
+  PHONE = 'PHONE',
+  WALK_IN = 'WALK_IN',
+}
+registerEnumType(ClinicBookingSource, { name: 'ClinicBookingSource' });
+
+export enum AppointmentOutcome {
+  COMPLETED = 'COMPLETED',
+  NO_SHOW = 'NO_SHOW',
+}
+registerEnumType(AppointmentOutcome, { name: 'AppointmentOutcome' });
+
+export enum AppointmentEventType {
+  STATUS_CHANGED = 'APPOINTMENT_STATUS_CHANGED',
+  SLOT_RELEASED = 'SLOT_RELEASED',
+  WAITLIST_BOOKING_CREATED = 'WAITLIST_BOOKING_CREATED',
+}
+
+export enum SlotReleaseMode {
+  QUEUE = 'QUEUE',
+  MANUAL = 'MANUAL',
+  UNAVAILABLE = 'UNAVAILABLE',
+}
+
+export enum CommitmentKind {
+  APPOINTMENT = 'APPOINTMENT',
+  WAITLIST = 'WAITLIST',
+}
+registerEnumType(CommitmentKind, { name: 'CommitmentKind' });
+
+export enum WaitlistStatus {
+  ACTIVE = 'ACTIVE',
+  NOTIFICATION_ONLY = 'NOTIFICATION_ONLY',
+  FULFILLED = 'FULFILLED',
+  WITHDRAWN = 'WITHDRAWN',
+  EXPIRED = 'EXPIRED',
+  INELIGIBLE = 'INELIGIBLE',
+}
+registerEnumType(WaitlistStatus, { name: 'WaitlistStatus' });
+
 export enum DoctorChangeRequestType {
   CANCEL = 'CANCEL',
   RESCHEDULE = 'RESCHEDULE',
@@ -44,3 +84,10 @@ export enum AvailabilityOverrideType {
 registerEnumType(AvailabilityOverrideType, {
   name: 'AvailabilityOverrideType',
 });
+
+export enum AppointmentSlotState {
+  AVAILABLE = 'AVAILABLE',
+  OCCUPIED = 'OCCUPIED',
+  UNAVAILABLE = 'UNAVAILABLE',
+}
+registerEnumType(AppointmentSlotState, { name: 'AppointmentSlotState' });

@@ -6,7 +6,7 @@ Source inspection date: 2026-10-15; uploader update: 2026-10-18 (Asia/Seoul). Th
 
 The backend is a single NestJS application serving member authentication, public member profiles, appointment booking/lookup, and operational health endpoints. Feature modules run in the same Node.js process; they are not independent microservices. MongoDB stores application records and refresh sessions.
 
-`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, health, upload, and internal booking coordination modules. Booking policy V2 was integrated October 25, 2026 (Asia/Seoul); writes require the activation flag and verified migration on a replica set.
+`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, notification, health, upload, and internal booking coordination modules. Booking policy V2 was integrated October 25, 2026 (Asia/Seoul); writes require the activation flag and verified migration on a replica set.
 
 | Layer | Responsibility | Source |
 | --- | --- | --- |
@@ -53,7 +53,15 @@ flowchart TD
   Google[GoogleAuthService]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
+  NoticeTarget[AppointmentNotificationService]
+  Notifications[NotificationService - in-app delivery and private inbox]
+  Lifecycle[AppointmentWaitlistLifecycleService]
+  Calendar[AppointmentCalendarService - snapshot polling]
+  Promotion[AppointmentPromotionService - gated polling]
+  Commitments[AppointmentCommitmentService]
+  Waitlist[WaitlistService]
   Coordination[BookingCoordinationService]
+  Schedule[AppointmentScheduleService]
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
   Health[Health controllers and DatabaseService]
@@ -79,7 +87,34 @@ flowchart TD
   REST -->|In-process calls: validated input and principal| Booking
   GQL -->|In-process calls: validated input and principal| Booking
   Member -->|Mongoose calls: member and session reads/writes| Models
-  Booking -->|Mongoose calls: eligibility/hours reads and appointment writes| Models
+  Booking -->|Mongoose calls: eligibility/hours reads, appointment and outbox writes| Models
+  GQL -->|Public slots or guarded clinic schedule mutations| Schedule
+  GQL -->|Guarded join, leave, replace| Commitments
+  GQL -->|Scoped entry reads and counts| Waitlist
+  GQL -->|Authorized calendar window and revision polling| Calendar
+  Calendar -->|Read-only MongoDB snapshot: own appointments and timezone metadata| Models
+  GQL -->|Owned notification target query| NoticeTarget
+  NoticeTarget -->|Owned notice| Notifications
+  NoticeTarget -->|Own current appointment| Booking
+  NoticeTarget -->|Current owned entry| Waitlist
+  NoticeTarget -->|Current exact-slot availability| Schedule
+  GQL -->|Own inbox/read or operator aggregate status| Notifications
+  Waitlist -->|Transactional notification intents| Notifications
+  Notifications -->|Fenced delivery transaction and scoped inbox queries| Models
+  Lifecycle -->|Current slot availability| Booking
+  Lifecycle -->|Cutoff and expiry transitions| Waitlist
+  Lifecycle -->|Doctor/patient/slot transactions| Coordination
+  Promotion -->|Claim, fence and finish private release events| Models
+  Promotion -->|FIFO head and terminal transitions| Waitlist
+  Promotion -->|Eligibility and held-generation booking| Booking
+  Promotion -->|Doctor, patient and slot transaction| Coordination
+  Commitments -->|One transaction covering both commitments| Coordination
+  Commitments -->|Validated booking and cancellation| Booking
+  Commitments -->|Consent, FIFO, terminal transitions| Waitlist
+  Booking -->|Fulfill own matching entry in transaction| Waitlist
+  Waitlist -->|Mongoose session: waitlist records| Models
+  Schedule -->|In-process doctor-scoped transaction callback| Coordination
+  Schedule -->|Mongoose reads and schedule writes| Models
   Booking -->|In-process transaction callback: patient and slot scope| Coordination
   Coordination -->|Mongoose session: coordination gates and commitment ledger| Models
   Models -->|MongoDB wire protocol: documents, queries, indexes| DB
@@ -135,7 +170,12 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
-| GraphQL | `bookAppointment(input)`, `getAppointment(id)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
+| GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
+| GraphQL | `getNotification`, `notificationContext`, `myNotifications`, `markNotificationRead` | Guarded patient-owned inbox/current-target reads and read state; separate ADMIN delivery-status counts |
+| GraphQL | `myCalendar`, `calendarUpdates` | Current clinic/doctor scope; consistent snapshots and revision polling through AppointmentCalendarService |
+| GraphQL | `createClinicAppointment`, `cancelAppointment`, `setAppointmentOutcome` | Guarded actor/participant permissions; shared AppointmentService rules and transactional outbox |
+| GraphQL | `getAvailableSlots`, `setDoctorWeeklyHours`, `setDoctorDateOverrides` | Public bounded slot reads; own-clinic guarded schedule writes |
+| GraphQL | `myClinicDoctors`, `reviewDoctorAffiliation` | Own-clinic affiliation discovery/review through MemberService |
 | REST | `POST /appointment/bookAppointment`, `GET /appointment/:id` | Same guard and appointment service as GraphQL |
 | Operations | `GET /`, `/health/live`, `/health/ready`, `/status` | Public API info, liveness, database readiness, and status UI; `/status/assets/*` serves its CSS/JS |
 
@@ -155,17 +195,22 @@ GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `ba
 
 | MongoDB collection | Data | Current owner/access |
 | --- | --- | --- |
-| `members` | USER, DOCTOR, CLINIC, ADMIN accounts, clinic timezone, affiliation and profile data | MemberService creates accounts/authenticates/reads profiles; AppointmentService directly reads doctor and clinic eligibility |
+| `members` | USER, DOCTOR, CLINIC, ADMIN accounts, clinic timezone, affiliation and profile data | MemberService owns accounts/authentication/profile/affiliation writes; appointment services read eligibility |
 | `member_sessions` | Member ID, refresh-token hash, expiry | MemberService writes and rotates sessions; unique hash and TTL expiry index |
 | `appointments` | Participant IDs, booked specialty, source/version, UTC start/end, status, cancellation/change-request fields | AppointmentService creates confirmed bookings/reads participants; partial unique doctor/start index still includes legacy PENDING/CONFIRMED |
 | `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
 | `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty, version/status and time interval | BookingCoordinationService; appointment entries saved atomically by public booking, legacy entries populated by migration |
+| `appointment_events` | Durable status/release/booking-notice outbox, generation, fenced leases, retry/result fields | AppointmentService writes lifecycle events; AppointmentPromotionService claims releases and writes booking notices transactionally; no public event API; Step 8 emits separate in-app delivery intents |
+| `waitlists` | Exact slot/specialty, consent evidence, FIFO sequence, status/version and fulfilled appointment reference | WaitlistService owns enrollment/closure and scoped reads; promotion uses its transaction methods |
+| `waitlist_cleanup` | Slot sequence high-water marks for pending queue expiry | WaitlistService records atomically with booking; lifecycle worker closes old entries under their patient locks |
+| `notification_outbox` | Deduplicated event/recipient/channel intents and claim/retry state | NotificationService; feature transactions emit intents, separate worker delivers |
+| `notifications` | Private in-app message references and read state | NotificationService; patient-owned inbox/read API, no public collection access |
 | `booking_policy` | Migration version/readiness marker | BookingMigrationService writes offline; BookingPolicyService checks at startup and in mutation transactions |
 | `booking_migration_audit` | Metadata/status change history and review evidence references | Offline migration only; excluded from API projections and console/app logs |
-| `doctor_availability` | Weekly doctor/clinic hours | Read by AppointmentService; no management API implemented |
-| `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | Read by AppointmentService; no management API implemented |
+| `doctor_availability` | Weekly doctor/clinic hours | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
+| `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
 
-Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Change/cancellation schema fields do not mean change/cancellation APIs are implemented. Availability and approval currently require configuration outside the delivered API; their future write boundary remains to be defined. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
+Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Cancellation/outcome APIs are implemented; embedded doctor change-request fields still do not establish a rescheduling API. MemberService owns pending doctor affiliation review; AppointmentScheduleService owns clinic-scoped schedule writes. These now have guarded GraphQL APIs. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
 
 ### Booking transaction foundations (Steps 2–3)
 
@@ -183,8 +228,8 @@ and recheck authorization, doctor eligibility, schedule, cutoff and consent in t
 transaction. Coordination is not a replacement for those domain checks.
 
 The service seeds empty coordination rows outside the transaction, then writes
-their revisions inside it in sorted key order: patient IDs first, then doctor-slot
-keys. Concurrent writers therefore conflict on an actual document instead of
+their revisions inside it in sorted key order: doctor IDs, patient IDs, then
+doctor-slot keys. Booking and schedule edits both take the doctor gate. Concurrent writers therefore conflict on an actual document instead of
 both passing a snapshot read. There is no expiring application lock or lock TTL.
 The driver retries transient failures with a 10-second transaction deadline and
 at most eight callback executions; commit time is limited to five seconds. Reads
@@ -197,10 +242,10 @@ manually commit/abort; persist future outbox events in the supplied transaction.
 doctor occupancy. `release` removes a commitment under its patient/slot locks.
 `holdSlot` increments a generation and prevents manual reservation until allocation
 is resolved; allocator reservations and `resolveSlot` require the expected
-generation. Generation checks provide concurrency foundations, not a FIFO worker
-or completed cancellation API. Domain records and their ledger entries must be
-created/changed atomically. Public booking now does this; later lifecycle/waitlist
-services must follow the same protocol. Historical appointments enter the ledger
+generation. Generation checks provide the shared concurrency foundation; Step 7 adds FIFO
+processing above it, while notification delivery remains separate. Domain records
+and their ledger entries are created/changed atomically by booking, lifecycle,
+waitlist and replacement services. Historical appointments enter the ledger
 only through explicit offline migration before policy V2 is enabled. The existing appointment unique active
 doctor/start index is unchanged.
 
@@ -210,7 +255,7 @@ callback. Replica-set, transaction and deployment guidance follows the
 `npm run test:booking:integration` owns temporary local MongoDB processes and tests
 real two-client races, failure rollback, retries, slot generations, unique indexes
 and standalone rejection. This does not establish Atlas deployment readiness or
-implemented public waitlist behavior.
+production queue operation. Public enrollment/replacement is covered below.
 
 ### Activation, migration and conflict responses (Step 3)
 
@@ -219,8 +264,8 @@ readiness marker and a consistent transactional snapshot of metadata/ledger cove
 at startup. Every booking rechecks the marker in its transaction. The operator
 must stop all old/new writers for migration; a CLI acknowledgment cannot enforce
 another process's shutdown. Never run old writers after cutover or bypass the
-ledger with external status edits. Later cancellation/rescheduling/status writes
-must update their ledger entry and version in the same transaction.
+ledger with external status edits. Cancellation/outcomes update ledger and version
+atomically; replacements and waitlist writes follow the same protocol.
 
 `backend/src/tools/booking-migration.ts` uses the shared URI selector and a
 connection with automatic DDL disabled. Dry-run reads only and emits aggregate
@@ -232,7 +277,7 @@ active records block migration; the current doctor specialty list is never used
 as historical inference. Each actual metadata/status change records audit evidence;
 unchanged reruns preserve versions and add no audit entries. Failure rolls back
 all document changes, while index preparation precedes the transaction. This
-initial tool is bounded to 5000 appointments and refuses waitlist commitments.
+initial tool is bounded to 5000 appointments and refuses any waitlist records or commitments.
 The exact commands and resolution shape are in the root README. No application
 DB migration, backup rehearsal, Atlas cutover or production activation was run.
 
@@ -240,10 +285,264 @@ BookingConflictException constructs only allowlisted summaries from a query scop
 to the requesting patient. Both transports expose reason, own commitments and
 choices; GraphQL keeps its generic extensions.code and adds extensions.booking
 only for the explicit booking exception classes. Other HttpException payloads
-are not forwarded. KEEP is currently the only own-conflict choice; replacement
-will be added in Step 6. Slot conflicts expose no other patient's identity. Source,
+are not forwarded. KEEP is offered for own conflicts; REPLACE is additionally offered when enabled
+for a single future replaceable blocker. Slot conflicts expose no other patient's identity. Source,
 specialty and version are added to participant appointment reads; no generic
-status mutation, waitlist endpoint or notification worker is introduced.
+status mutation or notification worker is introduced.
+
+### Clinic schedules and dynamic slots (Step 4, October 26)
+
+MemberService exposes own-clinic doctor discovery and conditional PENDING affiliation
+approval/rejection; approved affiliations cannot be revoked through that operation.
+AppointmentScheduleService replaces weekly hours or one date's overrides inside
+a doctor-gated transaction, verifies clinic ownership/current account state and
+checks future/in-progress appointments plus active waitlist ledger targets before
+narrowing hours. Invalidating edits conflict without changing those commitments.
+Booking takes the same doctor gate before schedule reads, preventing write races.
+Later worker allocation paths must also include the doctor gate.
+
+The public getAvailableSlots query requires an active clinic, approved doctor and
+offered specialty, and caps inclusive clinic-local date ranges at 31 days. Shared
+appointment-slot.ts helpers generate real UTC instants, preserve local :00/:30
+alignment through DST/quarter-hour offsets, and apply weekly/custom/blocked hours.
+Occupancy reads project only time intervals; allocation holds become UNAVAILABLE.
+No empty slot documents or fixed time enum are introduced. Slot policy eligibility
+for waitlisting is distinct from actual enrollment, which requires the Step 6 flag. Results are advisory; mutation-time checks remain authoritative. The
+existing disposable API suite covers onboarding/configuration, split shifts,
+overrides, privacy, ownership, preserved commitments and concurrent booking/editing.
+No browser integration, application DB changes or deployment was performed.
+
+### Waitlists and atomic replacements (Step 6, October 31)
+
+WaitlistModule (imported by AppointmentModule) owns waitlists through WaitlistService:
+consent, per-slot FIFO sequence, participant-scoped reads and terminal updates.
+AppointmentCommitmentResolver delegates patient join/leave/replace operations to
+AppointmentCommitmentService. That orchestrator calls explicit AppointmentService
+transaction interfaces for schedule validation, occupied-slot checks, creation and
+cancellation; it does not access another service's models or private helpers.
+
+Both source/destination doctors, the patient and both slots are locked in the
+existing order. Expected original versions prevent stale replacement. Appointment
+cancellation, outbox events, waitlist withdrawal/enrollment and the ledger commit
+or roll back together. New queue entries increment the slot gate's queueSequence;
+withdrawal/rejoining never restores an old position. Patient overlap and specialty
+spacing are enforced against all remaining commitments.
+
+Booking fulfills only its own matching entry, in the booking transaction, without
+resolving an allocation hold. It therefore cannot jump queued allocation. Last
+withdrawal clears an otherwise stranded hold. Other patients' expiry is deferred
+to workers so this writer never changes entries outside its patient scope.
+
+WAITLIST_ENROLLMENT_ENABLED and COMMITMENT_REPLACEMENT_ENABLED default off and
+validate their prerequisite flags. Disabling enrollment preserves reads/withdrawal.
+Startup snapshot audit compares active appointment and waitlist metadata/ledger,
+checks queue counters/ordering and combined specialty conflicts. The initial
+migration continues to refuse all queues, including terminal history.
+
+The Step 7 promotion and Step 8 lifecycle/delivery workers are described below. Outputs explicitly return
+automaticBookingEnabled=false and compute cutoff eligibility; the lifecycle worker persists NOTIFICATION_ONLY/expiry transitions. Own patient/clinic
+entry reads are allowlisted; clinics receive no FIFO position, doctors only scoped
+aggregate counts. See root README for GraphQL inputs, pagination and flag behavior.
+
+### Cancellation, clinic booking and durable events (Step 5, October 28)
+
+AppointmentService owns all new mutations. Clinic creation derives clinicId from
+a current CLINIC principal, validates an existing active USER, and delegates to
+the same private booking operation as online creation. Source/creator metadata
+records PHONE/WALK_IN and the clinic actor. Staff conflict responses omit patient
+commitment summaries, including other clinics' records.
+
+Cancellation is patient/own-clinic only before start; completion/no-show is
+own-clinic only at/after end. Each operation rechecks actor, scoped appointment and
+state/time under doctor, patient and slot gates. A version-conditional write,
+active ledger removal and durable outbox insert commit together. Repeated matching
+terminal actions return the stored result without new events/generation changes.
+Outbox initialization/indexing occurs before the transaction; failures inside it
+roll back appointment, ledger, generation and events. Creation can be paused while
+migrated commitments remain cancellable through assertMigrated.
+
+Cancellation increments slot generation and writes SLOT_RELEASED plus a status
+change event with stable IDs. A queue at >=48h retains the allocation hold;
+manual openings release it. Closed/ineligible schedules produce UNAVAILABLE hints
+and never bypass booking's schedule checks. Manual reservations increment the
+generation to stale earlier releases. The promotion worker rechecks actual cutoff,
+generation and current occupancy/schedule, rather than treating an event hint as
+current availability. Outbox records are private and have no TTL. Step 7 adds
+claims/retries; Step 8 adds in-app delivery. No application DB migration,
+frontend integration or deployment was performed.
+
+### FIFO promotion and durable claim recovery (Step 7, October 31)
+
+`backend/src/components/appointment/appointment-promotion.service.ts` is an internal
+AppointmentModule provider. It owns no transport route and uses the existing
+appointment_events outbox. A bounded polling loop claims queue/unavailable release
+events with a token, 30-second lease and attempt counter. Expired claims can be
+reclaimed after restart. Each transaction writes the token fence after locking the
+doctor/patient/slot, so a stale owner cannot book after takeover. Slot generation
+checks prevent old releases from touching a newer hold.
+
+WaitlistService selects the FIFO ACTIVE head and performs version-conditional
+INELIGIBLE/fulfilled transitions; notification-only entries are excluded.
+AppointmentService checks current consent/patient/doctor/clinic/schedule eligibility.
+BookingCoordinationService exposes a read-only reservation preflight that excludes
+only the selected waitlist, sharing specialty/overlap checks with actual reservation.
+Only typed, established eligibility failures skip a patient; infrastructure failures
+abort the transaction and retry the same head with bounded backoff. A claim handles
+at most 25 candidates before yielding; empty eligible queues resolve their hold.
+
+Promotion uses the existing booking transaction with source WAITLIST and the held
+generation. Appointment creation, queue fulfillment, ledger changes, hold resolution,
+WAITLIST_BOOKING_CREATED and release-event completion commit together. Cutoff checks
+before and after writes roll back a booking that crosses inside 48 hours. A fenced
+follow-up transaction releases the same generation and marks DEFERRED for Step 8;
+manual-opening events are not consumed by this worker. Remaining queue expiry and
+notification fan-out belong to Step 8.
+
+Persisted claim/retry/result fields provide private failure visibility; poll failures
+log only a fixed safe code. The worker stops polling and waits for its current poll
+on shutdown. Tests use real MongoDB for worker contention, FIFO, rollback, abandoned
+leases, fresh instances, stale-owner fencing and cutoff/withdrawal races. Actual
+process-kill recovery and operational monitoring remain Step 12 validation.
+
+WAITLIST_PROMOTION_ENABLED defaults off and rejects true while verified patient-visible
+the patient-facing flow has not been browser-verified. Tests override internal enablement, not persistence or booking.
+The worker is implemented but production activation awaits the verified patient-facing flow in Step 11; persisted
+notification events alone do not satisfy delivery readiness. No application DB,
+production configuration or hosting changes were made.
+
+### Cutoff lifecycle and in-app delivery (Step 8, October 31)
+
+NotificationModule owns notification_outbox and notifications through
+`backend/src/components/notification/notification.service.ts`; WaitlistModule imports
+its exported interface. AppointmentModule's AppointmentWaitlistLifecycleService
+owns background coordination and uses public appointment/waitlist methods. This
+keeps inbox/delivery independent of appointment creation and avoids a module cycle.
+Notification transport is a guarded resolver with user-scoped pagination/read state
+and ADMIN-only aggregate delivery counters. DTOs and Notice types remain under libs.
+
+Cancellation writes recipient intents inside its transaction, capturing active
+manual-opening recipients under the doctor/slot gate. Later delivery does not
+reconstruct the original snapshot from changing queue state. Promotion's cutoff
+handoff similarly writes manual-opening intents. The lifecycle worker also handles
+manual/deferred events and queued holds reaching the cutoff when promotion is off;
+current generation, occupancy and schedule checks prevent stale availability alerts.
+
+Successful booking records a per-physical-slot sequence high-water mark in
+waitlist_cleanup. Per-patient transactions expire the remaining old entries and
+write expiry intents without a transaction spanning every patient. Newer enrollments
+survive old jobs; entries pending cleanup are excluded from promotion/replacement.
+Cutoff transitions update queue and ledger versions together; slot-start expiry
+releases the commitment. Cleanup and delivery each process at most 25 units per
+one-second poll and resume from durable data after restart.
+
+NotificationService.emit upserts event/recipient/IN_APP delivery intents in the
+caller's transaction. Its IN_APP adapter separately claims a token/30-second lease,
+fences ownership, upserts a private inbox record and acknowledges delivery in one
+MongoDB transaction. Failed delivery cannot change a booking; safe backoff metadata
+and operator aggregate counters expose failures. No provider errors or contacts are
+returned. Replay preserves read state. Hash notification IDs do not reveal the
+source cancellation's other-patient appointment ID. Patient messages distinguish
+an unreserved opening from a historical booking event and require current-state reads.
+
+WAITLIST_LIFECYCLE_ENABLED and WAITLIST_NOTIFICATIONS_ENABLED independently default
+off and require migrated replica-set persistence. Captured intents survive pauses;
+lifecycle is independent of delivery availability. In-app API delivery, privacy,
+deduplication and retry are tested against real MongoDB/HTTP. Browser inbox/link
+integration is Step 11; external email/SMS adapters remain unconfigured. Promotion's
+release gate remains closed until the patient-facing flow is verified. No real
+application DB, runtime activation or deployment changed.
+
+### Patient appointment list (Step 9 backend only, October 31)
+
+AppointmentResolver exposes guarded myAppointments with MyAppointmentsInput and
+AppointmentPage DTOs. AppointmentService derives patientId from the USER principal,
+scopes both cursor lookup and result queries to that patient, reuses the appointment
+projection and normalizes missing historical source to LEGACY. It accepts no target
+patient identity. MemberAccessGuard continues to verify current role/status/token
+version; GraphQL responses remain no-store.
+
+The query caps pages at100 (default20), orders startsAt then _id ascending, and uses
+an owned appointment ID as the cursor. Status and inclusive-from/exclusive-to UTC
+filters support upcoming/history views. Time ties use _id to avoid skipped records;
+status changes on the anchor do not invalidate an owned cursor. The new compound
+patientId/startsAt/_id index supports the ordering. Reads do not require booking's
+creation flag or migration marker, matching participant lookup behavior.
+
+This supplies the missing backend list for the patient journey. Existing auth/refresh,
+slots, booking, waitlist and replacement APIs remain unchanged. Per user direction,
+frontend work for Steps9–12 is deferred; no Next.js/Vite files or session behavior
+are changed. Browser integration remains unverified and the promotion release gate
+remains closed. The next implementation scope is Step10's backend portion.
+
+### Clinic/doctor calendar synchronization (Step 10 backend only, October 31)
+
+AppointmentCalendarResolver/Service are registered within AppointmentModule, with
+calendar input/output DTOs under libs/dto/appointment. Calendar entries reuse the
+positive appointment projection now shared through libs/types/appointment.types.ts.
+The service owns read-only participant-scoped appointment/member model reads; no
+new writer, event queue or process-local subscription registry is introduced.
+
+The chosen synchronization mechanism is Bearer-authenticated GraphQL polling. Repo
+records describe a VPS but do not verify WebSocket/SSE proxy buffering/timeouts, so
+the existing HTTP transport provides a concrete supported backend path. Reconnect
+always resynchronizes authoritative state; no timestamp feed can skip a late commit.
+Each request rechecks current account/role/authVersion and reads appointments plus
+clinic timezone metadata in a primary read-only snapshot session with explicit
+cursor timeouts and a shared ten-second abort deadline. Uncommitted
+booking/replacement writes remain invisible. Replica-set persistence is required.
+
+CLINIC scope is recorded clinicId=self; optional doctorId intersects that scope.
+DOCTOR scope is doctorId=self, including their own recorded history; another doctor
+filter is forbidden. USER/ADMIN roles do not gain calendar access. UTC overlap windows
+are bounded to31 elapsed days, at most5000 records, with pages of at most100 entries.
+Additional compound clinic/doctor start-time/ID indexes support the ordering. Output
+contains existing participant fields plus clinicTimezone, never contacts or raw rows.
+
+The server hashes the full scoped window/timezone context into a revision. Polling
+returns changed/revision with a five-second advisory interval. Continuation pages
+must supply the first page revision and fail CONFLICT if state changed, preventing
+mixed revisions. The client buffers all pages then swaps its complete state; on
+reconnect or conflict it restarts. Revisions are state fingerprints, not event/audit
+sequences. Existing writes automatically appear after commit without changing their
+transaction boundaries or flags. Availability and schedule controls remain separate
+existing APIs, not inferred from a calendar notice.
+
+Real MongoDB tests cover scope isolation, time ties/bounds/offsets, revision changes,
+late/uncommitted writes, replacement atomicity, promotion, status/outcome changes,
+timezone context, cursor revisions and oversized-window errors. No frontend, live
+proxy/hosting, browser recovery or production throughput verification is implied.
+Existing onboarding/schedule/staff mutations supply the other backend contracts;
+frontend workspace/calendar controls remain deferred per user instruction.
+
+### Notification target resolution and delivery journeys (Step 11 backend only)
+
+NotificationService now exposes getNotification and unread-only list filtering;
+its generic positive-view mapper preserves the selected record type. Read/detail
+lookups remain owner-scoped, with separate idempotent markNotificationRead.
+AppointmentNotificationResolver/Service orchestrate notification ownership, existing
+appointment/waitlist services and the shared exact-slot schedule lookup. The
+orchestrator lives in AppointmentModule, which imports NotificationModule's public
+interface; NotificationModule does not import appointment services, avoiding a cycle.
+DTOs and target-kind enum remain under libs/dto/notification and libs/enum.
+
+notificationContext accepts only an owned notification ID. Booking notices resolve
+the current owned appointment status; manual notices resolve the retained owned
+waitlist reference's specialty and clinic-local slot through the existing public
+slot rules. Known absent/closed/past targets return UNAVAILABLE, while infrastructure
+errors propagate. A late opening can return SLOT/OCCUPIED without revealing the
+occupant. Historical text never becomes proof of a live reservation. checkedAt is
+an advisory evaluation time, not a snapshot/booking guarantee. Join/expiry notices
+return current waitlist state. None of these queries marks a notification read.
+
+The existing IN_APP outbox/inbox pipeline is tested end to end through real HTTP
+and MongoDB: promotion delivery, current cancellation state, delayed manual alerts,
+UTC/local-day boundaries, unread cursors, retry during paused creation, replay and
+fresh-worker expired-lease takeover/stale-owner fencing. Required booking intents
+remain durable, and notification retry never recreates an appointment. No channel
+preference API suppresses required delivery; unread filtering affects reads only.
+External provider adapters remain unconfigured. Frontend center/link verification
+and promotion activation remain deferred by the backend-first scope. No application
+DB, feature flags, hosting or frontend files were changed.
 
 ## Shared services and external integrations
 
@@ -427,4 +726,4 @@ These scoped source observations are not a full runtime/security audit. Database
 | Frontend authentication crosses incompatible contracts: `frontend/src/pages/Login.tsx` always calls mockLogin; `frontend/src/lib/api.ts` uses `/login/` and `/auth/register`, while the backend controller uses `/member/login` and `/member/signup`. `frontend/src/api.ts` defines a second client; frontend email/password and user shapes also differ from backend memberEmail/memberPassword and member responses. | A local UI session can appear authenticated without a valid server token; real registration/login calls do not match the implemented API. | Trace callers, consolidate the active API boundary, map backend DTO/response fields explicitly, and gate mocks deliberately. Verify signup/login/protected requests against server contracts; keep backend guards authoritative. |
 | Local deployment workflow does not match source layout: ignored root `docker-compose.yml` runs npm in `/usr/src/medconnect`, while package.json is under backend/. `deploy.sh` hard-resets and selects master. | The recorded script cannot be assumed to build this checkout and can discard local changes when run. | Review the intended branch/release workflow, point container commands at backend/, and replace destructive checkout handling with an explicit release procedure. Validate configuration/build before attempting deployment. |
 
-Further boundary to clarify when implementing availability or clinic approval: AppointmentService reads member and schedule models directly, but no schedule-management service owns API writes yet. Define that ownership before adding writes; a repository-wide service split is not required for this documentation task.
+Scheduling write ownership was established in Step 4: MemberService owns affiliation review and AppointmentScheduleService owns weekly/date schedule changes. AppointmentService retains explicit read dependencies and shares pure slot/override rules. No repository-wide service split was introduced.

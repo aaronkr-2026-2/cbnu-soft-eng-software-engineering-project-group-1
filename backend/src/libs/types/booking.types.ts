@@ -1,10 +1,12 @@
-import type { ClientSession, Types } from 'mongoose';
+import type { ClientSession, Types, InferSchemaType } from 'mongoose';
+import type { WaitlistSchema } from '../../schemas/waitlist.model.js';
 import type { DoctorSpecialization } from '../enum/member.enum.js';
 
-// Callers validate doctor/clinic eligibility and normalize slots through
-// appointmentSlot using the clinic timezone before declaring this scope.
+// Declare exact UTC starts. Recheck doctor/clinic eligibility and clinic-local
+// alignment inside the transaction before reserving a commitment.
 export type BookingSlot = { doctorId: Types.ObjectId; startsAt: Date };
 export type BookingScope = {
+  doctorIds?: Types.ObjectId[];
   patientIds: Types.ObjectId[];
   slots: BookingSlot[];
 };
@@ -21,9 +23,20 @@ export type BookingCommitment = BookingSlot & {
 
 export type BookingTransaction = {
   session: ClientSession;
+  checkReservation: (
+    commitment: BookingCommitment,
+    generation: number,
+    excludedWaitlistId: Types.ObjectId,
+  ) => Promise<void>;
   reserve: (
     commitment: BookingCommitment,
     allocationGeneration?: number,
+  ) => Promise<void>;
+  updateWaitlistStatus: (
+    id: Types.ObjectId,
+    previousVersion: string,
+    version: string,
+    status: 'NOTIFICATION_ONLY',
   ) => Promise<void>;
   release: (
     kind: BookingCommitment['kind'],
@@ -31,4 +44,18 @@ export type BookingTransaction = {
   ) => Promise<void>;
   holdSlot: (slot: BookingSlot) => Promise<number>;
   resolveSlot: (slot: BookingSlot, generation: number) => Promise<void>;
+  slotState: (slot: BookingSlot) => Promise<{
+    allocationPending: boolean;
+    generation: number;
+    queueSequence: number;
+  }>;
+  nextQueueSequence: (slot: BookingSlot) => Promise<number>;
+};
+
+export type BookingTarget = Omit<
+  BookingCommitment,
+  'kind' | 'commitmentId' | 'patientId' | 'version' | 'status'
+>;
+export type WaitlistRecord = InferSchemaType<typeof WaitlistSchema> & {
+  _id: Types.ObjectId;
 };

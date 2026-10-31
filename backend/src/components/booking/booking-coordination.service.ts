@@ -8,6 +8,7 @@ import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { BookingConflictException } from './booking-error.js';
 import {
   Connection,
+  type Types,
   type ClientSession,
   type InferSchemaType,
   type Model,
@@ -87,6 +88,7 @@ export class BookingCoordinationService {
     const commitments = this.commitments!;
     const keys = [
       ...new Set([
+        ...(scope.doctorIds ?? []).map((id) => `doctor:${id.toHexString()}`),
         ...scope.patientIds.map(patientKey),
         ...scope.slots.map(slotKey),
       ]),
@@ -147,6 +149,18 @@ export class BookingCoordinationService {
           };
           return work({
             session,
+            checkReservation: async (entry, generation, excludedWaitlistId) => {
+              requireKey(patientKey(entry.patientId));
+              requireKey(slotKey(entry));
+              await this.checkReservation(
+                entry,
+                generation,
+                session,
+                gates,
+                commitments,
+                excludedWaitlistId,
+              );
+            },
             reserve: async (entry, generation) => {
               requireKey(patientKey(entry.patientId));
               requireKey(slotKey(entry));
@@ -156,6 +170,31 @@ export class BookingCoordinationService {
                 session,
                 gates,
                 commitments,
+              );
+            },
+            updateWaitlistStatus: async (
+              commitmentId,
+              previousVersion,
+              version,
+              status,
+            ) => {
+              const entry = await commitments
+                .findOne({ kind: 'WAITLIST', commitmentId })
+                .session(session)
+                .lean()
+                .exec();
+              if (
+                !entry ||
+                entry.version !== previousVersion ||
+                entry.status !== 'ACTIVE'
+              )
+                throw new BookingConflictException('STALE_COMMITMENT');
+              requireKey(patientKey(entry.patientId));
+              requireKey(slotKey(entry));
+              await commitments.updateOne(
+                { _id: entry._id },
+                { $set: { version, status } },
+                { session },
               );
             },
             release: async (kind, commitmentId) => {
@@ -201,6 +240,43 @@ export class BookingCoordinationService {
               if (result.matchedCount !== 1)
                 throw new ConflictException('Slot generation is stale');
             },
+            slotState: async (slot) => {
+              requireKey(slotKey(slot));
+              const row = await gates
+                .findById(slotKey(slot))
+                .session(session)
+                .lean()
+                .exec();
+              if (!row)
+                throw new ServiceUnavailableException(
+                  'Booking gate is missing',
+                );
+              return {
+                allocationPending: row.allocationPending,
+                generation: row.generation,
+                queueSequence: row.queueSequence ?? 0,
+              };
+            },
+            nextQueueSequence: async (slot) => {
+              requireKey(slotKey(slot));
+              const row = await gates
+                .findOneAndUpdate(
+                  { _id: slotKey(slot) },
+                  { $inc: { queueSequence: 1 } },
+                  { session, returnDocument: 'after' },
+                )
+                .lean()
+                .exec();
+              if (
+                !row ||
+                !Number.isSafeInteger(row.queueSequence) ||
+                row.queueSequence > 2147483647
+              )
+                throw new ServiceUnavailableException(
+                  'Queue ordering is unavailable',
+                );
+              return row.queueSequence;
+            },
           });
         },
         {
@@ -216,12 +292,13 @@ export class BookingCoordinationService {
     }
   }
 
-  private async reserve(
+  private async checkReservation(
     entry: BookingCommitment,
     generation: number | undefined,
     session: ClientSession,
     gates: Model<Gate>,
     commitments: Model<Commitment>,
+    excludedWaitlistId?: Types.ObjectId,
   ) {
     const gate = await gates
       .findById(slotKey(entry))
@@ -251,6 +328,9 @@ export class BookingCoordinationService {
     const blockers = await commitments
       .find({
         patientId: entry.patientId,
+        ...(excludedWaitlistId
+          ? { $nor: [{ kind: 'WAITLIST', commitmentId: excludedWaitlistId }] }
+          : {}),
         $or: [
           sameSpecialty,
           ...(entry.kind === 'APPOINTMENT'
@@ -291,6 +371,25 @@ export class BookingCoordinationService {
         .session(session);
       if (occupied) throw new BookingConflictException('SLOT_OCCUPIED');
     }
+  }
+
+  private async reserve(
+    entry: BookingCommitment,
+    generation: number | undefined,
+    session: ClientSession,
+    gates: Model<Gate>,
+    commitments: Model<Commitment>,
+  ) {
+    await this.checkReservation(entry, generation, session, gates, commitments);
     await commitments.create([entry], { session });
+    // A new manual allocation makes earlier opening events stale. Allocators
+    // using an explicit generation retain it until resolveSlot completes.
+    if (entry.kind === 'APPOINTMENT' && generation == null) {
+      await gates.updateOne(
+        { _id: slotKey(entry) },
+        { $inc: { generation: 1 } },
+        { session },
+      );
+    }
   }
 }

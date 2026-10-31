@@ -1,3 +1,4 @@
+import { WAITLIST, WaitlistSchema } from '../../schemas/waitlist.model.js';
 import { Injectable, Optional, type OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import type { ClientSession, InferSchemaType, Model } from 'mongoose';
@@ -12,7 +13,10 @@ import AppointmentSchema, {
 } from '../../schemas/appointment.model.js';
 import { BookingCoordinationService } from './booking-coordination.service.js';
 import { BookingMigrationService } from './booking-migration.service.js';
-import { bookingPolicyEnabled } from './booking.config.js';
+import {
+  bookingPolicyEnabled,
+  validateWaitlistFlags,
+} from './booking.config.js';
 import { BookingUnavailableException } from './booking-error.js';
 
 @Injectable()
@@ -30,14 +34,20 @@ export class BookingPolicyService implements OnModuleInit {
     private readonly appointments?: Model<
       InferSchemaType<typeof AppointmentSchema>
     >,
+    @Optional()
+    @InjectModel(WAITLIST)
+    private readonly waitlists?: Model<InferSchemaType<typeof WaitlistSchema>>,
   ) {}
 
   async onModuleInit() {
+    validateWaitlistFlags();
     if (!bookingPolicyEnabled()) return;
     await this.coordination.prepare();
     if (!this.appointments)
       throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
     await this.appointments.createIndexes();
+    await this.waitlists?.createCollection();
+    await this.waitlists?.createIndexes();
     await this.assertReady();
     const audit = await this.migration.auditSnapshot();
     if (audit.issues.length || !audit.ledgerMatches || !audit.metadataMatches)
@@ -47,6 +57,11 @@ export class BookingPolicyService implements OnModuleInit {
   async assertReady(session?: ClientSession) {
     if (!bookingPolicyEnabled())
       throw new BookingUnavailableException('FEATURE_DISABLED');
+    await this.assertMigrated(session);
+  }
+
+  // Existing commitments remain cancellable while new booking is paused.
+  async assertMigrated(session?: ClientSession) {
     if (!this.policy)
       throw new BookingUnavailableException('BOOKING_UNAVAILABLE');
     const ready = await this.policy

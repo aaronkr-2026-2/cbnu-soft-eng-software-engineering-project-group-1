@@ -47,3 +47,9 @@ export class AppointmentOutput {
   @Field(() => GraphQLISODateTime) createdAt: Date;
   @Field(() => GraphQLISODateTime) updatedAt: Date;
 }
+
+@ObjectType()
+export class AppointmentPage {
+  @Field(() => [AppointmentOutput]) entries: AppointmentOutput[];
+  @Field(() => ID, { nullable: true }) nextCursor?: string;
+}

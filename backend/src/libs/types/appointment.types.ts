@@ -1,0 +1,20 @@
+// Positive appointment projection shared by participant reads and calendar snapshots.
+export const appointmentFields = {
+  _id: 1,
+  specialty: 1,
+  source: 1,
+  version: 1,
+  startsAt: 1,
+  endsAt: 1,
+  durationMinutes: 1,
+  status: 1,
+  doctorId: 1,
+  clinicId: 1,
+  patientId: 1,
+  doctorChangeRequest: 1,
+  lastChangedBy: 1,
+  canceledAt: 1,
+  canceledBy: 1,
+  createdAt: 1,
+  updatedAt: 1,
+};

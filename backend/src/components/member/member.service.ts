@@ -200,6 +200,65 @@ export class MemberService {
     return this.hydrateLocations(doctors);
   }
 
+  async listClinicDoctors(principal: MemberPrincipal) {
+    if (principal.memberType !== MemberType.CLINIC)
+      throw new ForbiddenException('Only clinics can review affiliations');
+    if ((await this.myProfile(principal)).memberType !== MemberType.CLINIC)
+      throw new ForbiddenException('Only clinics can review affiliations');
+    const doctors = await this.members!.find({
+      clinicId: principal._id,
+      memberType: MemberType.DOCTOR,
+      memberStatus: MemberStatus.ACTIVE,
+      deletedAt: null,
+    })
+      .select(this.publicFields)
+      .sort({ memberFullName: 1, _id: 1 })
+      .limit(100)
+      .lean()
+      .exec();
+    return this.hydrateLocations(doctors);
+  }
+
+  async reviewDoctorAffiliation(
+    doctorId: string,
+    approve: boolean,
+    principal: MemberPrincipal,
+  ) {
+    if (principal.memberType !== MemberType.CLINIC)
+      throw new ForbiddenException('Only clinics can review affiliations');
+    if (!/^[a-f\d]{24}$/i.test(doctorId))
+      throw new BadRequestException('Invalid doctor ID');
+    if ((await this.myProfile(principal)).memberType !== MemberType.CLINIC)
+      throw new ForbiddenException('Only clinics can review affiliations');
+    const scope = {
+      _id: new Types.ObjectId(doctorId),
+      clinicId: principal._id,
+      memberType: MemberType.DOCTOR,
+      memberStatus: MemberStatus.ACTIVE,
+      deletedAt: null,
+    };
+    const doctor = await this.members!.findOne(scope)
+      .select({ doctorClinicStatus: 1 })
+      .lean()
+      .exec();
+    if (!doctor) throw new NotFoundException('Doctor application not found');
+    const status = approve
+      ? DoctorClinicStatus.APPROVED
+      : DoctorClinicStatus.REJECTED;
+    if (doctor.doctorClinicStatus === status) return status;
+    if (doctor.doctorClinicStatus !== DoctorClinicStatus.PENDING)
+      throw new ConflictException('Only pending affiliations can be reviewed');
+    const result = await this.members!.updateOne(
+      { ...scope, doctorClinicStatus: DoctorClinicStatus.PENDING },
+      { $set: { doctorClinicStatus: status } },
+    );
+    if (result.modifiedCount !== 1)
+      throw new ConflictException(
+        'Doctor application changed; refresh before reviewing',
+      );
+    return status;
+  }
+
   // Clinics own cities. Resolve doctor cities from current affiliations in one query.
   private async hydrateLocations<
     T extends Pick<MemberProfile, 'memberType' | 'clinicId' | 'location'>,

@@ -1,3 +1,4 @@
+import { NotificationModule } from './notification/notification.module.js';
 import { Module } from '@nestjs/common';
 import { MemberModule } from './member/member.module.js';
 import { AppointmentModule } from './appointment/appointment.module.js';
@@ -13,6 +14,7 @@ import { UploadModule } from './upload/upload.module.js';
     HealthModule,
     UploadModule,
     BookingModule,
+    NotificationModule,
   ],
 })
 export class ComponentsModule {}
