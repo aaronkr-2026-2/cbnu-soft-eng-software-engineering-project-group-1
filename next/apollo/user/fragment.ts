@@ -20,6 +20,9 @@ export const MEMBER_FIELDS = gql`
 
 export const APPOINTMENT_FIELDS = gql`
   fragment AppointmentFields on Appointment {
+    specialty
+    source
+    version
     _id
     doctorId
     clinicId

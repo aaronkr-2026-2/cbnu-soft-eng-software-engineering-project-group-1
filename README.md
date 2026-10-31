@@ -16,13 +16,11 @@ See this README's [backend setup](#requirements-and-quick-start) and
 [API documentation](#api-documentation-and-status) for backend instructions.
 A React/Vite frontend lives in `frontend/`; see its [README](frontend/README.md)
 for frontend instructions.
-A separate Next.js frontend is being prepared in `next/` using Yarn; see its
-[README](next/README.md) for setup and current limitations. Its root landing page uses MUI,
-shared brand styles, and public GraphQL clinic/doctor discovery with search and
-retry states. `/auth` provides email/password sign-in and patient signup in one
-page, with in-memory sessions and a Google Identity Services callback flow. Booking
-remains pending. Real
-API/database integration is not yet verified.
+The Next.js frontend in `next/` provides discovery, authentication, profile editing,
+and patient booking/waitlist journeys. See its [setup and verification limits](next/README.md)
+and [architecture](docs/architecture/architecture-next.md). Booking and refresh flows
+were verified locally against the updated backend with disposable MongoDB data;
+this does not establish deployed integration or enable automatic waitlist booking.
 
 ## Contents
 
@@ -116,34 +114,28 @@ API/database integration is not yet verified.
 - **Frontend starter screens:** Login, registration, and a protected dashboard
   layout. Dashboard statistics and appointments currently use sample data;
   frontend/backend integration is not verified.
-- **Next.js landing page:** `next/` provides a responsive root page, clinic search,
-  doctor previews, a care guide, and upcoming-portal information. Public discovery
-  uses existing GraphQL operations; successful real API integration is unverified.
-  Booking is marked coming soon. See [Next.js setup](next/README.md).
-- **Next.js clinics page:** `/clinics` displays reusable image/name/address cards,
-  local search, loading/empty/error states, and doctor previews through existing
-  public GraphQL queries. Ratings are marked coming soon. The current API returns
-  at most 100 clinics; search covers those results. Mocked rendering and production
-  HTTP checks passed; browser interaction and live backend integration are unverified.
-- **Next.js doctors page:** `/doctors` renders doctor cards with name/specialization
-  search, photo fallback, and loading/empty/error states. Its public `getDoctors`
-  backend query is implemented; live frontend/backend integration remains unverified.
-  Ratings, profile pages, and pagination remain pending. Frontend mocked checks and production page HTTP checks passed;
-  browser interaction and live database integration are unverified.
-- **Next.js sign-in and signup:** `/auth` switches forms in place, validates patient
-  signup, provides password eye controls, and calls the existing REST endpoints.
-  Client sessions stay in memory until reload/expiry; local sign-out is available.
-  Google uses its official popup button and the existing cookie-bound nonce/login
-  endpoints. Email/password browser flows were checked with a local fixture; real
-  Google/Nest/database completion and persistent sessions remain unverified/pending.
-
-- **Next.js My Page:** `/mypage` loads the signed-in member's private profile,
-  supports inline editing with Save/Cancel, optional password changes, and image
-  preview/upload/removal. Signed-in desktop/mobile navigation includes My Page.
-  Requires the backend branch's `myProfile`, `updateMember`, and `imageUploader`
-  operations. Backend-schema validation, focused tests, and a local browser
-  fixture passed; real Nest/database integration remains unverified. Reload
-  still ends the in-memory session.
+- **Next.js discovery:** `/`, `/clinics`, and `/doctors` provide clinic/doctor cards,
+  local search, doctor previews, and View times links. Clinics are resolved from
+  the first 100 approved public doctors; clinics outside that list and complete
+  pagination are unavailable. Ratings remain labeled placeholders.
+- **Next.js authentication:** `/auth` offers email/password login, patient signup,
+  and optional Google popup sign-in. A same-origin session bridge keeps rotating
+  refresh tokens in HttpOnly cookies; access tokens stay in memory. Reload restores
+  valid sessions. Sign-out clears browser state/cookies without claiming backend
+  revocation. Email/password/refresh browser integration passed locally; real
+  Google login and production proxy/TLS behavior remain unverified.
+- **Next.js patient care:** `/book`, `/appointments`, and `/waitlist` provide real
+  clinic-local times with a visual month calendar, immediate confirmation, private paginated lists/details,
+  cancellation, consent-based enrollment/withdrawal, structured Keep/Replace
+  conflicts, and all four atomic replacement directions. Lost responses trigger
+  read reconciliation without automatic mutation replay. Chrome with real Nest
+  and disposable MongoDB verified these journeys, target-race rollback, the
+  48-hour explanation, and mobile/keyboard booking. Backend flags/release gates
+  still govern availability; automatic promotion remains paused. Calendar and
+  notification screens remain pending.
+- **Next.js My Page:** `/mypage` provides private profile editing, optional password
+  changes, and image preview/upload/removal. Earlier focused tests and a local
+  browser fixture passed; live profile storage/password flows remain unverified.
 
 Update this list whenever a new feature is added. Keep entries aligned with the
 implemented behavior, and revise them when features change or are removed.

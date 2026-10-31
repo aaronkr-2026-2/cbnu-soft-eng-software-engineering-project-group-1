@@ -1,3 +1,4 @@
+import { authReturn } from '../../libs/auth-return';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -82,7 +83,7 @@ export function AuthPage() {
     startSession(result);
     setFields((previous) => ({ ...previous, password: '', confirm: '' }));
     // Fixed internal destination; no user-supplied redirect URL.
-    await router.replace('/');
+    await router.replace(authReturn(router.query.next));
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -198,7 +199,9 @@ export function AuthPage() {
         </Link>
         <div className="auth-form-container">
           {router.query.passwordChanged === '1' && (
-            <Alert severity="success">Password updated. Please sign in with your new password.</Alert>
+            <Alert severity="success">
+              Password updated. Please sign in with your new password.
+            </Alert>
           )}
           <span className="auth-eyebrow">
             {signup ? 'YOUR CARE JOURNEY STARTS HERE' : 'GOOD TO SEE YOU AGAIN'}
@@ -215,7 +218,7 @@ export function AuthPage() {
             <Alert
               severity="success"
               action={
-                <Button component={Link} href="/">
+                <Button component={Link} href={authReturn(router.query.next)}>
                   Go home
                 </Button>
               }

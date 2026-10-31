@@ -1,74 +1,149 @@
 import { useSyncExternalStore } from 'react';
 import type { AuthResult } from './api/auth';
-
+import { sessionRequest, SessionError } from './api/session';
 type Session = AuthResult & { expiresAt: number };
 let session: Session | null = null;
-let expirationTimer: ReturnType<typeof setTimeout> | undefined;
+let status: 'loading' | 'ready' | 'error' = 'loading';
+let timer: ReturnType<typeof setTimeout> | undefined;
+let pending: Promise<Session | null> | undefined;
+let generation = 0,
+  initialized = false;
+let channel: BroadcastChannel | undefined;
 const listeners = new Set<() => void>();
-const serverSnapshot = () => null;
-const snapshot = () =>
-  session && session.expiresAt > Date.now() ? session : null;
+const emit = () => listeners.forEach((listener) => listener());
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
 };
-
-export function clearSession() {
-  clearTimeout(expirationTimer);
-  session = null;
-  listeners.forEach((listener) => listener());
-}
-
-export function startSession(result: AuthResult) {
-  // Reading exp schedules UI expiry only; the backend still verifies all tokens.
-  let expiresAt: number;
-  try {
-    const encoded = result.accessToken
-      .split('.')[1]
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
-    const payload = JSON.parse(atob(encoded));
-    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp))
-      throw new Error('Missing expiry');
-    expiresAt = payload.exp * 1000;
-    if (expiresAt <= Date.now() || expiresAt - Date.now() > 2147483647)
-      throw new Error('Invalid expiry');
-  } catch {
-    throw new Error('We couldn’t start your session. Please sign in again.');
-  }
-  clearTimeout(expirationTimer);
+const snapshot = () =>
+  session && session.expiresAt > Date.now() ? session : null;
+function apply(result: AuthResult) {
+  const payload = JSON.parse(
+    atob(
+      result.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'),
+    ),
+  );
+  const expiresAt = Number(payload.exp) * 1000;
+  if (
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= Date.now() ||
+    expiresAt - Date.now() > 2147483647
+  )
+    throw new Error('Invalid session expiry');
   session = { ...result, expiresAt };
-  expirationTimer = setTimeout(clearSession, expiresAt - Date.now());
-  listeners.forEach((listener) => listener());
+  status = 'ready';
+  clearTimeout(timer);
+  timer = setTimeout(
+    () => {
+      void restoreSession(true);
+    },
+    Math.max(1000, expiresAt - Date.now() - 60000),
+  );
+  emit();
 }
-
-// Apply profile display changes without resetting token expiry or replacing another session.
+export function startSession(result: AuthResult) {
+  generation++;
+  apply(result);
+  channel?.postMessage('changed');
+}
+export function clearSession() {
+  generation++;
+  clearTimeout(timer);
+  session = null;
+  status = 'ready';
+  emit();
+  channel?.postMessage('logout');
+  // The client transport serializes this after any in-flight refresh, so its
+  // late Set-Cookie cannot restore the local session after sign-out.
+  void sessionRequest('logout').catch(() => undefined);
+}
+export function restoreSession(force = false): Promise<Session | null> {
+  if (pending) return pending;
+  if (!force && snapshot()) return Promise.resolve(session);
+  const current = generation;
+  pending = sessionRequest<AuthResult>('refresh')
+    .then((result) => {
+      if (current === generation) apply(result);
+      return snapshot();
+    })
+    .catch((error) => {
+      if (current !== generation) return snapshot();
+      if (error instanceof SessionError && [401, 403].includes(error.status)) {
+        session = null;
+        status = 'ready';
+        clearTimeout(timer);
+      } else {
+        status = 'error';
+        if (snapshot())
+          timer = setTimeout(() => {
+            void restoreSession(true);
+          }, 5000);
+        else session = null;
+      }
+      emit();
+      return snapshot();
+    })
+    .finally(() => {
+      pending = undefined;
+    });
+  return pending;
+}
+export function initializeSession() {
+  if (initialized) return;
+  initialized = true;
+  if (typeof BroadcastChannel !== 'undefined') {
+    channel = new BroadcastChannel('medconnect-session');
+    channel.onmessage = (event) => {
+      if (event.data === 'logout') {
+        generation++;
+        clearTimeout(timer);
+        session = null;
+        status = 'ready';
+        emit();
+      } else if (event.data === 'changed') {
+        generation++;
+        clearTimeout(timer);
+        session = null;
+        status = 'loading';
+        emit();
+        void (pending || Promise.resolve()).then(() => restoreSession(true));
+      }
+    };
+  }
+  void restoreSession();
+}
+export async function getAccessToken() {
+  if (!snapshot() || session!.expiresAt - Date.now() < 5000)
+    await restoreSession(true);
+  const token = snapshot()?.accessToken;
+  if (!token) throw new SessionError(401);
+  return token;
+}
 export function updateSessionMember(
   token: string,
   member: AuthResult['member'],
 ) {
-  if (
-    !session ||
-    session.accessToken !== token ||
-    session.expiresAt <= Date.now()
-  )
-    return;
+  if (!session || session.accessToken !== token || !snapshot()) return;
   session = {
     ...session,
     member: {
       _id: member._id,
-      memberNick: member.memberNick,
       memberType: member.memberType,
+      memberNick: member.memberNick,
       memberFullName: member.memberFullName,
     },
   };
-  listeners.forEach((listener) => listener());
+  emit();
 }
-
-// Tokens remain in this client module, never browser storage or serialized props.
-// Reload/expiry ends the local session. Sign-out does not revoke server sessions.
 export function useSession() {
-  return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+  return useSyncExternalStore(subscribe, snapshot, () => null);
+}
+export function useSessionStatus() {
+  return useSyncExternalStore(
+    subscribe,
+    () => status,
+    () => 'loading' as const,
+  );
 }

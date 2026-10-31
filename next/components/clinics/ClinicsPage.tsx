@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
-import { Alert, Button, InputAdornment, Skeleton, TextField } from '@mui/material';
+import {
+  Alert,
+  Button,
+  InputAdornment,
+  Skeleton,
+  TextField,
+} from '@mui/material';
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import { memberName, type PublicMember } from '../../libs/api/public-members';
@@ -38,7 +44,8 @@ export function ClinicsPage() {
             <span className="eyebrow">FIND YOUR CARE TEAM</span>
             <h1>Find a clinic.</h1>
             <p>
-              Explore clinics, find their locations, and get to know their doctors.
+              Explore clinics, find their locations, and get to know their
+              doctors.
             </p>
           </div>
         </section>
@@ -47,6 +54,9 @@ export function ClinicsPage() {
           aria-labelledby="clinic-results-title"
         >
           <h2 id="clinic-results-title">Clinic directory</h2>
+          <p>
+            Clinics shown are those represented in the first 100 listed doctors.
+          </p>
           <div className="clinics-page__toolbar">
             <TextField
               label="Search clinics"
@@ -89,7 +99,11 @@ export function ClinicsPage() {
           {!loading && error && (
             <Alert
               severity="warning"
-              action={<Button color="inherit" onClick={retry}>Try again</Button>}
+              action={
+                <Button color="inherit" onClick={retry}>
+                  Try again
+                </Button>
+              }
             >
               {error}
             </Alert>
@@ -110,7 +124,9 @@ export function ClinicsPage() {
                 <div className="clinics-page__empty">
                   <SearchRounded aria-hidden="true" />
                   <h3>
-                    {members.length ? 'No matching clinics' : 'No clinics listed yet'}
+                    {members.length
+                      ? 'No matching clinics'
+                      : 'No clinics listed yet'}
                   </h3>
                   <p>
                     {members.length

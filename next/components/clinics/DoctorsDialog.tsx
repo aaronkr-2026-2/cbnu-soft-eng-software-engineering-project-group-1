@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   Alert,
   Avatar,
@@ -75,13 +76,18 @@ export function DoctorsDialog({
                     : 'Specialization not listed'}
                 </p>
                 {doctor.memberDesc && <p>{doctor.memberDesc}</p>}
+                <Button
+                  component={Link}
+                  href={`/book?${new URLSearchParams({ clinicId: clinic._id, doctorId: doctor._id })}`}
+                >
+                  View times
+                </Button>
               </div>
             </li>
           ))}
         </ul>
         <p className="availability-note">
-          Online booking is coming soon. Appointment times are not
-          available on this page.
+          Choose View times to check current appointment availability.
         </p>
       </DialogContent>
       <DialogActions>
@@ -90,4 +96,3 @@ export function DoctorsDialog({
     </Dialog>
   );
 }
-

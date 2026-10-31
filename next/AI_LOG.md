@@ -379,3 +379,43 @@
 **Something the AI got wrong that I had to catch:** TypeScript caught a missing JSX brace in the initial Avatar slotProps; it was fixed before verification. An older reference formatter could not parse the pre-existing satisfies expression in AuthPage; that file was left with its existing formatting. Initial checks from the repository root and sandbox-local server binding failed; checks were rerun from the package and previews ran with approved escalation.
 
 **One decision I can explain without AI:** I load private contact details through authenticated myProfile instead of adding them to public getMember, so the profile screen can edit account details without exposing them through discovery queries.
+
+## Step 9 patient booking and waitlist journeys — 2026-10-31
+
+**Tool(s) used:** Codex, shell/Python, TypeScript/Yarn, Prettier, Node tests, actual Nest API with disposable MongoDB replica set, GraphQL schema validation, and Chrome computer use.
+
+**What I asked for:** Start Step 9 in the Next.js frontend after completing backend portions. Leave commits and pushes to me and provide the commit message at the end of the step.
+
+**Pre-planning:** I inspected the Next worktree instructions, session records, installed Pages Router/MUI stack and guides, MediBridge booking reference, and the backend booking/session/ownership contracts. Backend and Vite folders remained protected from writes.
+
+**Planning:** I reused the existing layout and palette, kept business rules in Nest, added private client-side care screens, and introduced a same-origin session bridge to keep refresh tokens out of JavaScript. Replacements use one server mutation; ambiguous responses require reads rather than automatic replay.
+
+**Implementation process:** I added booking/appointment/waitlist routes, review and consent dialogs, private pagination/details, cancellation/withdrawal, four replacement directions, stale preflight, conflict Keep/Replace choices, and lost-response reconciliation. Persistent sessions integrate auth/Google transport with HttpOnly refresh cookies and memory access tokens. Public discovery now uses actual getDoctors/getMember contracts; links/copy and README/architecture were updated. All 26 focused Node tests, typecheck, production build and 18 real-schema operation validations passed. Chrome with real Nest/disposable MongoDB covered all four replacements, both conflict choices, competing-target original preservation, booking, cutoff, details/withdrawal, reload refresh/signout and mobile/keyboard booking. A fault proxy dropped committed booking/cancel responses; owned reads recovered both without replay. Final production build excludes fixture URLs; temporary processes/dependency symlink were removed. No frontend sprint covers this date.
+
+**What I kept as-is:** I preserved backend/frontend source, server-derived identity, transaction/conflict rules, feature flags and closed promotion gate, profile editing, and existing router/theme. No dependency versions, application database, deployment, staging, commit or push changed.
+
+**What I changed or rejected, and why:** I derived clinics from the public approved-doctor list because the current backend does not expose the older directory operations. I display that 100-doctor limitation. I kept unresolved network outcomes blocked locally and offered owned reads/My Care. Sign-out clears browser state/cookies; I do not claim server-session revocation. Real Google, production TLS/proxy/multi-instance, natural token expiry and live profile storage/password checks remain unverified.
+
+**Something the AI got wrong that I had to catch:** TypeScript caught initial MUI href and Web Locks typing mistakes. The live API caught inherited getClinics/getClinicDoctors assumptions; browser testing caught a loading flag left active after replacement. The AI corrected them before final verification; I did not report that I personally caught those errors.
+
+**One decision I can explain without AI:** I submit replacement as one backend operation so a failed destination keeps the original commitment; the UI never cancels first and then tries to join a waitlist.
+
+## Visual booking date calendar — 2026-10-31
+
+**Tool(s) used:** Codex, shell/Python, MediBridge source inspection, Prettier, Yarn/TypeScript/Next build, Node tests, and Chrome computer use with a synthetic local API fixture.
+
+**What I asked for:** Adapt MediBridge Next's visual calendar to this booking screen.
+
+**Pre-planning:** I inspected CalendarContent.tsx and its SCSS, the existing native date field and slot effects, Next instructions/continuity, and installed Pages Router documentation. Existing Step 9 changes were still uncommitted and were preserved.
+
+**Planning:** I reused the month navigation and seven-column calendar pattern, with our colors, accessible buttons/keyboard navigation, clinic-local date boundaries, and existing available/occupied slot handling. I kept server scheduling rules and did not assume weekends are closed.
+
+**Implementation process:** I added BookingCalendar, date-only arithmetic helpers, responsive styles, and three focused leap-year/month/year/day-boundary tests. The selected date feeds the existing slot fetch and clears the previous time. Typecheck, all 29 Node tests, production build without fixture API URLs, and whitespace checks passed. Chrome with synthetic data verified disabled past dates, keyboard month-boundary selection, retained date during month navigation, weekend selection, time reset, correct waitlist review date, and 390px layout. I updated both READMEs, the architecture note and session log, stopped the preview, and removed temporary fixtures/dependency symlink. I did not repeat live Nest/database acceptance or claim new deployed verification.
+
+**What I kept as-is:** I preserved booking/waitlist transports, consent, atomic replacement, session handling, backend/frontend files and existing uncommitted work. No dependencies, staging, commits or pushes were added.
+
+**What I changed or rejected, and why:** I adapted the reference presentation rather than its browser-local date arithmetic, clickable divs, weekend closure assumption or different slot API.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I keep calendar days as clinic-local YYYY-MM-DD values and let the backend return actual appointment instants, so browser timezone and daylight-saving changes cannot shift the chosen day.

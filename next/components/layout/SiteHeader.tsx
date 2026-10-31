@@ -31,6 +31,7 @@ export function SiteHeader() {
         <nav className="desktop-navigation" aria-label="Main navigation">
           <Link href="/clinics">Find a clinic</Link>
           <Link href="/doctors">Find a doctor</Link>
+          <Link href="/appointments">My Care</Link>
           <a href="/#how-it-works">How it works</a>
           <a href="/#your-care">Your care</a>
         </nav>
@@ -91,6 +92,9 @@ export function SiteHeader() {
               My Page
             </Link>
           )}
+          <Link href="/appointments" onClick={() => setMenuOpen(false)}>
+            My Care
+          </Link>
           {session ? (
             <Button
               onClick={() => {

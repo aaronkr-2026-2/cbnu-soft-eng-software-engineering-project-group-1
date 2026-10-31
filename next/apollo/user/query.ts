@@ -11,27 +11,9 @@ export const GET_MEMBER = gql`
   ${MEMBER_FIELDS}
 `;
 
-export const GET_CLINICS = gql`
-  query GetClinics {
-    getClinics {
-      ...MemberFields
-    }
-  }
-  ${MEMBER_FIELDS}
-`;
-
 export const GET_DOCTORS = gql`
   query GetDoctors {
     getDoctors {
-      ...MemberFields
-    }
-  }
-  ${MEMBER_FIELDS}
-`;
-
-export const GET_CLINIC_DOCTORS = gql`
-  query GetClinicDoctors($clinicId: ID!) {
-    getClinicDoctors(clinicId: $clinicId) {
       ...MemberFields
     }
   }
@@ -48,9 +30,12 @@ export const GET_APPOINTMENT = gql`
 `;
 
 export const MY_APPOINTMENTS = gql`
-  query MyAppointments {
-    myAppointments {
-      ...AppointmentFields
+  query MyAppointments($input: MyAppointmentsInput!) {
+    myAppointments(input: $input) {
+      entries {
+        ...AppointmentFields
+      }
+      nextCursor
     }
   }
   ${APPOINTMENT_FIELDS}

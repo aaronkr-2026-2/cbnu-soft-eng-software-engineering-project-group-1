@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { useState } from 'react';
 import {
   Button,
@@ -44,7 +45,11 @@ export function DoctorCard({
     .join(' · ');
 
   return (
-    <Card component="article" variant="outlined" className="doctor-summary-card">
+    <Card
+      component="article"
+      variant="outlined"
+      className="doctor-summary-card"
+    >
       <CardMedia
         component="img"
         className="doctor-summary-card__image"
@@ -61,7 +66,10 @@ export function DoctorCard({
         >
           {name}
         </Typography>
-        <Typography component="p" className="doctor-summary-card__specializations">
+        <Typography
+          component="p"
+          className="doctor-summary-card__specializations"
+        >
           {specializations || 'Specialization not listed'}
         </Typography>
         {clinic && (
@@ -71,7 +79,10 @@ export function DoctorCard({
           </Typography>
         )}
         {description && (
-          <Typography component="p" className="doctor-summary-card__description">
+          <Typography
+            component="p"
+            className="doctor-summary-card__description"
+          >
             {description}
           </Typography>
         )}
@@ -85,6 +96,16 @@ export function DoctorCard({
           </Typography>
         </div>
       </CardContent>
+      {doctor.clinicId && (
+        <CardActions className="doctor-summary-card__actions">
+          <Button
+            component={Link}
+            href={`/book?${new URLSearchParams({ doctorId: doctor._id, clinicId: doctor.clinicId })}`}
+          >
+            View times
+          </Button>
+        </CardActions>
+      )}
       {onViewProfile && (
         <CardActions className="doctor-summary-card__actions">
           <Button

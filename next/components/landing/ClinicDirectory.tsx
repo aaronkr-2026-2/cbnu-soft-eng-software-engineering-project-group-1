@@ -1,11 +1,6 @@
 import { useState } from 'react';
 import { DoctorsDialog } from '../clinics/DoctorsDialog';
-import {
-  Button,
-  InputAdornment,
-  Skeleton,
-  TextField,
-} from '@mui/material';
+import { Button, InputAdornment, Skeleton, TextField } from '@mui/material';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import LocalHospitalOutlined from '@mui/icons-material/LocalHospitalOutlined';
 import LocationOnOutlined from '@mui/icons-material/LocationOnOutlined';
@@ -47,6 +42,9 @@ export function ClinicDirectory() {
             Take your next step with a little more clarity.
           </p>
         </div>
+        <p>
+          Clinics shown are those represented in the first 100 listed doctors.
+        </p>
         <div className="directory-toolbar">
           <TextField
             label="Search clinics"

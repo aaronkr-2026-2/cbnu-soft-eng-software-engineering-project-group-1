@@ -30,7 +30,7 @@ const steps = [
     number: '03',
     icon: CalendarMonthOutlined,
     title: 'Plan your visit',
-    text: 'Create your patient account and keep exploring. Online appointment booking is coming soon.',
+    text: 'Sign in, choose an available time, and review your visit before confirming.',
   },
 ];
 
@@ -88,7 +88,7 @@ function AppointmentIllustration() {
         </div>
         <div className="preview-footer">
           <span className="status-dot" />
-          Pending confirmation<span>30 min</span>
+          Confirmed<span>30 min</span>
         </div>
       </div>
       <div className="care-note">
@@ -221,24 +221,25 @@ export function LandingPage() {
                 <FavoriteBorderRounded />
               </div>
               <div>
-                <Chip label="COMING SOON" size="small" variant="outlined" />
+                <Chip label="MY CARE" size="small" variant="outlined" />
                 <h2 id="care-title">
                   Less to keep track of.
                   <br />
                   More room to feel better.
                 </h2>
                 <p>
-                  We’re bringing your appointments and their statuses into one
-                  place, so you can focus on your next visit.
+                  Keep your appointments and waitlist entries in one place, so
+                  you can focus on your next visit.
                 </p>
                 <p className="upcoming-note">
-                  Appointment management and online booking are on the way.
+                  Review your visits, choose a replacement, or find your next
+                  time.
                 </p>
               </div>
               <Link
-                href="/clinics"
+                href="/appointments"
                 className="care-panel-link"
-                aria-label="Explore clinics"
+                aria-label="Open My Care"
               >
                 <ArrowOutwardRounded />
               </Link>

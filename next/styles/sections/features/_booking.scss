@@ -1,0 +1,343 @@
+@use '../../variables' as v;
+@use 'sass:color';
+.care-page {
+  .care-main {
+    padding-top: 3rem;
+    padding-bottom: 4rem;
+    min-height: 70vh;
+  }
+  .care-heading {
+    max-width: 48rem;
+    margin-bottom: 2rem;
+    h1 {
+      color: v.$primary;
+      font-size: clamp(2.1rem, 5vw, 3.8rem);
+      line-height: 1.1;
+      margin: 0.6rem 0 1rem;
+    }
+    p {
+      color: v.$mutedTextColor;
+      font-size: 1.1rem;
+    }
+  }
+  .care-navigation {
+    display: flex;
+    gap: 0.5rem 1.5rem;
+    flex-wrap: wrap;
+    border-bottom: 1px solid v.$borderColor;
+    padding-bottom: 1rem;
+    margin-bottom: 2rem;
+    a {
+      color: v.$primary;
+      font-weight: 700;
+    }
+  }
+  .care-book-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 21rem;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  .care-card {
+    padding: 1.5rem;
+    background: v.$whiteColor;
+    border: 1px solid v.$borderColor;
+    border-radius: v.$radius;
+    margin: 1rem 0;
+    box-shadow: 0 6px 24px rgba(v.$primary, 0.04);
+    h2 {
+      font-size: 1.5rem;
+      line-height: 1.3;
+      margin: 0.6rem 0 1.25rem;
+    }
+  }
+  .care-summary {
+    position: sticky;
+    top: 1rem;
+    border-top: 4px solid v.$secondaryColor;
+  }
+  .care-step {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: v.$secondaryColor;
+  }
+  fieldset {
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .care-fields {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    label:first-child {
+      grid-column: 1/-1;
+    }
+  }
+  label:not(.care-slot),
+  .care-toolbar label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+  select,
+  input[type='date'] {
+    padding: 0.8rem;
+    border: 1px solid v.$borderColor;
+    border-radius: 0.5rem;
+    background: v.$whiteColor;
+    color: v.$textColor;
+    width: 100%;
+    font: inherit;
+    min-height: 46px;
+  }
+  .care-date {
+    max-width: 17rem;
+  }
+  .care-slots {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+    gap: 0.75rem;
+    margin: 1.25rem 0;
+    legend {
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+  }
+  .care-slot {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    text-align: center;
+    border: 1px solid v.$borderColor;
+    border-radius: 0.65rem;
+    padding: 1rem 0.4rem;
+    cursor: pointer;
+    input {
+      position: absolute;
+      top: 0.5rem;
+      left: 0.5rem;
+    }
+    strong {
+      font-size: 1rem;
+    }
+    span {
+      font-size: 0.75rem;
+    }
+    &.is-selected {
+      border: 2px solid v.$primary;
+      padding: calc(1rem - 1px) calc(0.4rem - 1px);
+      background: rgba(v.$primary, 0.06);
+    }
+    &:has(input:disabled) {
+      opacity: 0.6;
+      cursor: default;
+    }
+  }
+  .care-slot--occupied {
+    border-color: rgba(v.$secondaryColor, 0.5);
+  }
+  .care-meta {
+    color: v.$mutedTextColor;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
+  .care-toolbar {
+    display: flex;
+    align-items: end;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    label {
+      min-width: 15rem;
+    }
+  }
+  .care-records {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem;
+    .care-card {
+      margin: 0.5rem 0;
+    }
+  }
+  .care-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    background: v.$whiteColor;
+    border-radius: v.$radius;
+    border: 1px dashed v.$borderColor;
+    p {
+      color: v.$mutedTextColor;
+    }
+  }
+  .care-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+  }
+}
+.care-commitment {
+  border-left: 3px solid v.$secondaryColor;
+  padding: 0.4rem 0 0.4rem 1rem;
+  margin: 1rem 0 1.25rem;
+  p {
+    margin: 0.4rem 0;
+  }
+  h3 {
+    font-size: 0.9rem;
+    letter-spacing: 0.03em;
+    margin: 0.2rem 0 0.75rem;
+    color: v.$mutedTextColor;
+  }
+}
+.care-status {
+  display: inline-block;
+  padding: 0.3rem 0.65rem;
+  border-radius: 2rem;
+  background: rgba(v.$primary, 0.08);
+  font-size: 0.8rem;
+  color: v.$primary;
+  font-weight: 700;
+  &--confirmed,
+  &--active {
+    background: rgba(v.$secondaryColor, 0.12);
+    color: color.adjust(v.$secondaryColor, $lightness: -12%);
+  }
+}
+.care-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin: 1rem 0;
+  line-height: 1.6;
+  input {
+    margin-top: 0.3rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    flex-shrink: 0;
+  }
+}
+.care-reference {
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  color: v.$mutedTextColor;
+}
+.care-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.care-page :focus-visible,
+.care-check input:focus-visible {
+  outline: 3px solid v.$secondaryColor;
+  outline-offset: 3px;
+}
+@media (max-width: 850px) {
+  .care-page {
+    .care-book-grid {
+      grid-template-columns: 1fr;
+    }
+    .care-summary {
+      position: static;
+    }
+    .care-records {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+@media (max-width: 480px) {
+  .care-page {
+    .care-main {
+      padding-top: 1.5rem;
+    }
+    .care-fields {
+      grid-template-columns: 1fr;
+    }
+    .care-card {
+      padding: 1rem;
+    }
+    .care-slots {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .care-toolbar {
+      align-items: stretch;
+      flex-direction: column;
+    }
+  }
+}
+
+.care-page .care-calendar {
+  max-width: 36rem;
+  margin: 1rem 0;
+  &__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      color: v.$primary;
+    }
+    button {
+      width: 2.75rem;
+      font-size: 1.75rem;
+    }
+  }
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 3px;
+  }
+  th {
+    padding: 0.5rem 0;
+    color: v.$mutedTextColor;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  td {
+    padding: 0;
+    text-align: center;
+  }
+  button {
+    min-height: 2.75rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    font: inherit;
+    font-weight: 600;
+    color: v.$primary;
+    background: rgba(v.$primary, 0.04);
+    cursor: pointer;
+    &:hover:not(:disabled) {
+      background: rgba(v.$secondaryColor, 0.14);
+    }
+    &:disabled {
+      color: v.$mutedTextColor;
+      opacity: 0.45;
+      cursor: default;
+    }
+    &[aria-current='date'] {
+      border-color: v.$secondaryColor;
+    }
+    &.is-selected {
+      color: v.$whiteColor;
+      background: v.$primary;
+    }
+    &.is-selected:hover {
+      background: v.$primary;
+    }
+  }
+  td button {
+    width: 100%;
+  }
+  &__selection {
+    font-weight: 700;
+  }
+}
