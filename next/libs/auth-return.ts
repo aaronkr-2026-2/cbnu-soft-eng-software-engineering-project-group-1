@@ -10,9 +10,13 @@ export function authReturn(value: unknown) {
     const url = new URL(value, 'https://medconnect.invalid');
     if (
       url.origin !== 'https://medconnect.invalid' ||
-      !['/book', '/appointments', '/waitlist', '/workspace'].includes(
-        url.pathname,
-      )
+      ![
+        '/book',
+        '/appointments',
+        '/waitlist',
+        '/workspace',
+        '/notifications',
+      ].includes(url.pathname)
     )
       return '/';
     return `${url.pathname}${url.search}`;

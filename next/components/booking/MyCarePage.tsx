@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import {
   Alert,
   Button,
@@ -15,7 +16,7 @@ import type {
   Receipt,
 } from '../../types/booking';
 import { detail, myAppointments, myWaitlist } from '../../libs/api/booking';
-import { commitment, label, replaceable } from '../../libs/booking';
+import { commitment, idPattern, label, replaceable } from '../../libs/booking';
 import { usePublicProfiles } from '../../libs/hooks/usePublicProfiles';
 import { CareLayout } from './CareLayout';
 import { PatientGate } from './PatientGate';
@@ -38,6 +39,9 @@ export function MyCarePage({ kind }: { kind: CommitmentKind }) {
   );
 }
 function CareRecords({ kind }: { kind: CommitmentKind }) {
+  const router = useRouter();
+  const linkedId =
+    router.query[kind === 'APPOINTMENT' ? 'appointmentId' : 'waitlistId'];
   const [rows, setRows] = useState<RecordItem[]>([]),
     [after, setAfter] = useState<string | null>(null),
     [filter, setFilter] = useState(kind === 'APPOINTMENT' ? 'UPCOMING' : ''),
@@ -54,6 +58,43 @@ function CareRecords({ kind }: { kind: CommitmentKind }) {
     [detailBusy, setDetailBusy] = useState(false);
   const detailRequest = useRef<AbortController | null>(null);
   useEffect(() => () => detailRequest.current?.abort(), []);
+  useEffect(() => {
+    if (!router.isReady || typeof linkedId !== 'string') return;
+    if (!idPattern.test(linkedId)) {
+      setError('This care detail link is invalid.');
+      return;
+    }
+    detailRequest.current?.abort();
+    const controller = new AbortController();
+    detailRequest.current = controller;
+    setDetailBusy(true);
+    setViewed(undefined);
+    void detail(kind, linkedId, controller.signal)
+      .then((row) => {
+        if (!controller.signal.aborted) setViewed(row);
+      })
+      .catch((reason) => {
+        if (!controller.signal.aborted)
+          setError(
+            reason instanceof Error
+              ? reason.message
+              : 'This care record is unavailable.',
+          );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDetailBusy(false);
+      });
+    return () => controller.abort();
+  }, [router.isReady, kind, linkedId]);
+  function closeDetail() {
+    setViewed(undefined);
+    if (linkedId)
+      void router.replace(
+        kind === 'APPOINTMENT' ? '/appointments' : '/waitlist',
+        undefined,
+        { shallow: true, scroll: false },
+      );
+  }
   const profiles = usePublicProfiles([
     ...rows.flatMap((row) => [row.doctorId, row.clinicId]),
     ...(viewed ? [viewed.doctorId, viewed.clinicId] : []),
@@ -300,7 +341,7 @@ function CareRecords({ kind }: { kind: CommitmentKind }) {
       )}
       <Dialog
         open={!!viewed}
-        onClose={() => setViewed(undefined)}
+        onClose={closeDetail}
         fullWidth
         maxWidth="sm"
         aria-labelledby="care-detail-title"
@@ -345,7 +386,7 @@ function CareRecords({ kind }: { kind: CommitmentKind }) {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setViewed(undefined)}>Close</Button>
+          <Button onClick={closeDetail}>Close</Button>
         </DialogActions>
       </Dialog>
     </>

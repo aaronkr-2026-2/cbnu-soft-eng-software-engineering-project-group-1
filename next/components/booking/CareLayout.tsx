@@ -27,6 +27,7 @@ export function CareLayout({
           <Link href="/book">Book a visit</Link>
           <Link href="/appointments">My appointments</Link>
           <Link href="/waitlist">My waitlist</Link>
+          <Link href="/notifications">Notifications</Link>
         </nav>
         {children}
       </main>

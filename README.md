@@ -94,7 +94,7 @@ this does not establish deployed integration or enable automatic waitlist bookin
   patient details. Waitlist policy eligibility and flag-controlled enrollment are shown.
 - **In-app notifications:** Durable waitlist notices, private paginated inbox/read APIs,
   retryable delivery and operator aggregate status. Lifecycle and delivery flags
-  default off; the browser notification center remains Step 11 work.
+  default off; the Next.js patient notification center consumes the delivered inbox.
 - **Waitlists and replacement:** Patient enrollment/withdrawal with recorded consent,
   FIFO ordering and scoped reads. All four booking/waitlist replacements are atomic
   and version checked. Enrollment/replacement flags default off; the FIFO worker is implemented behind a notification-delivery release gate.
@@ -131,8 +131,7 @@ this does not establish deployed integration or enable automatic waitlist bookin
   read reconciliation without automatic mutation replay. Chrome with real Nest
   and disposable MongoDB verified these journeys, target-race rollback, the
   48-hour explanation, and mobile/keyboard booking. Backend flags/release gates
-  still govern availability; automatic promotion remains paused. Notification
-  screens remain pending.
+  still govern availability; automatic promotion remains paused pending rollout.
 - **Next.js staff workspace:** `/workspace` offers clinic/doctor day and seven-day
   calendars with revision polling, consistent paginated snapshots and reconnect
   resync. Clinics review doctor applications, replace schedules, create phone/walk-in
@@ -142,6 +141,14 @@ this does not establish deployed integration or enable automatic waitlist bookin
   those forms are explicit replacement drafts. Local real-API/browser checks passed,
   including outage recovery, promoted-source visibility under a fixture-only worker
   hook, foreign-scope denial, mobile details and 150-row pagination/restart.
+- **Next.js patient notifications:** `/notifications` shows the private delivered
+  inbox, unread filtering/count and explicit read states. Historical notices resolve
+  fresh owned appointment/waitlist/slot details; stale opening alerts never imply
+  a reservation. Target links reread state and require explicit booking confirmation.
+  Real local API/browser checks passed for promotion-to-inbox delivery, transient
+  delivery retry/replay, canceled/occupied targets, lost mark-read responses,
+  exact-slot booking, mobile/keyboard interaction and read-outage recovery. IN_APP
+  is the configured channel; production worker flags and promotion gate remain unchanged.
 - **Next.js My Page:** `/mypage` provides private profile editing, optional password
   changes, and image preview/upload/removal. Earlier focused tests and a local
   browser fixture passed; live profile storage/password flows remain unverified.
@@ -1040,7 +1047,7 @@ SLOT_RELEASED with a stable event ID, appointment version and slot generation.
 Manual allocations advance the generation so older openings become stale. Events
 remain private. Step 7 consumes queue-release events; status and notification events
 are handled by the Step 8 delivery outbox. The in-app inbox API is implemented;
-its browser notification center remains Step 11 work.
+its patient-visible center is implemented in Next.js Step 11.
 
 If a cancellation has waiting entries at least 48 hours before start, the slot
 stays behind its allocation gate for queue processing. Inside 48 hours it is open
@@ -1252,10 +1259,10 @@ failure codes through private database tooling. Public status endpoints expose n
 queue records. Full monitoring/reconciliation and process-crash rehearsal remain
 Step 12 work; recovery tests currently use fresh worker instances and abandoned leases.
 
-WAITLIST_PROMOTION_ENABLED defaults to false. Setting it to true currently rejects
-startup until the patient-facing notification flow is integrated and verified.
-The in-app backend delivery path now exists; Step 11 must verify the browser flow before
-production activation. Tests replace only the worker's internal enablement check;
+WAITLIST_PROMOTION_ENABLED defaults to false; the current hard gate rejects startup
+if it is true. The patient-visible IN_APP flow passed local Step 11 verification,
+but this frontend work does not remove that gate. Its source/configuration change
+and production activation remain a separate Step 12 rollout decision. Tests replace only the worker's internal enablement check;
 MongoDB claims, transactions, booking and event persistence remain real. Enrollment
 can be piloted separately with automation accurately labeled as disabled.
 
@@ -1321,10 +1328,10 @@ and other patients' appointment IDs are never included in patient output.
 Targets can now be resolved through notificationContext (Step 11 backend), which
 returns current appointment/slot/waitlist data with the needed specialty. Existing
 getAppointment/getAvailableSlots reads remain available. The browser must fetch current state
-before booking or treating an old notice as confirmation. The Step 11 notification
-center/link flow has not been built or browser-verified. No email/SMS provider is
-configured; IN_APP is the implemented delivery adapter. Automatic promotion remains
-disabled until the patient-facing flow is integrated and verified.
+before booking or treating an old notice as confirmation. The Next.js Step 11
+notification center and current-target links passed local real-API/browser checks.
+No email/SMS provider is configured; IN_APP is the implemented delivery adapter.
+Automatic promotion remains disabled pending the separate controlled rollout.
 
 ## Notification center backend (Step 11)
 
@@ -1374,9 +1381,9 @@ booking intents remain pending during delivery outages and can drain while new
 booking/enrollment are paused. There is no delivery-preference API that suppresses
 required booking notices; unreadOnly changes only a read view. IN_APP is the only
 configured channel; no external email/SMS provider has been selected or contacted.
-Browser notification-center/link behavior remains deferred. Promotion stays disabled
-until that patient-facing flow is integrated and verified; this backend work does
-not activate any feature flag or deployment.
+The Next.js notification center/link flow is implemented and locally browser-verified;
+see [Step 11 evidence and limits](next/README.md#patient-notification-center-step-11).
+Promotion stays behind its existing hard gate; no feature flag or deployment was activated.
 
 ## Deployment
 
@@ -1399,10 +1406,10 @@ checkout-to-deployment procedure for the current layout.
 - Email verification and logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;
-  application-database cutover, frontend integration and Atlas rollout remain unverified.
-- FIFO promotion remains gated until the patient-facing notification flow is verified.
-  Cutoff lifecycle and in-app inbox delivery are implemented; their flags default off.
-  Browser notification screens and external delivery providers remain pending.
+  application-database cutover, hosted frontend/API integration and Atlas rollout remain unverified.
+- FIFO promotion remains gated for controlled rollout; the local patient-facing flow
+  is verified. Cutoff lifecycle and in-app inbox delivery flags still default off.
+  External email/SMS/push providers are not configured.
 - Authentication rate limiting is per process, without a shared multi-instance store.
 - Local deployment scripts still need the alignment described above.
 

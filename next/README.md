@@ -61,6 +61,8 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
   fresh details, cancellation, and replacement links.
 - `/waitlist`: patient-scoped paginated entries, status filters, queue position,
   consent/details, withdrawal, and replacement links.
+- `/notifications`: private patient inbox with unread filtering/count, explicit read
+  markers, and current appointment/waitlist/slot checks.
 - `/workspace`: clinic/doctor day and seven-day calendars with live revision polling;
   clinic doctor-application reviews, schedule replacement drafts, phone/walk-in
   booking for existing patients, cancellation and completion/no-show controls.
@@ -172,8 +174,8 @@ layout and keyboard slot selection/review/confirmation passed.
 This is local integration evidence, not deployment verification. Google login,
 production TLS/proxy/multi-instance behavior, timed natural access-token expiry,
 and live profile image/storage/password flows were not exercised here. Clinic
-notification UI remains Step 11; the promotion
-release gate remains closed. No frontend sprint covers October 31; no sprint was
+notification UI is delivered in Step 11 below; the promotion
+release gate remains closed pending controlled rollout. No frontend sprint covers October 31; no sprint was
 created. See [Next architecture](../docs/architecture/architecture-next.md).
 
 Calendar follow-up (October 31): typecheck, all 29 Node tests and production build
@@ -239,6 +241,65 @@ restarted and returned 150 unique records. A historical outcome fixture initiall
 lacked its ledger; correcting that disposable fixture made completion pass.
 
 No deployment, application database/configuration, backend/Vite files, real provider
-traffic or promotion release activation changed. This step does not deliver Step 11
-notifications or Step 12 rollout. Production proxy/load/concurrency and full browser
+traffic or promotion release activation changed. Step 11 notification delivery is recorded below; Step 12 rollout remains separate. Production proxy/load/concurrency and full browser
 OS-offline simulation were not verified; outage recovery used the controlled proxy.
+
+## Patient notification center (Step 11)
+
+Open `/notifications` using the patient care navigation or the signed-in patient
+header/mobile menu. This is the configured **IN_APP** delivery surface. It uses
+`myNotifications`, `getNotification`, `notificationContext` and
+`markNotificationRead`; patient identity is derived by Nest, never a URL/input.
+There are no email/SMS/push preferences that can suppress required booking notices.
+The existing backend delivery/lifecycle workers must be configured by operators;
+this UI does not enable them or open the hard-coded promotion release gate.
+
+The inbox shows delivered records, server unread count, all/unread filtering,
+explicit Read/Unread labels and paginated history. It refreshes about every 15s
+while visible/online, pauses when hidden/offline and retries transient errors with
+backoff. Load more refreshes the displayed pages from the newest notice and
+removes duplicate IDs; up to 1,000 notices can be displayed. No patient data enters
+static props, shared caches or browser storage. Sign-out/identity changes unmount
+private state. Opening a notice does **not** mark it read.
+
+Notice text is labeled historical. Opening details fetches the current owned
+appointment/waitlist/exact slot through `notificationContext`, including a checked
+time and explicit clinic timezone/UTC fallback. Confirmed appointment, canceled
+appointment, occupied slot and unreserved availability are distinct. During a read
+outage, current-state panels and target actions are hidden until a fresh check
+succeeds. A historical opening is never proof a slot remains free.
+
+`/notifications?notificationId=<64-character ID>` opens a current check. Links to
+`/appointments?appointmentId=...` and `/waitlist?waitlistId=...` perform new owned
+reads even when a record is outside the list's active filter. Exact-slot links to
+`/book` carry doctor/clinic/specialty/startsAt only, re-read available slots, and
+select only an eligible match. A linked doctor can be resolved outside the capped
+public list; current active/approved affiliation is still required. Navigation
+never books automatically; the existing review/confirmation and Nest checks remain.
+
+Mark as read is explicit and never automatically retried. A lost response offers
+an owned read check (also resolvable by background reads), preserving the server's
+monotonic read marker. Neither inbox filters nor read markers alter delivery or
+create/cancel appointments.
+
+Step 11 verification (November 1, 2026, Asia/Seoul): typecheck, final production
+build without fixture API settings, all **50 Node tests**, and **30 executable
+GraphQL operations** against the real API schema passed. Chrome with real Nest
+services/disposable MongoDB verified a real promotion's required notice failing
+once, retrying into the patient-visible inbox, and replaying without another
+booking/notice or reset read marker. The delivery fault and worker enable hooks
+were confined to that fixture; production flags/gate were unchanged.
+
+Browser checks also covered an occupied delayed manual alert without exposing the
+occupant, canceled status through an old booking notice, explicit/lost-response
+read handling, unread filtering, exact specialty/time manual booking after a fresh
+slot check, fulfilled-waitlist/linked-appointment deep links, mobile 390px/keyboard
+opening, stale-panel suppression and recovery during a controlled API outage, and
+sign-out clearing notices. Historical cutoff fixtures included both versioned
+waitlists and their matching ledgers. A foreign patient context lookup was NOT_FOUND.
+
+This is local IN_APP integration evidence. Production worker/proxy/load behavior,
+real Google, full browser OS-offline behavior and rollout/migration rehearsal remain
+outside this check. No backend/Vite files, application DB/configuration, external
+provider traffic, deployment, staging, commit or push changed. No frontend sprint
+covers November 1; no sprint was invented. Step 12 remains separate.

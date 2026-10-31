@@ -36,6 +36,9 @@ export function SiteHeader() {
           <Link href={workspace ? '/workspace' : '/appointments'}>
             {workspace ? 'Workspace' : 'My Care'}
           </Link>
+          {session?.member.memberType === 'USER' && (
+            <Link href="/notifications">Notifications</Link>
+          )}
           <a href="/#how-it-works">How it works</a>
           <a href="/#your-care">Your care</a>
         </nav>
@@ -102,6 +105,11 @@ export function SiteHeader() {
           >
             {workspace ? 'Workspace' : 'My Care'}
           </Link>
+          {session?.member.memberType === 'USER' && (
+            <Link href="/notifications" onClick={() => setMenuOpen(false)}>
+              Notifications
+            </Link>
+          )}
           {session ? (
             <Button
               onClick={() => {

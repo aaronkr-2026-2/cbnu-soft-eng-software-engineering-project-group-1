@@ -27,6 +27,7 @@ import { PatientGate } from './PatientGate';
 import { CommitmentView } from './CommitmentView';
 import { ActionDialog } from './ActionDialog';
 import { BookingCalendar } from './BookingCalendar';
+import { linkedBookingTarget } from '../../libs/notification';
 export function BookPage() {
   return (
     <CareLayout
@@ -41,6 +42,12 @@ export function BookPage() {
 }
 function BookingForm() {
   const router = useRouter();
+  const linkedTarget = linkedBookingTarget(router.query);
+  const linkedKey = linkedTarget
+    ? `${linkedTarget.doctorId}:${linkedTarget.clinicId}:${linkedTarget.specialty}:${linkedTarget.startsAt}`
+    : '';
+  const appliedTarget = useRef('');
+  const [linkedChecked, setLinkedChecked] = useState(false);
   const [clinics, setClinics] = useState<PublicMember[]>([]),
     [doctors, setDoctors] = useState<PublicMember[]>([]),
     [clinicId, setClinicId] = useState(''),
@@ -60,6 +67,18 @@ function BookingForm() {
     [action, setAction] = useState<Action>(),
     [open, setOpen] = useState(false),
     [uncertain, setUncertain] = useState(false);
+  useEffect(() => {
+    appliedTarget.current = '';
+    setLinkedChecked(false);
+    if (linkedTarget) {
+      setClinicId(linkedTarget.clinicId);
+      setDoctorId(linkedTarget.doctorId);
+      setSpecialty(linkedTarget.specialty);
+      setSelected('');
+    }
+    // linkedKey contains every input of the target; user edits do not reapply it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedKey]);
   const clinic = clinics.find((row) => row._id === clinicId),
     doctor = doctors.find((row) => row._id === doctorId),
     slot = slots.find((row) => row.startsAt === selected);
@@ -116,13 +135,30 @@ function BookingForm() {
     setLoading('doctors');
     setError('');
     void fetchMembers(clinicId, controller.signal)
-      .then((rows) => {
-        if (controller.signal.aborted) return;
-        setDoctors(rows);
+      .then(async (rows) => {
         const requested =
           typeof router.query.doctorId === 'string'
             ? router.query.doctorId
             : '';
+        if (
+          idPattern.test(requested) &&
+          !rows.some((row) => row._id === requested)
+        ) {
+          try {
+            const extra = await publicMember(requested, controller.signal);
+            if (
+              extra.memberType === 'DOCTOR' &&
+              extra.clinicId === clinicId &&
+              extra.doctorClinicStatus === 'APPROVED' &&
+              extra.memberStatus === 'ACTIVE'
+            )
+              rows = [...rows, extra];
+          } catch {
+            /* Public lookup failure does not invent a bookable doctor. */
+          }
+        }
+        if (controller.signal.aborted) return;
+        setDoctors(rows);
         setDoctorId((current) =>
           rows.some((row) => row._id === current)
             ? current
@@ -144,18 +180,33 @@ function BookingForm() {
     setSpecialty((current) =>
       doctor?.doctorSpecializations?.includes(current)
         ? current
-        : doctor?.doctorSpecializations?.[0] || '',
+        : linkedTarget?.doctorId === doctorId &&
+            doctor?.doctorSpecializations?.includes(linkedTarget.specialty)
+          ? linkedTarget.specialty
+          : doctor?.doctorSpecializations?.[0] || '',
     );
-  }, [doctorId, doctor]);
+  }, [doctorId, doctor, linkedTarget?.specialty, linkedTarget?.doctorId]);
   useEffect(() => {
     if (clinic?.clinicTimezone) {
       try {
-        setDate(dateInZone(new Date(), clinic.clinicTimezone));
+        setDate(
+          dateInZone(
+            linkedTarget?.clinicId === clinicId
+              ? new Date(linkedTarget.startsAt)
+              : new Date(),
+            clinic.clinicTimezone,
+          ),
+        );
       } catch {
         setDate('');
       }
     }
-  }, [clinicId, clinic?.clinicTimezone]);
+  }, [
+    clinicId,
+    clinic?.clinicTimezone,
+    linkedTarget?.startsAt,
+    linkedTarget?.clinicId,
+  ]);
   useEffect(() => {
     setSlots([]);
     setSelected('');
@@ -169,7 +220,29 @@ function BookingForm() {
       controller.signal,
     )
       .then((rows) => {
-        if (!controller.signal.aborted) setSlots(rows);
+        if (controller.signal.aborted) return;
+        setSlots(rows);
+        if (
+          linkedTarget &&
+          appliedTarget.current !== linkedKey &&
+          doctorId === linkedTarget.doctorId &&
+          clinicId === linkedTarget.clinicId &&
+          specialty === linkedTarget.specialty &&
+          clinic?.clinicTimezone &&
+          date ===
+            dateInZone(new Date(linkedTarget.startsAt), clinic.clinicTimezone)
+        ) {
+          const match = rows.find(
+            (row) => row.startsAt === linkedTarget.startsAt,
+          );
+          setSelected(
+            match && (match.state === 'AVAILABLE' || match.canJoinWaitlist)
+              ? match.startsAt
+              : '',
+          );
+          appliedTarget.current = linkedKey;
+          setLinkedChecked(true);
+        }
       })
       .catch((reason) => {
         if (!controller.signal.aborted)
@@ -181,7 +254,15 @@ function BookingForm() {
         if (!controller.signal.aborted) setLoading('');
       });
     return () => controller.abort();
-  }, [clinicId, doctorId, specialty, date, retry]);
+  }, [
+    clinicId,
+    doctorId,
+    specialty,
+    date,
+    retry,
+    linkedKey,
+    clinic?.clinicTimezone,
+  ]);
   useEffect(() => {
     setOriginal(undefined);
     setSourceError('');
@@ -242,6 +323,15 @@ function BookingForm() {
   }
   return (
     <>
+      {linkedTarget && (
+        <Alert severity="info">
+          This link refers to one exact doctor, specialty and time.{' '}
+          {linkedChecked
+            ? 'The time has been checked; only currently eligible options can be selected.'
+            : 'Choose the linked care team to check its current time.'}{' '}
+          An alert does not reserve a slot.
+        </Alert>
+      )}
       {replacing && (
         <section className="care-card">
           <h2>Choose a replacement</h2>

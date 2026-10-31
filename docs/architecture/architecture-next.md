@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated October 31, 2026 for patient booking/waitlist Step 9 and staff workspace Step 10. This document covers
+Updated November 1, 2026 for patient booking/waitlist Step 9, staff workspace Step 10, and patient notifications Step 11. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
 
@@ -14,7 +14,7 @@ not patient records. Patient data is fetched only after session restoration.
 
 ```mermaid
 flowchart TD
-  Routes[Pages and shared layout] --> Features[Discovery, Auth, Profile, Patient Care, Workspace]
+  Routes[Pages and shared layout] --> Features[Discovery, Auth, Profile, Patient Care, Workspace, Notifications]
   Features --> Transport[libs/api fetch helpers and GraphQL documents]
   Features --> Session[Memory session store]
   Session --> Bridge[Next session API bridge]
@@ -97,8 +97,8 @@ of production deployment or real Google sign-in.
   A future server request-ID contract could improve recovery without unsafe replay.
 
 Google account login, production TLS/proxy/session concurrency, natural timed access
-expiry, and live profile storage/password flows remain unverified. Step 11
-notifications and Step 12 rollout remain pending. Automatic promotion remains
+expiry, and live profile storage/password flows remain unverified. Step 12
+rollout remains pending; Step 11 local notification evidence is recorded below. Automatic promotion remains
 blocked by the backend patient-visible notification delivery gate; this step does
 not activate workers, change flags, or migrate an application database.
 
@@ -149,3 +149,44 @@ scope was forbidden. The real frontend loader handled 150 records and a committe
 between-page revision change by restarting without duplicates. Proxy outages were
 controlled test faults; production transport/load and full OS-offline behavior were
 not exercised. Backend, Vite, application data and deployment were unchanged.
+
+## Patient-visible IN_APP notification delivery
+
+`pages/notifications.tsx` composes `components/notifications/NotificationsPage.tsx`
+inside the existing identity-keyed PatientGate. `NotificationDetail` separates
+recorded notice content from a fresh `notificationContext` response; it never
+infers current confirmation/availability from historical text. Context polls and
+list reads use the existing authenticated no-store GraphQL transport. The generic
+private polling helper in `libs/hooks/useNotifications.ts` serves these two reads,
+pauses when hidden/offline, aborts old scope requests and retries transient errors.
+Current target actions disappear while a fresh check is unavailable. No new server,
+provider, subscription or deployment boundary was introduced.
+
+`libs/api/notification.ts` owns list/detail/context/mark-read transport and bounded
+page buffering/deduplication. `libs/notification.ts` owns neutral historical titles,
+current-state labels and allowlisted internal target links. Explicit read mutation
+results reconcile through owned reads after ambiguity; no automatic write replay
+or mark-on-open exists. Unread filtering affects reads only, never delivery. No
+public count of another patient's notices or operator delivery aggregates is fetched.
+
+Owned care detail query links bypass list filters via authenticated fresh lookups.
+Booking links carry public exact-target fields and prefill only after current slots
+are read, including the recorded specialty and clinic-local date. Actual booking
+still requires the existing confirmation and server conflict enforcement. A filled
+waitlist can link to its current owned appointment; canceled history remains visible
+as canceled. Public metadata may fall back to identifiers/labeled UTC, not a false
+clinic timezone. Static shells contain no patient data, and sign-out unmounts state.
+
+November 1 verification: 50 Node tests, typecheck/production build, 30 actual-schema
+operations, and real Nest/disposable MongoDB Chrome journeys passed. A real worker
+promotion generated a required notice; controlled delivery failure/retry/replay
+reached the inbox once while preserving one booking/read state. Browser evidence
+covers canceled/occupied contexts, explicit and uncertain read handling, exact-slot
+manual fulfillment, owned target links, mobile/keyboard behavior and read-outage
+suppression/recovery. Foreign-patient context was denied. Historical cutoff fixture
+records included matching versioned ledgers. Workers were invoked with fixture-only
+enable hooks; no source flag/release gate, application database or provider changed.
+
+Configured delivery is IN_APP; email/SMS/OS push are not claimed. The existing hard
+promotion gate remains closed for the separate Step 12 integration/rollout decision.
+Production transport/workers/load and full OS-offline simulation remain unverified.

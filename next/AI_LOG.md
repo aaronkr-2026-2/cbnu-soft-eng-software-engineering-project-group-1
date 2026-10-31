@@ -439,3 +439,23 @@
 **Something the AI got wrong that I had to catch:** The actual API rejected the AI's disposable historical outcome fixture because it omitted the active-commitment ledger. The AI corrected that fixture and reran completion successfully; this was not a frontend defect or a mistake I personally reported. No backend source was changed to accommodate the fixture.
 
 **One decision I can explain without AI:** I bind all calendar pages to one server revision and discard the partial result if it changes, so reconnecting or concurrent bookings cannot combine different snapshots into a misleading calendar.
+
+## Step 11 patient notification center and current-target delivery — 2026-11-01
+
+**Tool(s) used:** Codex, local/reference source inspection, shell/Python, Yarn/TypeScript/Prettier/Next build, Node tests, actual Nest/MongoDB disposable fixture, GraphQL schema validation, and Chrome computer use.
+
+**What I asked for:** Implement Step11 in Next.js, with commits/pushes left to me and a branch-scoped commit message at the end.
+
+**Pre-planning:** I checked clean next HEAD833a19e, local instructions/continuity/lessons, installed client-fetch guidance, MediBridge source (no equivalent notification center found), and actual owned list/detail/context/read contracts and real notification/promotion/lifecycle workers. IN_APP is the configured channel; backend/Vite files remained protected.
+
+**Planning:** I separated historical notices from current server context, made read state explicit, and reused the private no-store/session transport. I planned exact-target links that reread slots/commitments, no booking or mark-read on open, no automatic mutation retries, and delivery/replay/stale-alert acceptance using disposable real services.
+
+**Implementation process:** I added /notifications, neutral titles, unread filters/count, bounded paginated history, visible/online polling, current appointment/waitlist/slot details and ambiguous read reconciliation. Patient navigation/auth return, owned detail query links and exact specialty/time booking prefill were integrated. All50 Node tests, typecheck, final production build without fixture URLs,30 real-schema operations, links/private-shell/whitespace checks passed. Chrome with real Nest/disposable MongoDB verified real promotion→failed delivery→retry→patient inbox, replay preserving one booking/notice/read marker, occupied late alerts without occupant identity, canceled booking context, explicit/lost read responses, unread filtering, exact manual booking and fulfilled/current-target links, 390px/keyboard, controlled read-outage suppression/recovery, foreign denial and sign-out clearing. Historical queues had paired ledgers. Fixtures/preview and temporary dependency symlink were removed; no frontend sprint covers this date.
+
+**What I kept as-is:** I preserved backend/Vite source, server-derived identity and ownership, existing booking/replacement/session/workspace behavior, configured IN_APP channel, production flags and the hard promotion gate. No dependencies, application data/configuration, provider traffic, deployment, staging, commit or push changed.
+
+**What I changed or rejected, and why:** I used fresh notificationContext instead of treating alert text as current booking/free-slot proof. Mark-read stays explicit, and filters do not change delivery. The current hard gate still requires a separate Step12 source/configuration/rollout decision; local browser verification did not silently activate it. Production/proxy/load, full OS-offline and real Google/profile storage/password checks remain unverified.
+
+**Something the AI got wrong that I had to catch:** The AI initially started a production build while the dev preview was still running. The AI noticed that shared-artifact workflow issue, stopped the preview and reran the final build independently; no application failure was observed, and I did not personally report this mistake. No new product defect was identified.
+
+**One decision I can explain without AI:** I check the notice's current target before displaying confirmation or opening booking, because an old alert can arrive after cancellation or after someone else takes the slot.
