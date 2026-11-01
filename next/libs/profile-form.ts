@@ -1,8 +1,9 @@
 import type { MemberUpdate, SelfProfile } from './api/member';
+import { usernameError } from './username';
 
 export const profileFields = [
   ['memberFullName', 'Full name', 100],
-  ['memberNick', 'Nickname', 40],
+  ['memberNick', 'Username', 40],
   ['memberPhone', 'Phone number', 16],
   ['memberAddress', 'Address', 300],
   ['memberDesc', 'About me', 2000],
@@ -48,8 +49,10 @@ export function prepareProfileUpdate(
   }
   if (input.memberFullName !== undefined && !input.memberFullName)
     errors.memberFullName = 'Enter your full name.';
-  if (input.memberNick !== undefined && length(input.memberNick) < 2)
-    errors.memberNick = 'Use 2–40 characters.';
+  if (input.memberNick !== undefined) {
+    const invalidUsername = usernameError(input.memberNick);
+    if (invalidUsername) errors.memberNick = invalidUsername;
+  }
   if (
     input.memberPhone !== undefined &&
     !/^\+[1-9]\d{7,14}$/.test(input.memberPhone)

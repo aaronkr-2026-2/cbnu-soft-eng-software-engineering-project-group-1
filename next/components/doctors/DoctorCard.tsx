@@ -1,3 +1,4 @@
+import { displayUsername } from '../../libs/username';
 import Link from 'next/link';
 import { useState } from 'react';
 import {
@@ -27,7 +28,8 @@ export function DoctorCard({
   onViewProfile,
 }: DoctorCardProps) {
   const name =
-    doctor.memberFullName?.trim() || doctor.memberNick.trim() || 'Doctor';
+    doctor.memberFullName?.trim() ||
+    (doctor.memberNick.trim() ? displayUsername(doctor.memberNick) : 'Doctor');
   const image = doctor.memberImage?.trim();
   const [failedImage, setFailedImage] = useState<string>();
   const hasDoctorImage = Boolean(image && image !== failedImage);

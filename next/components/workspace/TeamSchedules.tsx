@@ -1,3 +1,4 @@
+import { displayUsername } from '../../libs/username';
 import { useEffect, useState } from 'react';
 import { Alert, Button } from '@mui/material';
 import {
@@ -142,7 +143,7 @@ export function TeamSchedules({
                           <>
                             <p>
                               {memberName(row)} ·{' '}
-                              {profile.clinicName || profile.memberNick}
+                              {profile.clinicName || displayUsername(profile.memberNick)}
                             </p>
                             <p>
                               {approve

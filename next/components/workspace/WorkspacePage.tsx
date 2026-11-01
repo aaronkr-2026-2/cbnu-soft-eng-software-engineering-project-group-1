@@ -1,3 +1,4 @@
+import { displayUsername } from '../../libs/username';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -172,7 +173,9 @@ function Workspace() {
   return (
     <>
       <p className="care-meta">
-        {profile.clinicName || profile.memberFullName || profile.memberNick} ·
+        {profile.clinicName ||
+          profile.memberFullName ||
+          displayUsername(profile.memberNick)} ·
         All dates and times in {zone}
       </p>
       {error && <Alert severity="warning">{error}</Alert>}

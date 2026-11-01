@@ -17,6 +17,7 @@ require.extensions['.ts'] = (module, filename) => {
 };
 const {
   profileDraft,
+  profileFields,
   prepareProfileUpdate,
 } = require('../libs/profile-form.ts');
 const {
@@ -48,11 +49,11 @@ test('unchanged profile omits empty passwords and optional fields', () => {
 test('only changed fields are sent, with trimmed text and international phone validation', () => {
   const result = prepareProfileUpdate(profile, {
     ...profileDraft(profile),
-    memberNick: '  new nick  ',
+    memberNick: '  new_name  ',
     memberPhone: '01012345678',
   });
   assert.deepEqual(result.input, {
-    memberNick: 'new nick',
+    memberNick: 'new_name',
     memberPhone: '01012345678',
   });
   assert.ok(result.errors.memberPhone);
@@ -195,4 +196,35 @@ test('relative image URLs use the API origin and unsafe schemes fall back', () =
     profileImageUrl('javascript:alert(1)'),
     '/images/users/defaultUser.svg',
   );
+});
+
+const { usernameError, displayUsername } = require('../libs/username.ts');
+const { memberName } = require('../libs/api/public-members.ts');
+
+test('username validation matches the six-to-forty character English/symbol rule', () => {
+  for (const value of ['Alex_1', 'A'.repeat(40), '123456', 'Aa1_#$%!&?', ' Alex_1 '])
+    assert.equal(usernameError(value), undefined, value);
+  for (const value of ['short', 'A'.repeat(41), '@Alex_1', 'Alex 1', 'Alex-1', '홍길동abc', 'Aléx_1', 'Alex_1\n!', 'Alex/1'])
+    assert.equal(typeof usernameError(value), 'string', value);
+});
+test('profile username validation keeps the API value unprefixed and preserves case-only edits', () => {
+  const member = { ...profile, memberNick: 'Alex_1' };
+  const changed = prepareProfileUpdate(member, { ...profileDraft(member), memberNick: ' aLEX#1 ' });
+  assert.deepEqual(changed.errors, {});
+  assert.deepEqual(changed.input, { memberNick: 'aLEX#1' });
+  const caseOnly = prepareProfileUpdate(member, { ...profileDraft(member), memberNick: 'aLEX_1' });
+  assert.deepEqual(caseOnly.input, { memberNick: 'aLEX_1' });
+  assert.equal(profileFields.find(([key]) => key === 'memberNick')[1], 'Username');
+  assert.equal(displayUsername('aLEX#1'), '@aLEX#1');
+});
+test('invalid username edits are rejected while an untouched legacy username allows unrelated edits', () => {
+  assert.ok(prepareProfileUpdate(profile, { ...profileDraft(profile), memberNick: '@Alex_1' }).errors.memberNick);
+  const changed = prepareProfileUpdate(profile, { ...profileDraft(profile), memberFullName: '홍길동 Full Name' });
+  assert.deepEqual(changed.errors, {});
+  assert.deepEqual(changed.input, { memberFullName: '홍길동 Full Name' });
+});
+test('member name displays prefix only the username fallback', () => {
+  assert.equal(memberName({ memberNick: 'Alex_1' }), '@Alex_1');
+  assert.equal(memberName({ memberNick: 'Alex_1', memberFullName: 'Alex Full Name' }), 'Alex Full Name');
+  assert.equal(memberName({ memberNick: 'Clinic_1', memberFullName: 'Owner', clinicName: 'Clinic Name' }), 'Clinic Name');
 });

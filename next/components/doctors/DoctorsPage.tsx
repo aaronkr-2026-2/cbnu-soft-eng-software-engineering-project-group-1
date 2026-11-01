@@ -1,3 +1,4 @@
+import { displayUsername } from '../../libs/username';
 import { useState } from 'react';
 import Link from 'next/link';
 import {
@@ -21,7 +22,7 @@ export function DoctorsPage() {
   const matching = members.filter((doctor) =>
     [
       doctor.memberFullName,
-      doctor.memberNick,
+      displayUsername(doctor.memberNick),
       ...(doctor.doctorSpecializations || []).map((value) =>
         value.replaceAll('_', ' '),
       ),

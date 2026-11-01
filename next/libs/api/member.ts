@@ -105,7 +105,7 @@ async function request<T>(
         BAD_USER_INPUT:
           'Check your details, current password, and selected image, then try again.',
         CONFLICT:
-          'Your nickname or phone may already be in use, or your profile changed. Check your details or cancel and reload your profile.',
+          'Your username or phone may already be in use, or your profile changed. Check your details or cancel and reload your profile.',
         FORBIDDEN: 'This change is unavailable for your account.',
       };
       throw new ProfileError(

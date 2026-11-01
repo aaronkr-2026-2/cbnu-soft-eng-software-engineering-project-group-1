@@ -203,3 +203,17 @@ proxy/load/SLA and external delivery remain separate. Operational procedures liv
 in `backend/BOOKING_ROLLOUT.md` on the backend branch; integrate that branch before
 using its new activation configuration. Earlier pending Step 12 notes describe
 historical verification limits and are superseded by this local acceptance.
+
+## Username presentation and validation
+
+`libs/username.ts` supplies the shared client rule for signup and changed profile
+usernames: 6–40 English letters, numbers, or `_ # $ % ! & ?`, with surrounding
+whitespace trimmed and display capitalization preserved. The API remains responsible
+for case-insensitive uniqueness. Full name is separate and is not restricted to the
+username character set. Unchanged legacy usernames do not block unrelated edits.
+
+`components/auth/UsernameField.tsx` renders the fixed, non-editable `@` prefix outside
+the input value in signup and My Page. Drafts, session data and `memberNick` API
+payloads remain unprefixed. Public/workspace fallback names use `displayUsername`;
+full names and clinic names retain their normal display. Availability checks, the
+Check button and inline username-taken states are deferred to OAuth-fix Step 6.

@@ -479,3 +479,23 @@
 **Something the AI got wrong that I had to catch:** Browser verification found the backend still reported automatic booking paused despite the enabled worker. Codex corrected that backend response and added an integration regression; no frontend workaround was added.
 
 **One decision I can explain without AI:** The clinic calendar and patient notice must agree on the real committed appointment, so the pilot checks both roles using the normal backend workers.
+
+## OAuth-fix Step5: username presentation and validation — 2026-11-01
+
+**Tool(s) used:** Codex, source/Git and installed Next/MUI documentation inspection, apply_patch, Yarn/TypeScript/Node tests, an isolated Next production build and native Chrome computer use.
+
+**What I asked for:** Implement frontend Step5 in the next worktree; I handle staging, commits and pushes manually.
+
+**Pre-planning:** Backend Steps1–4 were integrated at clean HEADb1904c6. Signup/profile still said Nickname and accepted2–40 characters; username fallbacks had no display prefix. The existing frontend/backend demo was running and needed to remain online.
+
+**Planning:** Share client username rules and one fixed-prefix field between signup/My Page. Preserve raw memberNick payloads, capitalization and distinct full names. Keep availability checks and conflict forwarding in Step6. Build a separate snapshot to avoid writing into the active dev .next output.
+
+**Implementation process:** Added username helper/field, updated form labels/validation and display/search fallbacks, and added four meaningful rule/profile tests. Typecheck,54 Node tests and the isolated snapshot production build passed. Native Chrome checked signup short/typed-@ errors, deletion leaving @, allowed symbols, Unicode full name, case-only profile editing and390px layout with a synthetic API. Captured signup/profile payloads excluded @. The browser access host was unavailable, so native Chrome controls were used. Restored device settings, signed out/closed the test tab and stopped temporary servers; original frontend/API remained HTTP200. Updated architecture-next and local plan/session records; READMEs needed no change. No backend/Vite edits, application data, provider traffic, migration, staging, commit or push; no sprint covers November1.
+
+**What I kept as-is:** Internal memberNick field, unprefixed drafts/session/API values, case-preserving requests, separate Unicode full names, email-based login, existing server authority and manual Git workflow.
+
+**What I changed or rejected, and why:** I used a non-editable input adornment rather than adding @ to stored text. Fallback usernames display as handles, while real full/clinic names retain their original form. The UI does not claim a username is available before Step6.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. Native typing dropped non-ASCII/numeric characters during verification; using clipboard paste and checking the resulting field value resolved the tooling behavior.
+
+**One decision I can explain without AI:** The @ belongs to presentation, so users cannot delete it from the field and the backend still receives exactly the username text.

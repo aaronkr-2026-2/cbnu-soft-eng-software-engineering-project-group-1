@@ -1,3 +1,4 @@
+import { displayUsername } from '../../libs/username';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -108,7 +109,10 @@ export function LiveCalendar({
 
   const names = new Map(team.map((row) => [row._id, memberName(row)]));
   if (profile.memberType === 'DOCTOR')
-    names.set(profile._id, profile.memberFullName || profile.memberNick);
+    names.set(
+      profile._id,
+      profile.memberFullName || displayUsername(profile.memberNick),
+    );
   async function view(row: CalendarEntry) {
     request.current?.abort();
     const controller = new AbortController();

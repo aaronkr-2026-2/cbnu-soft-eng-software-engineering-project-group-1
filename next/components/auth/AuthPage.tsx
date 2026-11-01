@@ -15,13 +15,15 @@ import {
 import { startSession, useSession } from '../../libs/auth-session';
 import { PasswordField } from './PasswordField';
 import { GoogleSignIn } from './GoogleSignIn';
+import { UsernameField } from './UsernameField';
+import { displayUsername, usernameError } from '../../libs/username';
 
 type Fields = {
   email: string;
   password: string;
   confirm: string;
   fullName: string;
-  nickname: string;
+  username: string;
   phone: string;
 };
 const emptyFields: Fields = {
@@ -29,7 +31,7 @@ const emptyFields: Fields = {
   password: '',
   confirm: '',
   fullName: '',
-  nickname: '',
+  username: '',
   phone: '',
 };
 
@@ -102,11 +104,8 @@ export function AuthPage() {
         ? 'Use 8–100 characters.'
         : 'Enter your password (up to 128 characters).';
     if (signup) {
-      if (
-        length(fields.nickname.trim()) < 2 ||
-        length(fields.nickname.trim()) > 40
-      )
-        nextErrors.nickname = 'Use 2–40 characters.';
+      const invalidUsername = usernameError(fields.username);
+      if (invalidUsername) nextErrors.username = invalidUsername;
       if (length(fields.fullName.trim()) > 100)
         nextErrors.fullName = 'Use up to 100 characters.';
       if (!/^\+[1-9]\d{7,14}$/.test(fields.phone.trim()))
@@ -134,7 +133,7 @@ export function AuthPage() {
           ? ({
               ...input,
               memberType: 'USER',
-              memberNick: fields.nickname.trim(),
+              memberNick: fields.username.trim(),
               memberPhone: fields.phone.trim(),
               ...(fields.fullName.trim()
                 ? { memberFullName: fields.fullName.trim() }
@@ -223,7 +222,7 @@ export function AuthPage() {
                 </Button>
               }
             >
-              You’re signed in as {session.member.memberNick}.
+              You’re signed in as {displayUsername(session.member.memberNick)}.
             </Alert>
           ) : (
             <>
@@ -249,20 +248,14 @@ export function AuthPage() {
                       helperText={errors.fullName}
                       fullWidth
                     />
-                    <TextField
-                      id="nickname"
-                      name="nickname"
-                      label="Nickname"
-                      value={fields.nickname}
-                      onChange={(event) =>
-                        update('nickname', event.target.value)
-                      }
-                      autoComplete="nickname"
+                    <UsernameField
+                      id="username"
+                      value={fields.username}
+                      onChange={(event) => update('username', event.target.value)}
                       disabled={busy}
-                      error={!!errors.nickname}
-                      helperText={errors.nickname || '2–40 characters'}
+                      error={!!errors.username}
+                      helperText={errors.username}
                       required
-                      fullWidth
                     />
                   </div>
                 )}

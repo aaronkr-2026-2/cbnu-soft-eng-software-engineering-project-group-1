@@ -1,5 +1,6 @@
 import { print } from 'graphql';
 import { GET_MEMBER, GET_DOCTORS } from '../../apollo/user/query';
+import { displayUsername } from '../username';
 
 export interface PublicMember {
   _id: string;
@@ -17,7 +18,9 @@ export interface PublicMember {
   doctorSpecializations?: string[] | null;
 }
 export function memberName(member: PublicMember) {
-  return member.clinicName || member.memberFullName || member.memberNick;
+  return (
+    member.clinicName || member.memberFullName || displayUsername(member.memberNick)
+  );
 }
 // Public discovery only. The API lists at most 100 approved doctors. Clinics
 // are resolved from that list; no private clinic-affiliation endpoint is used.

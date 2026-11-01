@@ -33,6 +33,8 @@ import {
 import { SiteHeader } from '../layout/SiteHeader';
 import { SiteFooter } from '../layout/SiteFooter';
 import { PasswordField } from '../auth/PasswordField';
+import { UsernameField } from '../auth/UsernameField';
+import { displayUsername } from '../../libs/username';
 
 const locations = [
   'SEOUL',
@@ -303,7 +305,9 @@ function PersonalInfo({
         />
         <div>
           <h3>
-            {profile.clinicName || profile.memberFullName || profile.memberNick}
+            {profile.clinicName ||
+              profile.memberFullName ||
+              displayUsername(profile.memberNick)}
           </h3>
           <p>
             {profile.memberType === 'USER'
@@ -318,7 +322,18 @@ function PersonalInfo({
       {error && <Alert severity="error">{error}</Alert>}
       <form ref={form} onSubmit={save} noValidate aria-busy={busy}>
         <div className="mypage__fields">
-          {profileFields.map(([key, label, max]) => (
+          {profileFields.map(([key, label, max]) => key === 'memberNick' ? (
+            <UsernameField
+              key={key}
+              id={key}
+              value={draft.memberNick}
+              onChange={(event) => change(key, event.target.value)}
+              disabled={busy}
+              readOnly={!editing}
+              error={!!errors.memberNick}
+              helperText={errors.memberNick}
+            />
+          ) : (
             <TextField
               key={key}
               id={key}
