@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import {
   calendarDate,
+  isWorkingDate,
+  workingDate,
   monthDays,
   shiftDay,
   shiftMonth,
@@ -39,7 +41,7 @@ export function BookingCalendar({
   const weeks = monthDays(month);
   const enabledDays = weeks
     .flat()
-    .filter((day): day is string => !!day && day >= minimum);
+    .filter((day): day is string => !!day && day >= minimum && isWorkingDate(day));
   const tabDate = enabledDays.includes(focused)
     ? focused
     : enabledDays.includes(value)
@@ -69,14 +71,17 @@ export function BookingCalendar({
       ArrowRight: () => shiftDay(day, 1),
       ArrowUp: () => shiftDay(day, -7),
       ArrowDown: () => shiftDay(day, 7),
-      Home: () => shiftDay(day, -weekday),
-      End: () => shiftDay(day, 6 - weekday),
+      Home: () => shiftDay(day, 1 - weekday),
+      End: () => shiftDay(day, 5 - weekday),
       PageUp: () => shiftMonth(day, -1),
       PageDown: () => shiftMonth(day, 1),
     };
     if (!moves[event.key]) return;
     event.preventDefault();
-    const next = moves[event.key]();
+    const direction = ['ArrowLeft', 'ArrowUp', 'Home', 'PageUp'].includes(event.key)
+      ? -1
+      : 1;
+    const next = workingDate(moves[event.key](), direction);
     if (next < minimum || disabled) return;
     focusRequested.current = true;
     setFocused(next);
@@ -138,7 +143,7 @@ export function BookingCalendar({
                         if (element) buttons.current.set(day, element);
                         else buttons.current.delete(day);
                       }}
-                      disabled={disabled || day < minimum}
+                      disabled={disabled || day < minimum || !isWorkingDate(day)}
                       tabIndex={!disabled && day === tabDate ? 0 : -1}
                       aria-label={fullDate(day)}
                       aria-current={day === minimum ? 'date' : undefined}
@@ -161,7 +166,8 @@ export function BookingCalendar({
       </p>
       <p className="care-meta" id={helpId}>
         Use arrow keys to move between days and Enter or Space to select.
-        Available times load after you choose a day.
+        Saturdays and Sundays are non-working days. Available times load after
+        you choose a weekday.
       </p>
     </section>
   );

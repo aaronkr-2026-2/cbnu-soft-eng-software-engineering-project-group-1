@@ -428,6 +428,8 @@ test('clinic doctor discovery filters public doctors without a private affiliati
 });
 const {
   monthDays,
+  isWorkingDate,
+  workingDate,
   shiftDay,
   shiftMonth,
 } = require('../libs/booking-calendar.ts');
@@ -450,4 +452,14 @@ test('calendar day movement stays date-only across DST and year boundaries', () 
   assert.equal(shiftDay('2026-03-08', 1), '2026-03-09');
   assert.equal(shiftDay('2026-11-01', -1), '2026-10-31');
   assert.equal(shiftDay('2026-12-31', 1), '2027-01-01');
+});
+
+test('booking dates skip weekends across months and years', () => {
+  assert.equal(isWorkingDate('2026-11-01'), false);
+  assert.equal(isWorkingDate('2026-11-07'), false);
+  assert.equal(workingDate('2026-11-01'), '2026-11-02');
+  assert.equal(workingDate('2026-11-07', -1), '2026-11-06');
+  assert.equal(workingDate('2028-01-01'), '2028-01-03');
+  assert.equal(workingDate('2028-01-01', -1), '2027-12-31');
+  assert.equal(workingDate('2026-11-06'), '2026-11-06');
 });

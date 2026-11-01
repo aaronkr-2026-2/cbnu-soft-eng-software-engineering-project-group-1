@@ -1,3 +1,4 @@
+import { isWorkingDate, workingDate } from '../../libs/booking-calendar';
 import { useEffect, useState } from 'react';
 import { Alert, Button } from '@mui/material';
 import { BookingCalendar } from '../booking/BookingCalendar';
@@ -22,7 +23,7 @@ export function StaffBooking({
 }) {
   const [doctorId, setDoctorId] = useState(''),
     [specialty, setSpecialty] = useState(''),
-    [date, setDate] = useState(() => dateInZone(new Date(), zone)),
+    [date, setDate] = useState(() => workingDate(dateInZone(new Date(), zone))),
     [patientId, setPatientId] = useState(''),
     [source, setSource] = useState<'PHONE' | 'WALK_IN'>('PHONE'),
     [slots, setSlots] = useState<Slot[]>([]),
@@ -43,7 +44,10 @@ export function StaffBooking({
     setSlots([]);
     setSelected('');
     setError('');
-    if (!doctor || !date || !specialty) return;
+    if (!doctor || !date || !specialty || !isWorkingDate(date)) {
+      setBusy(false);
+      return;
+    }
     const controller = new AbortController();
     setBusy(true);
     void availableSlots(

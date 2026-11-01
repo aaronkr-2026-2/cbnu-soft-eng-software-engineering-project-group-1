@@ -32,3 +32,16 @@ export function monthDays(month: string): (string | null)[][] {
     cells.slice(index * 7, index * 7 + 7),
   );
 }
+
+export function isWorkingDate(value: string) {
+  const weekday = calendarDate(value).getUTCDay();
+  return weekday >= 1 && weekday <= 5;
+}
+// Advance a clinic-local date to a weekday without converting timezones.
+export function workingDate(value: string, direction: 1 | -1 = 1): string {
+  if (!Number.isFinite(calendarDate(value).getTime()))
+    throw new Error('Invalid clinic-local date');
+  let next = value;
+  while (!isWorkingDate(next)) next = shiftDay(next, direction);
+  return next;
+}

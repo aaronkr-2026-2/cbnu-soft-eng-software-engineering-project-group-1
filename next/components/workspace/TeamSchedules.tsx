@@ -175,7 +175,7 @@ export function TeamSchedules({
       </section>
     );
   const weeklyError = validateHours(weekly),
-    overrideError = validateOverrides(overrides);
+    overrideError = validateOverrides(overrides, date);
   function patchWeekly(index: number, values: Partial<WeeklyInterval>) {
     setWeekly((rows) =>
       rows.map((row, i) => (i === index ? { ...row, ...values } : row)),
@@ -222,7 +222,8 @@ export function TeamSchedules({
         <legend>Weekly hours · {zone}</legend>
         <p>
           Dates without weekly intervals are closed unless custom date hours
-          apply. Multiple intervals per day are supported.
+          apply on weekdays. Saturdays and Sundays are always closed. Multiple
+          intervals per weekday are supported.
         </p>
         {weekly.map((row, index) => (
           <div className="workspace-interval" key={index}>
@@ -234,11 +235,13 @@ export function TeamSchedules({
                   patchWeekly(index, { weekday: Number(event.target.value) })
                 }
               >
-                {weekdays.map((day, value) => (
-                  <option key={day} value={value}>
-                    {day}
-                  </option>
-                ))}
+                {weekdays.map((day, value) =>
+                  value >= 1 && value <= 5 ? (
+                    <option key={day} value={value}>
+                      {day}
+                    </option>
+                  ) : null,
+                )}
               </select>
             </label>
             <TimeSelect

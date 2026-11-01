@@ -90,8 +90,8 @@ its documented migration/release prerequisites before operators enable them.
 
 The booking calendar adapts MediBridge's month header and seven-column day grid.
 Previous/next navigation does not change the selected date. Dates before today in
-the clinic timezone are disabled; weekends remain selectable because the API owns
-working hours. Arrow keys move by day/week, Home/End move within a week, Page
+the clinic timezone and all Saturdays/Sundays are disabled. New bookings and
+waitlists are restricted to Monday–Friday by the backend. Arrow keys move by day/week, Home/End move within a week, Page
 Up/Down change month, and Enter/Space select. Choosing another date clears the old
 time selection and loads that day's slots. No calendar dependency was added.
 
@@ -214,8 +214,8 @@ Clinic controls use `myClinicDoctors` (first 100 active records), pending applic
 approve/reject, and complete weekly/date override replacement mutations. The API
 has no saved-hours read query, so schedule forms are explicitly blank replacement
 drafts, require acknowledgement/review, and never imply they loaded current hours.
-Split intervals, weekends, half-hour boundaries, custom hours, full/partial closures,
-and clearing overrides are supported. A public effective-slots preview helps inspect
+Weekday split intervals, half-hour boundaries, custom hours, full/partial closures,
+and clearing overrides are supported. Weekend custom hours cannot reopen a date. A public effective-slots preview helps inspect
 the result; Nest protects working hours needed by bookings/waitlists.
 
 Phone/walk-in creation requires an existing active patient ID, approved doctor,

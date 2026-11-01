@@ -499,3 +499,23 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. Native typing dropped non-ASCII/numeric characters during verification; using clipboard paste and checking the resulting field value resolved the tooling behavior.
 
 **One decision I can explain without AI:** The @ belongs to presentation, so users cannot delete it from the field and the backend still receives exactly the username text.
+
+## Disable weekend booking dates — 2026-11-01
+
+**Tool(s) used:** Codex, TypeScript, Node tests, isolated Next production build, native Chrome.
+
+**What I asked for:** Treat weekends as non-working days in the Next worktree, separately from backend changes.
+
+**Pre-planning:** Patient/staff forms share BookingCalendar; clinic schedule drafts also allowed weekend hours. Dates are already clinic-local strings.
+
+**Planning:** Disable weekends, skip them during keyboard navigation, default new searches to a weekday, and block weekend hours drafts while preserving history access.
+
+**Implementation process:** Updated shared date helpers/calendar, patient/staff loading guards and weekday defaults, weekly schedule options and custom-override validation. Exact weekend links retain their target date and show the closure instead of silently choosing another slot. Corrected the existing README statements. Typecheck and56 tests passed; an isolated source snapshot production build passed. Native Chrome verified disabled Saturday/Sunday and Friday→Monday / Monday→Friday keyboard selection using the real calendar component on a temporary harness page. Screenshot: /private/tmp/medconnect-weekend-calendar.png. Closed the test tab and stopped the owned preview.
+
+**What I kept as-is:** Backend/Vite files, existing appointment history, credentials/configuration, API contracts and manual Git workflow. No application database writes or server restart.
+
+**What I changed or rejected, and why:** Weekend custom hours cannot be submitted; closure/clearing remain valid. Backend enforcement remains authoritative. Browser verification covered the isolated calendar component, not a newly restarted combined application stack.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Keep calendar calculations date-only so the browser timezone cannot change which clinic dates count as weekends.

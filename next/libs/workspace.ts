@@ -1,4 +1,4 @@
-import { calendarDate, shiftDay } from './booking-calendar';
+import { calendarDate, shiftDay, isWorkingDate } from './booking-calendar';
 import { dateInZone } from './booking';
 import type {
   CalendarEntry,
@@ -68,11 +68,11 @@ export function validateHours(intervals: WeeklyInterval[]) {
   for (const row of intervals)
     if (
       !Number.isInteger(row.weekday) ||
-      row.weekday < 0 ||
-      row.weekday > 6 ||
+      row.weekday < 1 ||
+      row.weekday > 5 ||
       !validInterval(row)
     )
-      return 'Choose positive, half-hour intervals and a weekday for every row.';
+      return 'Choose positive, half-hour intervals on Monday through Friday for every row.';
   for (let day = 0; day < 7; day++)
     if (overlaps(intervals.filter((row) => row.weekday === day)))
       return 'Hours on the same weekday must not overlap.';
@@ -94,7 +94,13 @@ function overlaps(rows: { startMinute: number; endMinute: number }[]) {
     (row, index) => index > 0 && row.startMinute < sorted[index - 1].endMinute,
   );
 }
-export function validateOverrides(rows: DateOverride[]) {
+export function validateOverrides(rows: DateOverride[], date?: string) {
+  if (
+    date &&
+    !isWorkingDate(date) &&
+    rows.some((row) => row.type === 'CUSTOM_HOURS')
+  )
+    return 'Saturdays and Sundays are non-working days; custom hours are unavailable.';
   if (rows.length > 16) return 'Use at most 16 date overrides.';
   const starts = new Set<number | undefined>();
   for (const row of rows) {

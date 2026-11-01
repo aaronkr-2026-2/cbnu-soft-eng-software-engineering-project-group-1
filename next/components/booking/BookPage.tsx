@@ -1,3 +1,4 @@
+import { isWorkingDate, workingDate } from '../../libs/booking-calendar';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { Alert, Button } from '@mui/material';
@@ -189,13 +190,15 @@ function BookingForm() {
   useEffect(() => {
     if (clinic?.clinicTimezone) {
       try {
+        const targetDate = dateInZone(
+          linkedTarget?.clinicId === clinicId
+            ? new Date(linkedTarget.startsAt)
+            : new Date(),
+          clinic.clinicTimezone,
+        );
+        // Exact-slot links retain their date so a closed target is explained.
         setDate(
-          dateInZone(
-            linkedTarget?.clinicId === clinicId
-              ? new Date(linkedTarget.startsAt)
-              : new Date(),
-            clinic.clinicTimezone,
-          ),
+          linkedTarget?.clinicId === clinicId ? targetDate : workingDate(targetDate),
         );
       } catch {
         setDate('');
@@ -211,6 +214,12 @@ function BookingForm() {
     setSlots([]);
     setSelected('');
     if (!clinicId || !doctorId || !specialty || !date) return;
+    if (!isWorkingDate(date)) {
+      setLoading('');
+      setError('Saturdays and Sundays are non-working days. Choose a weekday.');
+      setLinkedChecked(true);
+      return;
+    }
     const controller = new AbortController();
     setLoading('times');
     setError('');

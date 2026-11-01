@@ -105,11 +105,11 @@ test('calendar grouping includes overlapping records and excludes an exclusive e
     ['1'],
   );
 });
-test('weekly schedule drafts accept splits/weekends and reject overlap or misaligned intervals', () => {
+test('weekly schedule drafts accept weekday splits and reject overlap or misaligned intervals', () => {
   assert.equal(
     validateHours([
-      { weekday: 6, startMinute: 540, endMinute: 600 },
-      { weekday: 6, startMinute: 600, endMinute: 660 },
+      { weekday: 1, startMinute: 540, endMinute: 600 },
+      { weekday: 1, startMinute: 600, endMinute: 660 },
     ]),
     '',
   );
@@ -282,4 +282,13 @@ test('doctor review and complete weekly replacements map current backend argumen
     await setWeeklyHours('b'.repeat(24), [], new AbortController().signal),
     true,
   );
+});
+
+test('weekend schedule drafts cannot reopen Saturday or Sunday', () => {
+  for (const weekday of [0, 6]) assert.ok(validateHours([{ weekday, startMinute: 540, endMinute: 600 }]));
+  for (const date of ['2026-11-01', '2026-11-07']) {
+    assert.ok(validateOverrides([{ type: 'CUSTOM_HOURS', startMinute: 540, endMinute: 600 }], date));
+    assert.equal(validateOverrides([{ type: 'UNAVAILABLE' }], date), '');
+    assert.equal(validateOverrides([], date), '');
+  }
 });
