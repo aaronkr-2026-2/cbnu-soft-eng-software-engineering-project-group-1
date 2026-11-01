@@ -9,6 +9,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { Location } from '../../enum/location.enum.js';
+import { IsUsername } from '../../../components/member/member-username.js';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -26,11 +27,14 @@ export class MemberUpdateInput {
   @Length(1, 100)
   memberFullName?: string;
 
-  @Field(() => String, { nullable: true })
+  @Field(() => String, {
+    nullable: true,
+    description:
+      'Username: 6–40 English letters, numbers, or _ # $ % ! & ?; display capitalization is preserved.',
+  })
   @ValidateIf((_data, value) => value !== undefined)
   @Transform(trim)
-  @IsString()
-  @Length(2, 40)
+  @IsUsername()
   memberNick?: string;
 
   @Field(() => String, { nullable: true })

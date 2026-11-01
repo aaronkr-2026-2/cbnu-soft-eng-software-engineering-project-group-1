@@ -758,3 +758,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** Automated checks caught the new subprocess path resolving a shadowed join helper, timeoutMS conflict and string-ID fixture typing. Browser verification caught a remaining hardcoded paused response. These were corrected before final acceptance; Codex/tests found them, not me manually.
 
 **One decision I can explain without AI:** Checking availability of the API is different from proving queue recovery, so we test actual killed processes and inspect persistent ledger/outbox state separately.
+
+## OAuth-fix Step1: username validation and normalization — 2026-11-01
+
+**Tool(s) used:** Codex, source/Git inspection, apply_patch, Jest/Supertest, TypeScript, oxlint and Prettier.
+
+**What I asked for:** Implement Step1 of the OAuth-fix plan on the backend worktree; I handle commits and pushes manually.
+
+**Pre-planning:** Signup/profile edits accepted2–40 characters; Google used provider names or six-digit fallbacks. Case-sensitive database uniqueness remains the existing behavior.
+
+**Planning:** Define one6–40-character validator and a lowercase comparison helper. I confirmed English letters in both cases, numbers, underscores and # $ % ! & ?. Keep migrations, Google naming, availability and frontend changes in their numbered steps.
+
+**Implementation process:** Added member-username helper/spec, shared REST/GraphQL validation and metadata, boundary/symbol/invalid-input API cases, valid test fixtures and README documentation. Updated local session/plan records.48 unit and128 focused signup/profile API tests passed; changed-file lint and whitespace passed. Full TypeScript/lint fail on duplicate listClinicDoctors/myAppointments implementations already in committed HEAD3cd2f09 (B-018); full build was not run. No application database, indexes, server configuration/restart, frontend code, staging, commits or pushes; no sprint covers November1.
+
+**What I kept as-is:** Internal memberNick field, display capitalization, email sign-in, existing accounts, Google creation behavior, database indexes and running local servers.
+
+**What I changed or rejected, and why:** I replaced the proposed narrower character set with my confirmed symbols. I deferred database enforcement and legacy renaming to Step2 rather than claiming the comparison helper makes existing storage case-insensitive.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. My character-set answer clarified a proposal; the compiler/lint blockers were already committed before this work.
+
+**One decision I can explain without AI:** Preserve the username's display spelling and use a lowercase comparison key so different capitalizations can share one uniqueness rule after migration.

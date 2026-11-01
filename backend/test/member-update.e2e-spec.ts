@@ -422,6 +422,18 @@ describe('updateMember GraphQL', () => {
       true,
     );
   });
+  it.each([' Alex_1 ', 'A'.repeat(40), ' Aa1_#$%!&? '])(
+    'accepts a valid username edit while preserving display capitalization: %s',
+    async (memberNick) => {
+      const result = await update({ memberNick });
+      expect(result.body.errors).toBeUndefined();
+      expect(result.body.data.updateMember.member.memberNick).toBe(
+        memberNick.trim(),
+      );
+      expect(rows[0].memberNick).toBe(memberNick.trim());
+    },
+  );
+
   it.each(['', 'invalid'])(
     'requires authentication: %j',
     async (accessToken) => {
@@ -436,6 +448,12 @@ describe('updateMember GraphQL', () => {
     { memberFullName: null },
     { memberFullName: '' },
     { memberNick: 'a' },
+    { memberNick: 'again' },
+    { memberNick: 'a'.repeat(41) },
+    { memberNick: 'Alice Smith' },
+    { memberNick: 'alice-1' },
+    { memberNick: 'Alíce_1' },
+    { memberNick: null },
     { memberPhone: '123' },
     { memberDesc: 'x'.repeat(2001) },
     { currentPassword: oldPassword },
@@ -497,7 +515,7 @@ describe('updateMember GraphQL', () => {
     expect(rows[0].get('currentPassword')).toBeUndefined();
     expect(JSON.stringify(changed.body)).not.toContain('scrypt$');
     expect(
-      errorCode(await update({ memberNick: 'again' }, login.body.accessToken)),
+      errorCode(await update({ memberNick: 'again_1' }, login.body.accessToken)),
     ).toBe('UNAUTHENTICATED');
     await request(app.getHttpServer())
       .post('/member/refresh')
@@ -512,7 +530,7 @@ describe('updateMember GraphQL', () => {
       .send({ memberEmail: owner.memberEmail, memberPassword: nextPassword })
       .expect(200);
     expect(
-      errorCode(await update({ memberNick: 'again' }, fresh.body.accessToken)),
+      errorCode(await update({ memberNick: 'again_1' }, fresh.body.accessToken)),
     ).toBeUndefined();
   });
   it('allows only one concurrent password change from the same snapshot', async () => {
@@ -615,7 +633,7 @@ describe('updateMember GraphQL', () => {
     const newImage = await upload();
     conflict = true;
     expect(
-      errorCode(await update({ memberImage: newImage, memberNick: 'new' })),
+      errorCode(await update({ memberImage: newImage, memberNick: 'new_123' })),
     ).toBe('CONFLICT');
     expect(rows[0].memberImage).toBe(oldImage);
     await expect(access(path(oldImage))).resolves.toBeUndefined();

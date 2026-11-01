@@ -48,6 +48,10 @@ this does not establish deployed integration or enable automatic waitlist bookin
 
 - **Member registration and login:** REST signup for USER, DOCTOR, and CLINIC
   accounts, password hashing, input validation, and JWT access tokens.
+- **Username validation:** Signup and profile username edits accept 6–40 English
+  letters, numbers, or `_ # $ % ! & ?`, trim surrounding whitespace, and preserve
+  display capitalization. A shared lowercase comparison helper is prepared;
+  case-insensitive database uniqueness and legacy-account migration are not yet active.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
 - **Member editing:** Authenticated GraphQL `updateMember` edits your profile/contact
   fields, changes passwords with current-password verification and confirmation, and
@@ -336,7 +340,9 @@ and stable across restarts. Startup rejects missing or short secrets.
 
 - `POST /member/signup` returns 201. Required fields: `memberEmail`,
   `memberPassword` (8–100 characters), `memberPhone` (international format such
-  as `+821012345678`), and `memberNick` (2–40 characters). `memberFullName` is optional.
+  as `+821012345678`), and `memberNick` (Username: 6–40 English letters, numbers,
+  or `_ # $ % ! & ?`). Surrounding whitespace is trimmed; capitalization is preserved.
+  `memberFullName` is optional. Login still uses email, not username.
 - `memberType` defaults to `USER`. `CLINIC` additionally requires `clinicName`;
   `clinicTimezone` defaults to `Asia/Seoul`. `DOCTOR` requires `clinicId` of an
   active clinic, a nonempty `doctorSpecializations` enum array, and
@@ -419,6 +425,10 @@ and password are omitted. The provider's trimmed display name supplies the
 nickname (up to 40 characters) and full name (up to 100). Missing/blank names or
 nickname collisions use `google_user` plus six random digits, such as
 `google_user004271`, with bounded retries against the unique database index.
+This Google naming behavior remains unchanged in username Step 1; assigning
+eight-digit generated usernames and using the display name only as full name is
+deferred to Step 3. The new signup/profile-edit validator does not rename existing
+accounts or change this provider-generated path.
 Verified Google email and picture are copied when supplied. Email is optional;
 unverified email is not persisted. Google `sub`, not email/name, identifies the account.
 
@@ -630,12 +640,19 @@ Send a Bearer access token. Example variables for a profile edit:
 
 All fields are optional; omitted fields remain unchanged. Empty updates and explicit
 `null` values are rejected. Allowed fields are `memberFullName` (1–100 characters),
-`memberNick` (2–40, unique), `memberPhone` (international format, unique), `memberImage`,
+`memberNick` (Username: 6–40 English letters, numbers, or `_ # $ % ! & ?`; currently
+case-sensitive unique), `memberPhone` (international format, unique), `memberImage`,
 `memberAddress` (up to 300), and `memberDesc` (up to 2,000). Clinics may additionally
 edit `clinicName` (1–150) and `location` (Location enum). Empty address/description
 strings clear those fields. Account IDs, roles/status, email/provider, clinic affiliation,
 and approval fields are not editable. The authenticated account determines ownership.
 Phone changes update the stored contact; SMS verification is not implemented.
+Username edits share signup validation and retain display capitalization after
+trimming. Omitting `memberNick` allows unrelated edits to legacy profiles whose
+existing usernames do not meet the new rule. A lowercase comparison helper is
+defined for the forthcoming normalized-key migration, but the database index has
+not changed yet: `Alex_1` and `alex_1` can still coexist until Step 2. Username
+availability checks and frontend labels are also later steps.
 
 To change an EMAIL account's password, include all three fields together, optionally
 alongside profile edits:

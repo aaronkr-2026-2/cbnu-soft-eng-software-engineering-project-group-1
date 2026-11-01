@@ -44,7 +44,7 @@ describe('Member REST authentication', () => {
     memberEmail: 'alice@example.com',
     memberPassword: 'a sufficiently long password',
     memberPhone: '+821012345678',
-    memberNick: 'alice',
+    memberNick: 'alice_1',
   };
   const googleClientId = 'test-google-client.apps.googleusercontent.com';
   const originalClientId = process.env.GOOGLE_CLIENT_ID;
@@ -279,6 +279,18 @@ describe('Member REST authentication', () => {
     );
   });
 
+  it.each([' Alex_1 ', 'A'.repeat(40), ' Aa1_#$%!&? '])(
+    'trims the username and preserves valid display capitalization: %s',
+    async (memberNick) => {
+      const result = await request(app.getHttpServer())
+        .post('/member/signup')
+        .send({ ...signup, memberNick })
+        .expect(201);
+      expect(result.body.member.memberNick).toBe(memberNick.trim());
+      expect(members[0].memberNick).toBe(memberNick.trim());
+    },
+  );
+
   it('logs in using normalized email and rejects wrong, missing, and suspended accounts identically', async () => {
     await request(app.getHttpServer())
       .post('/member/signup')
@@ -325,6 +337,12 @@ describe('Member REST authentication', () => {
 
   it.each([
     { memberType: 'ADMIN' },
+    { memberNick: 'alice' },
+    { memberNick: 'a'.repeat(41) },
+    { memberNick: 'Alice Smith' },
+    { memberNick: 'alice-1' },
+    { memberNick: 'Alíce_1' },
+    { memberNick: null },
     { memberStatus: 'ACTIVE' },
     { doctorClinicStatus: 'APPROVED' },
     { memberPassword: 'short' },
@@ -411,7 +429,7 @@ describe('Member REST authentication', () => {
     // A workplace change needs no copied city update on the doctor.
     const otherClinic = await request(app.getHttpServer()).post('/member/signup').send({
       ...signup, memberType: 'CLINIC', clinicName: 'New Clinic', location: 'BUSAN',
-      memberEmail: 'newclinic@example.com', memberPhone: '+821011112222', memberNick: 'new-clinic',
+      memberEmail: 'newclinic@example.com', memberPhone: '+821011112222', memberNick: 'new_clinic',
     }).expect(201);
     members[1].clinicId = members[2]._id;
     const refresh = await request(app.getHttpServer()).post('/member/refresh')

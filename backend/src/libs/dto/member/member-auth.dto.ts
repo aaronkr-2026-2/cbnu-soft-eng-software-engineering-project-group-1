@@ -18,6 +18,12 @@ import {
 } from 'class-validator';
 import { DoctorSpecialization, MemberType } from '../../enum/member.enum.js';
 import { Location } from '../../enum/location.enum.js';
+import {
+  IsUsername,
+  USERNAME_MAX_LENGTH,
+  USERNAME_MIN_LENGTH,
+  USERNAME_PATTERN,
+} from '../../../components/member/member-username.js';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -65,8 +71,14 @@ export class SignupDto {
   memberPhone: string;
 
   @Transform(trim)
-  @IsString()
-  @Length(2, 40)
+  @IsUsername()
+  @ApiProperty({
+    description:
+      'Username: 6–40 English letters, numbers, or _ # $ % ! & ?. Surrounding whitespace is trimmed; display capitalization is preserved.',
+    minLength: USERNAME_MIN_LENGTH,
+    maxLength: USERNAME_MAX_LENGTH,
+    pattern: USERNAME_PATTERN.source,
+  })
   memberNick: string;
 
   @IsIn([MemberType.USER, MemberType.CLINIC, MemberType.DOCTOR])
