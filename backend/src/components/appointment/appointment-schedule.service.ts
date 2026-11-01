@@ -60,6 +60,7 @@ import {
   appointmentDateRange,
   appointmentSlot,
   slotFitsSchedule,
+  isWorkingWeekday,
 } from './appointment-slot.js';
 
 @Injectable()
@@ -330,6 +331,9 @@ export class AppointmentScheduleService {
       .lean()
       .exec();
     for (const slot of slots) {
+      // Legacy weekend commitments remain manageable, but cannot reopen weekends
+      // or prevent clinics from correcting their weekday schedule.
+      if (!isWorkingWeekday(slot.weekday)) continue;
       if (changedDate && slot.date !== changedDate) continue;
       const overrides = changedDate
         ? replacements
@@ -353,13 +357,10 @@ export class AppointmentScheduleService {
   ) {
     if (principal.memberType !== MemberType.CLINIC)
       throw new ForbiddenException('Only clinics can manage schedules');
-    if (
-      input.intervals.some(
-        (row) =>
-          !Number.isInteger(row.weekday) || row.weekday < 0 || row.weekday > 6,
-      )
-    )
-      throw new BadRequestException('Invalid weekday');
+    if (input.intervals.some((row) => !isWorkingWeekday(row.weekday)))
+      throw new BadRequestException(
+        'Working hours must be Monday through Friday',
+      );
     for (let day = 0; day < 7; day++)
       this.validateIntervals(
         input.intervals.filter((row) => row.weekday === day),
@@ -414,7 +415,16 @@ export class AppointmentScheduleService {
   ) {
     if (principal.memberType !== MemberType.CLINIC)
       throw new ForbiddenException('Only clinics can manage schedules');
-    appointmentDateRange(input.date, input.date);
+    const { from } = appointmentDateRange(input.date, input.date);
+    if (
+      !isWorkingWeekday(new Date(from).getUTCDay()) &&
+      input.overrides.some(
+        (row) => row.type === AvailabilityOverrideType.CUSTOM_HOURS,
+      )
+    )
+      throw new BadRequestException(
+        'Saturdays and Sundays are non-working days',
+      );
     const starts = new Set<number | undefined>();
     for (const row of input.overrides) {
       if (starts.has(row.startMinute ?? undefined))

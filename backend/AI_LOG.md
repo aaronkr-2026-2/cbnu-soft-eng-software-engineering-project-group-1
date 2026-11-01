@@ -838,3 +838,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** Two people may both see Available before saving, so the final write still needs database uniqueness and an inline username-specific conflict response.
+
+## Close weekends for booking — 2026-11-01
+
+**Tool(s) used:** Codex, TypeScript, Nest build, Jest/Supertest, disposable MongoDB, oxlint.
+
+**What I asked for:** Treat Saturdays and Sundays as non-working days, keeping backend and Next work separate.
+
+**Pre-planning:** Weekly hours and custom overrides previously allowed weekends. The shared clinic-local schedule check governs availability and booking eligibility.
+
+**Planning:** Enforce weekdays centrally, reject weekend schedule openings, and preserve existing appointments for clinic management.
+
+**Implementation process:** Added weekday enforcement to slotFitsSchedule, service/DTO schedule validation and the existing booking contract. Legacy weekend commitments do not block weekday schedule corrections. Added timezone, legacy-hours, REST/GraphQL, staff, waitlist and preservation checks. Updated the old Sunday notification expectation and made successful-booking API fixtures choose a future weekday. Build/full TypeScript passed; 69 unit, 222 API and 193 disposable MongoDB checks passed. Lint retains only the existing empty config.ts warning.
+
+**What I kept as-is:** Existing appointments, date arithmetic/DST calculations, history access, database/configuration and branch boundaries. No application database changes, runtime restart, staging, commit or push.
+
+**What I changed or rejected, and why:** Custom hours cannot reopen weekends; closure/clearing remain allowed. No automatic cancellation of legacy commitments.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. Regression runs exposed existing tests whose weekend assumptions needed updating for the new rule.
+
+**One decision I can explain without AI:** Use the clinic-local weekday so UTC date boundaries cannot accidentally permit a Saturday booking.

@@ -17,7 +17,7 @@ import { DoctorSpecialization } from '../../enum/member.enum.js';
 
 @InputType()
 export class WorkingHoursInput {
-  @Field(() => Int) @IsInt() @Min(0) @Max(6) weekday: number;
+  @Field(() => Int) @IsInt() @Min(1) @Max(5) weekday: number;
   @Field(() => Int) @IsInt() @Min(0) @Max(1410) startMinute: number;
   @Field(() => Int) @IsInt() @Min(30) @Max(1440) endMinute: number;
 }

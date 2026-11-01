@@ -1,7 +1,9 @@
+import { AvailabilityOverrideType } from '../../libs/enum/appointment.enum.js';
 import {
   appointmentCandidates,
   appointmentDateRange,
   appointmentSlot,
+  slotFitsSchedule,
 } from './appointment-slot.js';
 
 describe('clinic timezone slot calculations', () => {
@@ -69,5 +71,41 @@ describe('clinic timezone slot calculations', () => {
     expect(() => appointmentDateRange('2030-02-30', '2030-03-01')).toThrow();
     expect(() => appointmentDateRange('2030-01-01', '2030-02-01')).toThrow();
     expect(() => appointmentDateRange('2030-01-02', '2030-01-01')).toThrow();
+  });
+});
+
+describe('weekday-only scheduling', () => {
+  const hours = [{ startMinute: 0, endMinute: 1440 }];
+  it.each([0, 6])(
+    'closes weekday %s despite legacy hours and custom overrides',
+    (weekday) => {
+      const slot = { weekday, startMinute: 600, endMinute: 630 };
+      expect(slotFitsSchedule(slot, hours, [])).toBe(false);
+      expect(
+        slotFitsSchedule(
+          slot,
+          [],
+          [{ ...hours[0], type: AvailabilityOverrideType.CUSTOM_HOURS }],
+        ),
+      ).toBe(false);
+    },
+  );
+  it.each([1, 2, 3, 4, 5])('allows configured weekday %s', (weekday) => {
+    expect(
+      slotFitsSchedule(
+        { weekday, startMinute: 600, endMinute: 630 },
+        hours,
+        [],
+      ),
+    ).toBe(true);
+  });
+  it.each([
+    ['2030-01-06T15:00:00Z', 'Asia/Seoul', true],
+    ['2030-01-04T15:00:00Z', 'Asia/Seoul', false],
+    ['2030-01-05T01:00:00Z', 'America/New_York', true],
+  ])('uses local weekday for %s in %s', (instant, zone, expected) => {
+    expect(
+      slotFitsSchedule(appointmentSlot(new Date(instant), zone), hours, []),
+    ).toBe(expected);
   });
 });

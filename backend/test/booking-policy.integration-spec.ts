@@ -1087,6 +1087,61 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       input: { doctorId: String(doctor), date, overrides },
     });
 
+  it.each([5, 6])(
+    'blocks weekend day offset %s despite legacy working hours',
+    async (offset) => {
+      const startsAt = at(offset * 1440).toISOString();
+      const date = startsAt.slice(0, 10);
+      // Legacy weekly hours and date overrides must never reopen a weekend.
+      await connection
+        .db!.collection('doctor_availability_overrides')
+        .insertOne({
+          doctorId: doctor,
+          clinicId: clinic,
+          date,
+          type: 'CUSTOM_HOURS',
+          startMinute: 540,
+          endMinute: 1080,
+        });
+      expect(
+        (await slots({ fromDate: date, toDate: date })).body.data
+          .getAvailableSlots,
+      ).toEqual([]);
+      await rest({ startsAt }).expect(409);
+      for (const source of ['PHONE', 'WALK_IN']) {
+        expect((await staff({ startsAt, source })).body.errors).toBeDefined();
+      }
+      expect((await gql({ startsAt })).body.errors).toBeDefined();
+      expect(
+        (
+          await setOverrides(
+            [{ type: 'CUSTOM_HOURS', startMinute: 540, endMinute: 1080 }],
+            date,
+          )
+        ).body.errors,
+      ).toBeDefined();
+      expect(
+        (await setOverrides([{ type: 'UNAVAILABLE' }], date)).body.errors,
+      ).toBeUndefined();
+      expect((await setOverrides([], date)).body.errors).toBeUndefined();
+      expect(
+        await connection.db!.collection('appointments').countDocuments(),
+      ).toBe(0);
+    },
+  );
+
+  it('preserves legacy weekend appointments while correcting the weekday schedule', async () => {
+    await seed(legacy({ startsAt: at(5 * 1440), endsAt: at(5 * 1440 + 30) }));
+    expect(
+      (await setWeekly([{ weekday, startMinute: 540, endMinute: 1080 }])).body
+        .errors,
+    ).toBeUndefined();
+    expect(
+      await connection.db!.collection('appointments').countDocuments(),
+    ).toBe(1);
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+  });
+
   it('onboards a doctor and configures 14 split-shift slots entirely through APIs', async () => {
     const signup = await request(app.getHttpServer())
       .post('/member/signup')
@@ -1172,6 +1227,8 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
 
   it.each([
     [{ weekday: 7, startMinute: 540, endMinute: 720 }],
+    [{ weekday: 0, startMinute: 540, endMinute: 720 }],
+    [{ weekday: 6, startMinute: 540, endMinute: 720 }],
     [{ weekday, startMinute: 545, endMinute: 720 }],
     [{ weekday, startMinute: 720, endMinute: 540 }],
     [
@@ -2437,6 +2494,20 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         { input: { ...input, automaticBookingConsent: true, ...changes } },
         bearer,
       );
+    it.each([5, 6])(
+      'rejects waitlist enrollment on weekend offset %s',
+      async (offset) => {
+        const result = await join({
+          startsAt: at(offset * 1440).toISOString(),
+        });
+        expect(result.body.errors[0].extensions.booking.reason).toBe(
+          'SLOT_UNAVAILABLE',
+        );
+        expect(
+          await connection.db!.collection('waitlists').countDocuments(),
+        ).toBe(0);
+      },
+    );
     const leave = (id: string, bearer = token) =>
       api(
         `mutation($id: ID!) { leaveWaitlist(id: $id) { ${entryFields} } }`,
@@ -4187,7 +4258,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
           expect(past).toMatchObject({ targetKind: 'UNAVAILABLE', slot: null });
         });
 
-        it('resolves the target on its clinic-local date across a UTC day boundary', async () => {
+        it('marks a target unavailable when its clinic-local date falls on Sunday', async () => {
           const { booking } = await setup();
           await manualOpening(booking);
           await flush(delivery());
@@ -4204,12 +4275,8 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
           const current = (await context(String(notice._id))).body.data
             .notificationContext;
           expect(current).toMatchObject({
-            targetKind: 'SLOT',
-            slot: {
-              state: 'AVAILABLE',
-              clinicTimezone: 'America/Anchorage',
-              startsAt: start.toISOString(),
-            },
+            targetKind: 'UNAVAILABLE',
+            slot: null,
           });
         });
 
