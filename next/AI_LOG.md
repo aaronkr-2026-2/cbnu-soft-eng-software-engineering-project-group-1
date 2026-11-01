@@ -459,3 +459,23 @@
 **Something the AI got wrong that I had to catch:** The AI initially started a production build while the dev preview was still running. The AI noticed that shared-artifact workflow issue, stopped the preview and reran the final build independently; no application failure was observed, and I did not personally report this mistake. No new product defect was identified.
 
 **One decision I can explain without AI:** I check the notice's current target before displaying confirmation or opening booking, because an old alert can arrive after cancellation or after someone else takes the slot.
+
+## Step12 local integration acceptance documentation — 2026-11-01
+
+**Tool(s) used:** Codex, shell, Yarn/TypeScript/Node tests, Chrome computer use, real Nest/MongoDB local runtime.
+
+**What I asked for:** Finish booking Step12 after confirming Google OAuth signup succeeds.
+
+**Pre-planning:** I reviewed the actual booking checklist, delivered UI and verification limits; backend recovery and activation work belongs to its own worktree.
+
+**Planning:** Recheck frontend build/tests, run a normal-worker patient-to-clinic browser pilot and record local acceptance separately from staging/production release.
+
+**Implementation process:** Updated root/Next READMEs and architecture-next; no frontend feature code changed. Typecheck,50 tests and production build passed with preview stopped during build. Chrome verified patient enrollment, clinic UI cancellation, automatic Waitlist appointment appearing through calendar polling, patient notice/current confirmed appointment and explicit read. Backend corrections/checks are recorded in the backend branch.
+
+**What I kept as-is:** Existing Next feature screens, OAuth/session flow, manual commits/pushes and production settings.
+
+**What I changed or rejected, and why:** I replaced pending local-acceptance wording with verified results while retaining staging/production/load/external-provider limitations. The owner confirmed OAuth signup; the agent did not complete a personal Google login.
+
+**Something the AI got wrong that I had to catch:** Browser verification found the backend still reported automatic booking paused despite the enabled worker. Codex corrected that backend response and added an integration regression; no frontend workaround was added.
+
+**One decision I can explain without AI:** The clinic calendar and patient notice must agree on the real committed appointment, so the pilot checks both roles using the normal backend workers.

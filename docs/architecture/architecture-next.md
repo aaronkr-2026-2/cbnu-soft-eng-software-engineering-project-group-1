@@ -187,6 +187,19 @@ suppression/recovery. Foreign-patient context was denied. Historical cutoff fixt
 records included matching versioned ledgers. Workers were invoked with fixture-only
 enable hooks; no source flag/release gate, application database or provider changed.
 
-Configured delivery is IN_APP; email/SMS/OS push are not claimed. The existing hard
-promotion gate remains closed for the separate Step 12 integration/rollout decision.
+Configured delivery is IN_APP; email/SMS/OS push are not claimed. Backend Step 12 replaces the hard promotion block with explicit activation
+prerequisites; the normal-worker local pilot is recorded below.
 Production transport/workers/load and full OS-offline simulation remain unverified.
+
+## Step 12 local acceptance — November 1
+
+No frontend boundary or feature code changed. The existing booking, workspace and
+notification transports passed a normal-worker real-Nest/MongoDB browser pilot:
+patient join → clinic cancellation → native FIFO allocation → live clinic calendar
+→ patient notice/current confirmed appointment → explicit read. Waitlist presentation
+uses the backend's corrected real promotion flag. Next typecheck, 50 tests and
+production build passed. Google signup is owner-confirmed. Production activation,
+proxy/load/SLA and external delivery remain separate. Operational procedures live
+in `backend/BOOKING_ROLLOUT.md` on the backend branch; integrate that branch before
+using its new activation configuration. Earlier pending Step 12 notes describe
+historical verification limits and are superseded by this local acceptance.

@@ -1438,3 +1438,19 @@ After meaningful project work, append an accurate entry to `backend/AI_LOG.md`:
 
 Write reflections in first person, record only checks actually performed, and do
 not invent mistakes. Keep secrets and sensitive personal data out of project records.
+
+## Booking Step 12 — local acceptance (November 1)
+
+The Next UI passed a native-worker browser pilot against the backend worktree:
+patient waitlist enrollment, clinic cancellation, automatic confirmed appointment,
+calendar polling, delivered patient notice/current context and explicit mark-read.
+Next typecheck, 50 tests and build passed. The backend branch now includes guarded
+promotion activation, read-only operational status/reconciliation, a rollout runbook,
+real process-kill recovery and backup/restore/migration regressions; all 186 integration,
+194 API E2E and 22 unit checks passed with build/typecheck. The hard promotion block
+is replaced by explicit booking/enrollment/delivery/lifecycle prerequisites, all default
+off. Only the local demo is activated. Staging/production cutover and external delivery
+remain separate. Google OAuth signup is project-owner confirmed. See the updated
+[Next README](next/README.md#booking-step-12--local-integration-acceptance-november-1).
+Earlier feature-stage notes describe their historical scope; this section supersedes
+pending Step 12 acceptance statements. No commit/push/deployment was performed.

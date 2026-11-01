@@ -252,7 +252,8 @@ header/mobile menu. This is the configured **IN_APP** delivery surface. It uses
 `markNotificationRead`; patient identity is derived by Nest, never a URL/input.
 There are no email/SMS/push preferences that can suppress required booking notices.
 The existing backend delivery/lifecycle workers must be configured by operators;
-this UI does not enable them or open the hard-coded promotion release gate.
+this UI does not enable them. Backend Step 12 replaces the former hard-coded
+block with validated activation prerequisites; see the local acceptance below.
 
 The inbox shows delivered records, server unread count, all/unread filtering,
 explicit Read/Unread labels and paginated history. It refreshes about every 15s
@@ -303,3 +304,27 @@ real Google, full browser OS-offline behavior and rollout/migration rehearsal re
 outside this check. No backend/Vite files, application DB/configuration, external
 provider traffic, deployment, staging, commit or push changed. No frontend sprint
 covers November 1; no sprint was invented. Step 12 remains separate.
+
+## Booking Step 12 — local integration acceptance (November 1)
+
+The normal backend entry point, real MongoDB replica set and Next development
+server ran together with native promotion/lifecycle/IN_APP timers enabled. Chrome
+verified patient enrollment, clinic cancellation, an automatic confirmed Waitlist
+appointment appearing through calendar polling, delivery of its patient notice,
+fresh appointment context and explicit mark-read. The API now reports the actual
+promotion setting, so the existing UI accurately distinguishes enabled and paused.
+No frontend feature code changes were necessary.
+
+Next typecheck, all 50 Node tests and production build passed. Backend build/full
+TypeScript, 22 unit, 194 API E2E and 186 real-MongoDB integration checks passed,
+including actual process-kill/restart, pause/re-enable, replay, backup/restore,
+reviewed migration/index installation, multi-batch audit and aggregate monitoring.
+The previously known status-page/assets 404 is fixed in the backend worktree.
+The project owner confirmed successful Google OAuth signup; the agent did not
+complete a personal Google login.
+
+Follow the backend branch's `backend/BOOKING_ROLLOUT.md` before staging or production
+activation. Only the separate local demo configuration was enabled. Production/load,
+external email/SMS, full OS-offline and live profile-storage checks are not claimed.
+Earlier step notes record their historical scope; this acceptance supersedes their
+pending Step 12 statements. No new sprint, commit or push was created.
