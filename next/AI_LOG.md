@@ -519,3 +519,23 @@
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** Keep calendar calculations date-only so the browser timezone cannot change which clinic dates count as weekends.
+
+## Inline username availability checks — 2026-11-02
+
+**Tool(s) used:** Codex, TypeScript, Node tests, isolated Next production builds, native Chrome and a synthetic HTTP API.
+
+**What I asked for:** Implement OAuth-fix Step6 in the Next worktree; I handle commits/pushes manually.
+
+**Pre-planning:** Existing username fields had fixed @ prefixes and validation; availability APIs and save-conflict markers were already implemented in the backend.
+
+**Planning:** Share a per-form check controller and field UI, invalidate checks on every username edit, discard late results and preserve only allowlisted conflict metadata through existing transports.
+
+**Implementation process:** Added public/owner availability reads, Check/Checking/Available/taken/error states, submission checks for new/changed usernames and inline conflict recovery. Unchanged profile usernames allow unrelated saves. Updated architecture and the ignored plan/session records; READMEs and backend/Vite source remain unchanged. Typecheck and65 tests passed, including stale-response and error sanitization checks. Final isolated production build passed. Native Chrome with a synthetic API verified signup states/conflict preservation/recovery, profile unrelated saves, authenticated checks, keyboard activation, conflict focus, green tick and a successful username save. Captured requests contain unprefixed values and no unnecessary profile fields. Complete updated-backend/Google/mobile acceptance remains Step7.
+
+**What I kept as-is:** Server uniqueness enforcement, email sign-in, profile draft values, real accounts/database/configuration and separate worktree boundaries. No staging, commit, push or deployment.
+
+**What I changed or rejected, and why:** Checks are advisory; a save-time conflict invalidates Available and preserves the rest of the form. Never expose arbitrary backend messages through the auth bridge.
+
+**Something the AI got wrong that I had to catch:** Browser verification caught focus attempted while inputs were disabled and a profile paragraph style overriding green Available. Both were corrected and rechecked before delivery; the typecheck also caught an unavailable icon import, replaced with installed CheckRounded. I did not identify these as owner-reported errors.
+
+**One decision I can explain without AI:** A previous Available result must be discarded after any edit because it describes an earlier input and never reserves a username.

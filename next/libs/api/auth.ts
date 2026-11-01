@@ -1,4 +1,12 @@
 import { sessionRequest, SessionError } from './session';
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    readonly usernameTaken = false,
+  ) {
+    super(message);
+  }
+}
 export interface AuthMember {
   _id: string;
   memberNick: string;
@@ -44,11 +52,15 @@ export async function authenticate(
       409: 'An account with these details already exists. Use its original sign-in method.',
       429: 'Too many attempts. Please wait a moment.',
     };
-    throw new Error(
-      messages[status] ||
-        (mode === 'signup'
-          ? 'We could not confirm account creation. Try signing in before submitting again.'
-          : 'Sign-in is unavailable. Check your connection and try again.'),
+    const usernameTaken = error instanceof SessionError && error.usernameTaken;
+    throw new AuthError(
+      usernameTaken
+        ? 'Username already taken.'
+        : messages[status] ||
+            (mode === 'signup'
+              ? 'We could not confirm account creation. Try signing in before submitting again.'
+              : 'Sign-in is unavailable. Check your connection and try again.'),
+      usernameTaken,
     );
   }
 }

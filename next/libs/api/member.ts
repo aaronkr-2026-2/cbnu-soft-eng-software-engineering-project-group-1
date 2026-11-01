@@ -1,3 +1,4 @@
+import { isUsernameTaken } from '../username';
 import { print, type DocumentNode } from 'graphql';
 import {
   IMAGE_UPLOADER,
@@ -40,6 +41,7 @@ export class ProfileError extends Error {
   constructor(
     message: string,
     public code = '',
+    readonly usernameTaken = false,
   ) {
     super(message);
   }
@@ -108,9 +110,15 @@ async function request<T>(
           'Your username or phone may already be in use, or your profile changed. Check your details or cancel and reload your profile.',
         FORBIDDEN: 'This change is unavailable for your account.',
       };
+      const usernameTaken =
+        code === 'CONFLICT' && isUsernameTaken(result?.errors?.[0]?.extensions);
       throw new ProfileError(
-        messages[code] || 'We couldn’t complete the request. Please try again.',
+        usernameTaken
+          ? 'Username already taken.'
+          : messages[code] ||
+              'We couldn’t complete the request. Please try again.',
         code,
+        usernameTaken,
       );
     }
     if (!result?.data)

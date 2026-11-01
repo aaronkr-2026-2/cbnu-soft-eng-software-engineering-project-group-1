@@ -19,3 +19,9 @@ export function usernameError(value: string): string | undefined {
 export function displayUsername(value: string): string {
   return `@${value.trim()}`;
 }
+
+// Only this exact pair is safe to expose through the authentication bridge.
+export function isUsernameTaken(value: unknown): boolean {
+  const marker = value as { reason?: unknown; field?: unknown } | null;
+  return marker?.reason === 'USERNAME_TAKEN' && marker.field === 'memberNick';
+}

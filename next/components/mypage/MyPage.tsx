@@ -1,3 +1,4 @@
+import { useUsernameCheck } from '../../libs/use-username-check';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
@@ -97,6 +98,7 @@ function PersonalInfo({
   onSessionEnded: () => void;
 }) {
   const router = useRouter();
+  const username = useUsernameCheck(token);
   const [profile, setProfile] = useState<SelfProfile | null>(null);
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
   const [editing, setEditing] = useState(false);
@@ -119,6 +121,10 @@ function PersonalInfo({
   const firstField = useRef<HTMLInputElement>(null);
   const editButton = useRef<HTMLButtonElement>(null);
   const wasEditing = useRef(false);
+  useEffect(() => {
+    if (!busy && username.state.status === 'taken')
+      form.current?.querySelector<HTMLInputElement>('[name="memberNick"]')?.focus();
+  }, [busy, username.state.status]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -169,6 +175,7 @@ function PersonalInfo({
   }, [editing]);
 
   function reset() {
+    username.check.reset();
     if (profile) setDraft(profileDraft(profile));
     setFile(null);
     uploadedImage.current = '';
@@ -178,6 +185,7 @@ function PersonalInfo({
     setError('');
   }
   function change(key: keyof ProfileDraft, value: string) {
+    if (key === 'memberNick') username.check.reset();
     setDraft((previous) =>
       previous ? { ...previous, [key]: value } : previous,
     );
@@ -188,6 +196,13 @@ function PersonalInfo({
     event.preventDefault();
     if (!profile || !draft || request.current) return;
     const { input, errors: validation } = prepareProfileUpdate(profile, draft);
+    if (
+      input.memberNick !== undefined &&
+      !validation.memberNick &&
+      !username.check.available(draft.memberNick)
+    )
+      validation.memberNick =
+        'Check username availability before saving your new username.';
     setErrors(validation);
     setError('');
     setSuccess('');
@@ -234,7 +249,13 @@ function PersonalInfo({
       if (controller.signal.aborted) return;
       if (cause instanceof ProfileError && cause.code === 'UNAUTHENTICATED')
         onSessionEnded();
-      else
+      else if (cause instanceof ProfileError && cause.usernameTaken) {
+        username.check.taken(draft.memberNick);
+        setErrors((previous) => ({
+          ...previous,
+          memberNick: undefined,
+        }));
+      } else
         setError(
           cause instanceof Error
             ? cause.message
@@ -322,43 +343,59 @@ function PersonalInfo({
       {error && <Alert severity="error">{error}</Alert>}
       <form ref={form} onSubmit={save} noValidate aria-busy={busy}>
         <div className="mypage__fields">
-          {profileFields.map(([key, label, max]) => key === 'memberNick' ? (
-            <UsernameField
-              key={key}
-              id={key}
-              value={draft.memberNick}
-              onChange={(event) => change(key, event.target.value)}
-              disabled={busy}
-              readOnly={!editing}
-              error={!!errors.memberNick}
-              helperText={errors.memberNick}
-            />
-          ) : (
-            <TextField
-              key={key}
-              id={key}
-              name={key}
-              label={label}
-              value={draft[key]}
-              fullWidth
-              multiline={key === 'memberDesc'}
-              minRows={key === 'memberDesc' ? 3 : undefined}
-              inputRef={key === 'memberFullName' ? firstField : undefined}
-              disabled={busy}
-              error={!!errors[key]}
-              helperText={
-                errors[key] ||
-                (key === 'memberPhone' && editing
-                  ? 'Include your country code.'
-                  : undefined)
-              }
-              onChange={(event) => change(key, event.target.value)}
-              slotProps={{
-                input: { readOnly: !editing },
-                htmlInput: { maxLength: max },
-              }}
-            />
-          ))}
+          {profileFields.map(([key, label, max]) =>
+            key === 'memberNick' ? (
+              <UsernameField
+                key={key}
+                id={key}
+                value={draft.memberNick}
+                onChange={(event) => change(key, event.target.value)}
+                disabled={busy}
+                readOnly={!editing}
+                error={!!errors.memberNick}
+                helperText={errors.memberNick}
+                availability={
+                  editing
+                    ? {
+                        state: username.state,
+                        onCheck: () => {
+                          setErrors((previous) => ({
+                            ...previous,
+                            memberNick: undefined,
+                          }));
+                          void username.check.check(draft.memberNick, token);
+                        },
+                      }
+                    : undefined
+                }
+              />
+            ) : (
+              <TextField
+                key={key}
+                id={key}
+                name={key}
+                label={label}
+                value={draft[key]}
+                fullWidth
+                multiline={key === 'memberDesc'}
+                minRows={key === 'memberDesc' ? 3 : undefined}
+                inputRef={key === 'memberFullName' ? firstField : undefined}
+                disabled={busy}
+                error={!!errors[key]}
+                helperText={
+                  errors[key] ||
+                  (key === 'memberPhone' && editing
+                    ? 'Include your country code.'
+                    : undefined)
+                }
+                onChange={(event) => change(key, event.target.value)}
+                slotProps={{
+                  input: { readOnly: !editing },
+                  htmlInput: { maxLength: max },
+                }}
+              />
+            ),
+          )}
           <TextField
             id="memberEmail"
             label="Email"
@@ -553,7 +590,12 @@ function PersonalInfo({
               <Button
                 variant="contained"
                 type="submit"
-                disabled={busy || !dirty}
+                disabled={
+                  busy ||
+                  !dirty ||
+                  (draft.memberNick.trim() !== profile.memberNick &&
+                    !username.check.available(draft.memberNick))
+                }
               >
                 {busy ? 'Saving…' : 'Save changes'}
               </Button>

@@ -49,6 +49,7 @@ flowchart LR
   Next -->|HttpOnly refresh and nonce cookies| Browser
   Next -->|REST login, signup, refresh, Google| API[Nest API]
   Browser -->|GraphQL, bearer access token for private operations| API
+  Browser -->|REST username check; Bearer token for own-profile check| API
   API --> DB[(MongoDB replica set)]
   Browser -->|Optional Identity Services popup| Google[Google Identity]
   API -->|ID token verification| Google
@@ -215,5 +216,20 @@ username character set. Unchanged legacy usernames do not block unrelated edits.
 `components/auth/UsernameField.tsx` renders the fixed, non-editable `@` prefix outside
 the input value in signup and My Page. Drafts, session data and `memberNick` API
 payloads remain unprefixed. Public/workspace fallback names use `displayUsername`;
-full names and clinic names retain their normal display. Availability checks, the
-Check button and inline username-taken states are deferred to OAuth-fix Step 6.
+full names and clinic names retain their normal display.
+
+The Check button uses `libs/api/username.ts`: signup calls the public
+`POST /member/username/availability`, while profile editing calls `/me` with the
+current Bearer token. Requests omit cookies and caches and send raw, trimmed
+`memberNick`. A per-form `UsernameCheck` invalidates results on edits, cancellation
+and identity/mode changes; request revisions discard late responses. New/changed
+usernames require a successful check, while unchanged usernames allow unrelated
+profile edits. Available is advisory: Nest and the unique database index still
+resolve competing writes. Checking, taken, invalid and error states are distinct.
+
+Signup conflicts travel through the same-origin session bridge. It forwards only
+the exact `USERNAME_TAKEN`/`memberNick` pair on signup HTTP409; other error payloads
+remain sanitized. The profile helper recognizes the same allowlisted pair on a
+GraphQL CONFLICT. Both forms show the conflict inline and preserve other drafts.
+Chrome checks against a synthetic API cover the interaction; complete updated
+backend/Google-provider acceptance remains OAuth-fix Step7.

@@ -228,3 +228,10 @@ test('member name displays prefix only the username fallback', () => {
   assert.equal(memberName({ memberNick: 'Alex_1', memberFullName: 'Alex Full Name' }), 'Alex Full Name');
   assert.equal(memberName({ memberNick: 'Clinic_1', memberFullName: 'Owner', clinicName: 'Clinic Name' }), 'Clinic Name');
 });
+
+test('profile saves distinguish username conflicts without exposing other backend details', async () => {
+  for (const [field, expected] of [['memberNick', true], ['memberPhone', false]]) {
+    global.fetch = async () => Response.json({errors:[{message:'private detail',extensions:{code:'CONFLICT',reason:'USERNAME_TAKEN',field,secret:'private'}}]});
+    await assert.rejects(updateMember({memberNick:'Alex123'}, 'token', signal()), e => e.usernameTaken === expected && e.code === 'CONFLICT' && !e.message.includes('private'));
+  }
+});

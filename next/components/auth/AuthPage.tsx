@@ -1,3 +1,4 @@
+import { useUsernameCheck } from '../../libs/use-username-check';
 import { authReturn } from '../../libs/auth-return';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Image from 'next/image';
@@ -9,6 +10,7 @@ import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import FavoriteBorderRounded from '@mui/icons-material/FavoriteBorderRounded';
 import {
   authenticate,
+  AuthError,
   type AuthResult,
   type SignupInput,
 } from '../../libs/api/auth';
@@ -52,6 +54,11 @@ export function AuthPage() {
   const form = useRef<HTMLFormElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const signup = mode === 'signup';
+  const username = useUsernameCheck(mode);
+  useEffect(() => {
+    if (!busy && username.state.status === 'taken')
+      form.current?.querySelector<HTMLInputElement>('[name="username"]')?.focus();
+  }, [busy, username.state.status]);
 
   useEffect(() => () => request.current?.abort(), []);
   useEffect(() => {
@@ -60,6 +67,7 @@ export function AuthPage() {
 
   function switchMode() {
     if (request.current || googleBusy.current) return;
+    username.check.reset();
     setMode(signup ? 'signin' : 'signup');
     setFields((previous) => ({ ...previous, password: '', confirm: '' }));
     setErrors({});
@@ -67,6 +75,7 @@ export function AuthPage() {
   }
 
   function update(key: keyof Fields, value: string) {
+    if (key === 'username') username.check.reset();
     setFields((previous) =>
       previous[key] === value ? previous : { ...previous, [key]: value },
     );
@@ -106,6 +115,9 @@ export function AuthPage() {
     if (signup) {
       const invalidUsername = usernameError(fields.username);
       if (invalidUsername) nextErrors.username = invalidUsername;
+      else if (!username.check.available(fields.username))
+        nextErrors.username =
+          'Check username availability before creating your account.';
       if (length(fields.fullName.trim()) > 100)
         nextErrors.fullName = 'Use up to 100 characters.';
       if (!/^\+[1-9]\d{7,14}$/.test(fields.phone.trim()))
@@ -145,7 +157,17 @@ export function AuthPage() {
       if (controller.signal.aborted) return;
       await completeSignIn(result);
     } catch (reason) {
-      if (!controller.signal.aborted)
+      if (
+        !controller.signal.aborted &&
+        reason instanceof AuthError &&
+        reason.usernameTaken
+      ) {
+        username.check.taken(fields.username);
+        setErrors((previous) => ({
+          ...previous,
+          username: undefined,
+        }));
+      } else if (!controller.signal.aborted)
         setError(
           reason instanceof Error
             ? reason.message
@@ -251,10 +273,22 @@ export function AuthPage() {
                     <UsernameField
                       id="username"
                       value={fields.username}
-                      onChange={(event) => update('username', event.target.value)}
+                      onChange={(event) =>
+                        update('username', event.target.value)
+                      }
                       disabled={busy}
                       error={!!errors.username}
                       helperText={errors.username}
+                      availability={{
+                        state: username.state,
+                        onCheck: () => {
+                          setErrors((previous) => ({
+                            ...previous,
+                            username: undefined,
+                          }));
+                          void username.check.check(fields.username);
+                        },
+                      }}
                       required
                     />
                   </div>
@@ -322,7 +356,10 @@ export function AuthPage() {
                   type="submit"
                   variant="contained"
                   fullWidth
-                  disabled={busy}
+                  disabled={
+                    busy ||
+                    (signup && !username.check.available(fields.username))
+                  }
                   endIcon={!pending && <ArrowForwardRounded />}
                 >
                   {pending

@@ -1,3 +1,4 @@
+import { isUsernameTaken } from '../username';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createHash } from 'node:crypto';
 
@@ -41,7 +42,10 @@ function baseUrl() {
   return url.href.replace(/\/$/, '');
 }
 class AuthFailure extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly usernameTaken = false,
+  ) {
     super('Authentication unavailable');
   }
 }
@@ -57,12 +61,16 @@ async function upstream(path: string, input: object, cookieHeader?: string) {
     },
     body: JSON.stringify(input),
   });
-  if (!response.ok)
+  if (!response.ok) {
+    const detail =
+      response.status === 409 ? await response.json().catch(() => null) : null;
     throw new AuthFailure(
       [400, 401, 403, 409, 429].includes(response.status)
         ? response.status
         : 503,
+      path === 'signup' && isUsernameTaken(detail),
     );
+  }
   return response;
 }
 async function tokenResult(response: Response): Promise<TokenResult> {
@@ -234,8 +242,13 @@ export async function sessionProxy(req: NextApiRequest, res: NextApiResponse) {
       res.setHeader('Set-Cookie', cookie(refreshName(), '', 0));
     if (action === 'google')
       res.setHeader('Set-Cookie', cookie(nonceName(), '', 0));
-    res
-      .status(status)
-      .json({ error: 'Session request could not be completed' });
+    res.status(status).json({
+      error: 'Session request could not be completed',
+      ...(action === 'signup' &&
+      error instanceof AuthFailure &&
+      error.usernameTaken
+        ? { reason: 'USERNAME_TAKEN', field: 'memberNick' }
+        : {}),
+    });
   }
 }

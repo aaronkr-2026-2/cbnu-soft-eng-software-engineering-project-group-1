@@ -1,6 +1,10 @@
+import { isUsernameTaken } from '../username';
 let queue: Promise<unknown> = Promise.resolve();
 export class SessionError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly usernameTaken = false,
+  ) {
     super('Session unavailable');
   }
 }
@@ -27,7 +31,16 @@ export function sessionRequest<T>(
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-      if (!response.ok) throw new SessionError(response.status);
+      if (!response.ok) {
+        const detail =
+          response.status === 409
+            ? await response.json().catch(() => null)
+            : null;
+        throw new SessionError(
+          response.status,
+          action === 'signup' && isUsernameTaken(detail),
+        );
+      }
       return (await response.json()) as T;
     } finally {
       clearTimeout(timeout);

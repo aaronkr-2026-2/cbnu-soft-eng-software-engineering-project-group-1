@@ -463,3 +463,20 @@ test('booking dates skip weekends across months and years', () => {
   assert.equal(workingDate('2028-01-01', -1), '2027-12-31');
   assert.equal(workingDate('2026-11-06'), '2026-11-06');
 });
+
+test('signup bridge forwards only the exact username-conflict marker', async () => {
+  for (const detail of [
+    { reason: 'USERNAME_TAKEN', field: 'memberNick', secret: 'private', message: 'private' },
+    { reason: 'USERNAME_TAKEN', field: 'memberPhone', message: 'private' },
+    { reason: 'OTHER', field: 'memberNick', message: 'private' },
+  ]) {
+    global.fetch = async () => Response.json(detail, { status: 409 });
+    const res = await call('signup');
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.reason, detail.field === 'memberNick' && detail.reason === 'USERNAME_TAKEN' ? 'USERNAME_TAKEN' : undefined);
+    assert.equal(res.body.secret, undefined);
+    assert.ok(!JSON.stringify(res.body).includes('private'));
+  }
+  global.fetch = async () => Response.json({ reason: 'USERNAME_TAKEN', field: 'memberNick' }, { status: 409 });
+  assert.equal((await call('login')).body.reason, undefined);
+});
