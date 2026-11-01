@@ -64,7 +64,7 @@ export class MemberResolver {
 
   @Query(() => [Member])
   getClinicDoctors(@Args('clinicId', { type: () => ID }) clinicId: string) {
-    return this.memberService.listClinicDoctors(clinicId);
+    return this.memberService.listPublicClinicDoctors(clinicId);
   }
 
   @Query(() => [Member])

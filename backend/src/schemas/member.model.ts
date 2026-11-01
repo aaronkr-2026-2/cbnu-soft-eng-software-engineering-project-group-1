@@ -7,6 +7,8 @@ import {
   MemberType,
 } from '../libs/enum/member.enum.js';
 import { Location } from '../libs/enum/location.enum.js';
+import { normalizeUsername } from '../components/member/member-username.js';
+import { USERNAME_INDEX } from '../components/member/member-username-storage.js';
 
 export const MEMBER = 'Member';
 
@@ -71,6 +73,18 @@ const MemberSchema = new Schema({
     unique: true,
     sparse: true,
     required: true,
+  },
+
+  // Private comparison key; native collection validation prevents stale/missing keys.
+  memberNickNormalized: {
+    type: String,
+    required: true,
+    select: false,
+    default: function (this: { memberNick?: string }) {
+      return typeof this.memberNick === 'string'
+        ? normalizeUsername(this.memberNick)
+        : undefined;
+    },
   },
 
   memberPassword: {
@@ -176,7 +190,21 @@ const MemberSchema = new Schema({
     type: Date,
   },
 },
-  { timestamps: true, collection: 'members' },
+  { timestamps: true, collection: 'members', autoIndex: false, autoCreate: false },
+);
+
+MemberSchema.pre('validate', function () {
+  if (this.isNew || this.isModified('memberNick')) {
+    if (typeof this.memberNick === 'string') {
+      this.memberNick = this.memberNick.trim();
+      this.memberNickNormalized = normalizeUsername(this.memberNick);
+    }
+  }
+});
+
+MemberSchema.index(
+  { memberNickNormalized: 1 },
+  { name: USERNAME_INDEX, unique: true, collation: { locale: 'simple' } },
 );
 
 // Used to list a clinic's approved doctors without scanning all members.

@@ -778,3 +778,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. My character-set answer clarified a proposal; the compiler/lint blockers were already committed before this work.
 
 **One decision I can explain without AI:** Preserve the username's display spelling and use a lowercase comparison key so different capitalizations can share one uniqueness rule after migration.
+
+## OAuth-fix Step2: case-insensitive username storage — 2026-11-01
+
+**Tool(s) used:** Codex, source/Git inspection, MongoDB official documentation, apply_patch, TypeScript/Nest build, oxlint, Jest/Supertest and owned disposable MongoDB processes.
+
+**What I asked for:** Implement Step2 on the backend worktree; I handle staging, commits and pushes manually.
+
+**Pre-planning:** Step1 was committed as e2da631. The existing username index was case-sensitive, Google writes could use invalid display names, and two committed duplicate methods blocked compilation.
+
+**Planning:** Preserve display spelling with a private lowercase key. Require offline review/backfill before a non-sparse unique index and strict collection validation; block startup until complete. Keep Google eight-digit generation and availability/frontend changes in their later steps.
+
+**Implementation process:** Added shared storage enforcement/readiness and raw migration audit with explicit expected-name resolutions, transactional changes, private reports, CLI/package commands and real database/CLI checks. Updated signup/profile/Google writers and document hooks, preserved existing indexes/validation/full names, and adapted synthetic booking fixtures. Narrowly corrected duplicate public/private doctor method naming and appointment-list resolver shadowing. Updated README/architecture and local plan/session records. Build/full TypeScript pass; lint retains only the existing config.ts warning.48 unit,215 API,186 booking database and13 username database/CLI tests pass. Initial sandbox socket denial required approved local-test execution. No application/demo/production database, live account names, server configuration/restart, frontend code, deployment or Git index changed. No sprint covers November1.
+
+**What I kept as-is:** Internal memberNick API name, display capitalization, full names, email-based login, account privacy/authentication, existing username reservations for inactive/deleted accounts, and manual commits/pushes.
+
+**What I changed or rejected, and why:** I require both a unique key index and database validation so old or incomplete writers cannot omit/forge the key after migration. I rejected silent legacy renaming, sparse enforcement, overwriting collection validators and automatic migration during startup. Collections with non-simple default collation require a separately reviewed migration.
+
+**Something the AI got wrong that I had to catch:** TypeScript caught a new collection-metadata union assumption and an incorrect default session-schema import; lint caught an unused import. Codex corrected these before final checks (B-019). These were automated catches, not issues I manually reported. The duplicate-method blockers were pre-existing (B-018).
+
+**One decision I can explain without AI:** An Available message cannot enforce uniqueness under concurrent requests; the database must reject competing writes for the same lowercase username while preserving the spelling users see.

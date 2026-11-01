@@ -7,6 +7,7 @@ import {
   Optional,
   ServiceUnavailableException,
   UnauthorizedException,
+  type OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
@@ -42,13 +43,19 @@ import { hashPassword, verifyPassword } from '../auth/member-password.js';
 import { MemberUpdateInput } from '../../libs/dto/member/member-update.input.js';
 import { UploadService } from '../upload/upload.service.js';
 import { GoogleAuthService } from '../auth/google-auth.service.js';
+import {
+  isValidUsername,
+  normalizeUsername,
+  USERNAME_VALIDATION_MESSAGE,
+} from './member-username.js';
+import { assertUsernameStorage } from './member-username-storage.js';
 
 const REFRESH_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const tokenHash = (token: string) =>
   createHash('sha256').update(token).digest('hex');
 
 @Injectable()
-export class MemberService {
+export class MemberService implements OnModuleInit {
   constructor(
     private readonly jwt: JwtService,
     private readonly googleAuth: GoogleAuthService,
@@ -60,6 +67,18 @@ export class MemberService {
     private readonly sessions?: Model<MemberSessionEntity>,
     @Optional() private readonly uploads?: UploadService,
   ) {}
+
+  async onModuleInit() {
+    // Real database models must have a completed migration before serving traffic.
+    if (this.members?.db?.db) await assertUsernameStorage(this.members.db.db);
+  }
+
+  private usernameFields(value: string) {
+    const memberNick = typeof value === 'string' ? value.trim() : '';
+    if (!isValidUsername(memberNick))
+      throw new BadRequestException(USERNAME_VALIDATION_MESSAGE);
+    return { memberNick, memberNickNormalized: normalizeUsername(memberNick) };
+  }
 
   private models() {
     if (!this.members || !this.sessions)
@@ -122,7 +141,7 @@ export class MemberService {
       .exec();
   }
 
-  async listClinicDoctors(clinicId: string): Promise<MemberProfile[]> {
+  async listPublicClinicDoctors(clinicId: string): Promise<MemberProfile[]> {
     if (!/^[a-f\d]{24}$/i.test(clinicId))
       throw new BadRequestException('Invalid clinic ID');
     if (!this.members)
@@ -409,6 +428,8 @@ export class MemberService {
     ] as const) {
       if (input[field] !== undefined) update[field] = input[field];
     }
+    if (input.memberNick !== undefined)
+      Object.assign(update, this.usernameFields(input.memberNick));
     if (changePassword)
       update.memberPassword = await hashPassword(input.newPassword!);
     if (!Object.keys(update).length)
@@ -542,7 +563,7 @@ export class MemberService {
         memberEmail: input.memberEmail.trim().toLowerCase(),
         memberPassword: await hashPassword(input.memberPassword),
         memberPhone: input.memberPhone,
-        memberNick: input.memberNick,
+        ...this.usernameFields(input.memberNick),
         memberFullName: input.memberFullName,
         memberType,
         memberStatus: MemberStatus.ACTIVE,
@@ -630,7 +651,7 @@ export class MemberService {
     for (let attempt = 0; attempt < 10; attempt++) {
       // Names can collide; the database index is authoritative, including races.
       const memberNick =
-        attempt === 0 && displayName
+        attempt === 0 && displayName && isValidUsername(displayName)
           ? displayName
           : `google_user${randomInt(1_000_000).toString().padStart(6, '0')}`;
       try {
@@ -639,7 +660,7 @@ export class MemberService {
           authProvider: AuthProvider.GOOGLE,
           memberType: MemberType.USER,
           memberStatus: MemberStatus.ACTIVE,
-          memberNick,
+          ...this.usernameFields(memberNick),
           ...(identity.email ? { memberEmail: identity.email } : {}),
           ...(name ? { memberFullName: name.slice(0, 100) } : {}),
           ...(identity.picture ? { memberImage: identity.picture } : {}),

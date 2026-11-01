@@ -117,7 +117,7 @@ async function main() {
       '--experimental-vm-modules',
       require.resolve('jest/bin/jest'),
       '--config',
-      './test/jest-booking.json',
+      process.argv[2] || './test/jest-booking.json',
       '--runInBand',
     ],
     {

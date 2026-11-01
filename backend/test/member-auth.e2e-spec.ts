@@ -136,6 +136,7 @@ describe('Member REST authentication', () => {
                       'memberEmail',
                       'memberPhone',
                       'memberNick',
+                      'memberNickNormalized',
                       'googleId',
                     ] as const
                   ).some(
@@ -488,7 +489,9 @@ describe('Member REST authentication', () => {
     expect(result.headers['set-cookie'][0]).toContain(
       'Expires=Thu, 01 Jan 1970',
     );
-    expect(result.body.member.memberNick).toBe('Google Person');
+    expect(result.body.member.memberNick).toMatch(/^google_user\d{6}$/);
+    expect(result.body.member.memberFullName).toBe('Google Person');
+    expect(result.body.member).not.toHaveProperty('memberNickNormalized');
     expect(result.body.member.memberType).toBe('USER');
     expect(members[0].authProvider).toBe(AuthProvider.GOOGLE);
     expect(members[0].memberPhone).toBeUndefined();
@@ -516,7 +519,7 @@ describe('Member REST authentication', () => {
     });
     expect(second.status).toBe(200);
     expect(second.body.member._id).toBe(first.body.member._id);
-    expect(second.body.member.memberNick).toBe('Google Person');
+    expect(second.body.member.memberNick).toBe(first.body.member.memberNick);
     expect(members).toHaveLength(1);
   });
 
@@ -530,9 +533,10 @@ describe('Member REST authentication', () => {
   );
 
   it('resolves duplicate names and permits multiple Google accounts with absent phones/emails', async () => {
-    await googleLogin({ email: undefined });
+    await googleLogin({ name: 'GooglePerson', email: undefined });
     const second = await googleLogin({
       sub: 'google-subject-2',
+      name: 'gOOGLEpERSON',
       email: undefined,
     });
     expect(second.status).toBe(200);

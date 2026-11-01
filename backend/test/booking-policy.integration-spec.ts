@@ -42,6 +42,7 @@ import { BookingMigrationService } from '../src/components/booking/booking-migra
 import { BookingPolicyService } from '../src/components/booking/booking-policy.service.js';
 import { BookingCoordinationService } from '../src/components/booking/booking-coordination.service.js';
 import { parseBookingResolutions } from '../src/components/booking/booking-migration.js';
+import { migrateUsernames } from '../src/components/member/member-username-migration.js';
 import { BookingUnavailableException } from '../src/components/booking/booking-error.js';
 import { APPOINTMENT_MODEL_NAME } from '../src/schemas/appointment.model.js';
 import { APPOINTMENT_EVENT } from '../src/schemas/appointment-event.model.js';
@@ -56,6 +57,10 @@ if (
 )
   throw new Error('Use the owned disposable booking integration runner');
 const id = () => new Types.ObjectId();
+const usernameFor = (_id: Types.ObjectId) => ({
+  memberNick: `user_${_id}`,
+  memberNickNormalized: `user_${_id}`,
+});
 const patient = id(),
   patient2 = id(),
   clinic = id(),
@@ -125,6 +130,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       }),
     );
     connection = app.get<Connection>(getConnectionToken());
+    await migrateUsernames(connection, [], true);
     migration = app.get(BookingMigrationService);
     await migration.apply();
     process.env.BOOKING_POLICY_V2_ENABLED = 'true';
@@ -214,7 +220,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         doctorClinicStatus: 'APPROVED',
         doctorSpecializations: ['DENTIST'],
       },
-    ]);
+    ].map(row => ({ ...row, ...usernameFor(row._id) })));
     await connection.db!.collection('doctor_availability').insertMany(
       [doctor, doctor2, doctor3].flatMap((doctorId) =>
         Array.from({ length: 7 }, (_, weekday) => ({
@@ -1088,7 +1094,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         memberEmail: 'schedule-doctor@example.test',
         memberPassword: 'test-password-123',
         memberPhone: '+821011112222',
-        memberNick: 'Schedule Doctor',
+        memberNick: 'Schedule_Doctor',
         memberType: 'DOCTOR',
         clinicId: String(clinic),
         doctorSpecializations: ['CARDIOLOGIST'],
@@ -2120,6 +2126,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       );
       const admin = id();
       await connection.db!.collection('members').insertOne({
+        ...usernameFor(admin),
         _id: admin,
         memberType: 'ADMIN',
         memberStatus: 'ACTIVE',
@@ -2899,6 +2906,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         .joinWaitlist;
       const other = id();
       await connection.db!.collection('members').insertOne({
+        ...usernameFor(other),
         _id: other,
         memberType: 'USER',
         memberStatus: 'ACTIVE',
@@ -3053,6 +3061,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       const addPatient = async () => {
         const patientId = id();
         await connection.db!.collection('members').insertOne({
+          ...usernameFor(patientId),
           _id: patientId,
           memberType: 'USER',
           memberStatus: 'ACTIVE',
@@ -3530,6 +3539,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       const extraWaiter = async () => {
         const patientId = id();
         await connection.db!.collection('members').insertOne({
+          ...usernameFor(patientId),
           _id: patientId,
           memberType: 'USER',
           memberStatus: 'ACTIVE',
@@ -3993,6 +4003,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         ).toBe('FORBIDDEN');
         const admin = new Types.ObjectId();
         await connection.db!.collection('members').insertOne({
+          ...usernameFor(admin),
           _id: admin,
           memberType: 'ADMIN',
           memberStatus: 'ACTIVE',

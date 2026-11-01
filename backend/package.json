@@ -21,6 +21,8 @@
     "test:debug": "node --experimental-vm-modules --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "NODE_OPTIONS=--experimental-vm-modules jest --config ./test/jest-e2e.json",
     "test:booking:integration": "npm run build && node test/run-booking-integration.cjs",
+    "test:username:integration": "npm run build && node test/run-booking-integration.cjs test/jest-username.json",
+    "member:username:migrate": "node --env-file-if-exists=.env dist/tools/member-username-migration.js",
     "booking:migrate": "node --env-file-if-exists=.env dist/tools/booking-migration.js",
     "booking:status": "node --env-file-if-exists=.env dist/tools/booking-status.js"
   },

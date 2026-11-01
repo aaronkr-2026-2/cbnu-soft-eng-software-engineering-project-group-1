@@ -586,6 +586,23 @@ no live database or frontend workplace-change workflow was exercised.
 
 ## Authenticated member updates
 
+Username storage (OAuth-fix Step 2, November 1): `MemberService` maintains display
+`memberNick` and private lowercase `memberNickNormalized` together on signup,
+Google creation and profile renames. Mongoose document validation also maintains
+the key for document saves. A non-sparse unique binary index and strict native
+collection validation reject missing, forged or stale keys, including writes from
+old binaries. All accounts reserve their username, regardless of status/deletion.
+The comparison key is absent from client DTOs and allowlisted projections.
+
+`backend/src/tools/member-username-migration.ts` runs outside HTTP serving. Its raw,
+read-only audit reports invalid usernames, case collisions and legacy Google names
+requiring explicit review. Reviewed renames/backfills are transactional; indexes and
+preserved/composed collection validation are installed afterward while writers stay
+offline. Startup refuses incomplete enforcement or invalid records. Existing full
+names are never rewritten; application/production migration has not been performed.
+Non-simple collection collation and more than 100,000 members require a separate
+reviewed migration. See the root README's offline username migration procedure.
+
 `MemberResolver.myProfile(): MemberSelf!` is a guarded read for settings pages.
 It takes no target ID: MemberService reads the authenticated member's active,
 nondeleted record, rechecks authVersion, selects an explicit profile/contact allowlist,

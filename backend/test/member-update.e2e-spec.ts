@@ -88,7 +88,7 @@ describe('updateMember GraphQL', () => {
           rows.some(
             (row) =>
               String(row._id) !== String(current._id) &&
-              ['memberPhone', 'memberNick'].some(
+              ['memberPhone', 'memberNick', 'memberNickNormalized'].some(
                 (key) =>
                   update.$set[key] !== undefined &&
                   row.get(key) === update.$set[key],

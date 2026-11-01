@@ -50,8 +50,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   accounts, password hashing, input validation, and JWT access tokens.
 - **Username validation:** Signup and profile username edits accept 6–40 English
   letters, numbers, or `_ # $ % ! & ?`, trim surrounding whitespace, and preserve
-  display capitalization. A shared lowercase comparison helper is prepared;
-  case-insensitive database uniqueness and legacy-account migration are not yet active.
+  display capitalization. A private lowercase key, unique database index and
+  collection validator enforce case-insensitive uniqueness after the required offline
+  migration. Signup, Google account creation and username edits maintain the key.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
 - **Member editing:** Authenticated GraphQL `updateMember` edits your profile/contact
   fields, changes passwords with current-password verification and confirmation, and
@@ -165,7 +166,7 @@ below. Booking also requires the existing policy V2 activation/migration checks.
 
 ## Requirements and quick start
 
-Use Node.js 24.x with npm for the backend and a reachable MongoDB instance or Atlas
+Use Node.js 24.x with npm for the backend and a reachable MongoDB replica set or Atlas
 cluster. The project uses Node's built-in `.env` loading. For Atlas, configure
 network access and a database account before starting the API.
 
@@ -189,7 +190,19 @@ CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
 
 Generate a secret with `openssl rand -hex 48`, then paste it into your local `.env`.
-The sample MongoDB URI requires a local MongoDB server already running.
+The sample MongoDB URI requires a local MongoDB server already running as a replica set.
+
+Before startup, complete the [offline username migration](#required-offline-username-migration).
+For a **new, empty development database only**, with all other writers stopped:
+
+```bash
+npm run build
+npm run member:username:migrate -- --dry-run
+npm run member:username:migrate -- --apply --writers-stopped
+```
+
+For an existing database, follow the report/review/backup procedure instead. Startup
+rejects missing or incomplete username enforcement; watch mode does not run migrations.
 
 Start the backend from `backend/`:
 
@@ -264,6 +277,7 @@ npm run lint         # Check source and tests
 npm test             # Unit tests
 npm run test:e2e     # HTTP/GraphQL tests
 npm run test:booking:integration # Disposable real MongoDB concurrency tests
+npm run test:username:integration # Disposable username migration and uniqueness checks
 npm run test:cov     # Unit-test coverage
 ```
 
@@ -422,13 +436,15 @@ a same-site frontend/API deployment avoids third-party-cookie restrictions.
 
 New identities become active `USER` accounts with `authProvider=GOOGLE`; phone
 and password are omitted. The provider's trimmed display name supplies the
-nickname (up to 40 characters) and full name (up to 100). Missing/blank names or
+username only when it meets the shared username rule, and full name (up to 100).
+Invalid/blank names or case-insensitive username
 nickname collisions use `google_user` plus six random digits, such as
 `google_user004271`, with bounded retries against the unique database index.
-This Google naming behavior remains unchanged in username Step 1; assigning
-eight-digit generated usernames and using the display name only as full name is
-deferred to Step 3. The new signup/profile-edit validator does not rename existing
-accounts or change this provider-generated path.
+Assigning eight-digit generated usernames to every new Google account and using
+the display name only as full name remains Step 3. The interim Step 2 writer must
+already produce valid usernames and lowercase keys to satisfy database validation.
+Existing Google usernames require explicit review during legacy migration; they
+are never automatically renamed from their provider name.
 Verified Google email and picture are copied when supplied. Email is optional;
 unverified email is not persisted. Google `sub`, not email/name, identifies the account.
 
@@ -640,19 +656,86 @@ Send a Bearer access token. Example variables for a profile edit:
 
 All fields are optional; omitted fields remain unchanged. Empty updates and explicit
 `null` values are rejected. Allowed fields are `memberFullName` (1–100 characters),
-`memberNick` (Username: 6–40 English letters, numbers, or `_ # $ % ! & ?`; currently
-case-sensitive unique), `memberPhone` (international format, unique), `memberImage`,
+`memberNick` (Username: 6–40 English letters, numbers, or `_ # $ % ! & ?`;
+case-insensitive unique), `memberPhone` (international format, unique), `memberImage`,
 `memberAddress` (up to 300), and `memberDesc` (up to 2,000). Clinics may additionally
 edit `clinicName` (1–150) and `location` (Location enum). Empty address/description
 strings clear those fields. Account IDs, roles/status, email/provider, clinic affiliation,
 and approval fields are not editable. The authenticated account determines ownership.
 Phone changes update the stored contact; SMS verification is not implemented.
 Username edits share signup validation and retain display capitalization after
-trimming. Omitting `memberNick` allows unrelated edits to legacy profiles whose
-existing usernames do not meet the new rule. A lowercase comparison helper is
-defined for the forthcoming normalized-key migration, but the database index has
-not changed yet: `Alex_1` and `alex_1` can still coexist until Step 2. Username
-availability checks and frontend labels are also later steps.
+trimming. The private `memberNickNormalized` field is updated atomically with the
+display name; it is excluded from public/auth/self-profile contracts. `Alex_1` and
+`alex_1` cannot coexist in a migrated database, while a user can change only the
+capitalization of their own username. Suspended/deleted accounts also retain their
+username reservation. Availability checks and frontend labels remain later steps.
+
+### Required offline username migration
+
+Run from `backend/` with an explicitly selected `MONGO_URI` (or the documented
+environment fallback) pointing to the database you intend to migrate. A replica set
+is required for transactional member updates. This is separate from booking migration.
+The API now refuses startup unless the username backfill, unique index, strict
+collection validator and record audit all pass. Member schema auto-DDL is disabled;
+the migration explicitly installs its indexes after the backfill.
+
+1. Build the backend. Take and verify a database backup before applying changes.
+   Stop every API, worker and other member writer, and keep them stopped until the
+   migration and startup verification succeed. Old binaries cannot be used as a
+   write-enabled rollback after the new collection validation is installed.
+2. Run a read-only dry run; it creates no collections or indexes. Use a new private
+   report path each time (exclusive creation, mode `0600`). Console output contains
+   counts only; reports may contain usernames and account IDs and must not be committed.
+
+   ```bash
+   npm run build
+   npm run member:username:migrate -- --dry-run --report /private/tmp/username-audit.json
+   ```
+
+3. Review invalid/short usernames, normalized collisions and legacy Google accounts
+   without trustworthy normalized keys. Resolve all affected accounts explicitly.
+   A Google account can retain an already customized valid username by recording
+   the same old/new value. Full names and other profile fields are not rewritten.
+   All accounts, including inactive/deleted ones, participate in uniqueness.
+
+   Example private resolutions file (replace the sample ID with the reviewed ID):
+
+   ```json
+   [
+     {
+       "memberId": "507f1f77bcf86cd799439011",
+       "expectedMemberNick": "old",
+       "memberNick": "Chosen#1"
+     }
+   ]
+   ```
+
+4. Repeat the dry run with `--resolutions /private/tmp/reviewed-usernames.json`.
+   Unknown/stale/duplicate decisions and remaining conflicts block apply. A
+   collection with non-simple default collation requires a separate reviewed data
+   migration; this tool refuses it rather than weakening exact key comparisons.
+5. With writers still stopped, apply the reviewed file:
+
+   ```bash
+   npm run member:username:migrate -- --apply --writers-stopped --resolutions /private/tmp/reviewed-usernames.json
+   ```
+
+   Omitting `--resolutions` is allowed for a clean database. Member changes commit
+   in one transaction, followed by index installation and collection validation.
+   Existing indexes/validation are preserved; no indexes are dropped. If DDL fails
+   after backfill, keep writers stopped and rerun the same reviewed file. Completed
+   decisions are recognized, so retries do not rename twice. Startup stays blocked
+   until final verification passes. Do not delete the unique index to resolve a
+   conflict; review the data. The tool is bounded to 100,000 members and does not
+   support cyclic username swaps requiring temporary names.
+6. Re-run the audit and start the migrated API only after all checks pass. A dry-run
+   exit code of `2` means unresolved records; invalid arguments/apply failure use `1`.
+
+`npm run test:username:integration` owns disposable MongoDB processes and tests
+migration/recovery, raw database enforcement, case-variant signup/rename races,
+Google key writes and CLI reports. It never loads the application database URI.
+The database enforcement combines a [unique index](https://www.mongodb.com/docs/manual/core/index-unique/)
+with [field-comparison validation](https://www.mongodb.com/docs/manual/core/schema-validation/specify-query-expression-rules/).
 
 To change an EMAIL account's password, include all three fields together, optionally
 alongside profile edits:
