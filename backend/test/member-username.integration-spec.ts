@@ -5,6 +5,7 @@ import { GraphQLModule } from '@nestjs/graphql';
 import { getModelToken } from '@nestjs/mongoose';
 import { createConnection, type Connection } from 'mongoose';
 import { ObjectId } from 'mongodb';
+import crypto from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, readFile, stat, rm, writeFile } from 'node:fs/promises';
@@ -386,17 +387,30 @@ describe('Offline username migration and real database enforcement', () => {
     expect(login.body.member).not.toHaveProperty('memberNickNormalized');
   });
 
-  it('writes a normalized key for new Google accounts and retries a case-insensitive name collision', async () => {
+  it('generates a normalized Google username independently of the full name and preserves profile edits on later login', async () => {
     await startApi();
-    await signup('case_1', 1).expect(201);
+    await signup('GOOGLE_USER12345678', 1).expect(201);
+    const random = jest.spyOn(crypto, 'randomInt')
+      .mockImplementationOnce(() => 12345678)
+      .mockImplementationOnce(() => 42);
     const reply = await request(app!.getHttpServer())
       .post('/member/google/login')
       .send({ idToken: 'synthetic-provider-token' });
     expect(reply.status).toBe(200);
-    expect(reply.body.member.memberNick).toMatch(/^google_user\d{6}$/);
+    expect(reply.body.member.memberNick).toMatch(/^google_user\d{8}$/);
+    expect(reply.body.member.memberNick).toBe('google_user00000042');
+    expect(random).toHaveBeenCalledTimes(2);
     expect(reply.body.member.memberFullName).toBe('Case_1');
     const google = await members().findOne({ googleId: identity.sub });
     expect(google?.memberNickNormalized).toBe(google?.memberNick.toLowerCase());
+    expect((await edit(reply.body.accessToken, {
+      memberNick: 'Chosen#1', memberFullName: 'Preferred Full Name',
+    })).body.errors).toBeUndefined();
+    const again = await request(app!.getHttpServer()).post('/member/google/login').send({ idToken: 'synthetic-provider-token' });
+    expect(again.status).toBe(200);
+    expect(again.body.member).toMatchObject({
+      _id: reply.body.member._id, memberNick: 'Chosen#1', memberFullName: 'Preferred Full Name',
+    });
   });
 
   it('runs the built CLI read-only with private reports and no identifying console output', async () => {

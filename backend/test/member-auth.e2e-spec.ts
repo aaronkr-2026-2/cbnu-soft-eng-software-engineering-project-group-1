@@ -8,6 +8,7 @@ import {
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { getModelToken } from '@nestjs/mongoose';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import crypto from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import type { Server } from 'node:http';
 import { model } from 'mongoose';
@@ -489,7 +490,7 @@ describe('Member REST authentication', () => {
     expect(result.headers['set-cookie'][0]).toContain(
       'Expires=Thu, 01 Jan 1970',
     );
-    expect(result.body.member.memberNick).toMatch(/^google_user\d{6}$/);
+    expect(result.body.member.memberNick).toMatch(/^google_user\d{8}$/);
     expect(result.body.member.memberFullName).toBe('Google Person');
     expect(result.body.member).not.toHaveProperty('memberNickNormalized');
     expect(result.body.member.memberType).toBe('USER');
@@ -523,16 +524,62 @@ describe('Member REST authentication', () => {
     expect(members).toHaveLength(1);
   });
 
-  it.each([undefined, '', '  '])(
-    'assigns a fallback nickname for unusable Google name %j',
+  it.each([undefined, '', '  ', 'GooglePerson', '홍길동', 'A'.repeat(120)])(
+    'generates a username independently of the Google full name %j',
     async (name) => {
       const result = await googleLogin({ name });
       expect(result.status).toBe(200);
-      expect(result.body.member.memberNick).toMatch(/^google_user\d{6}$/);
+      expect(result.body.member.memberNick).toMatch(/^google_user\d{8}$/);
+      expect(result.body.member.memberFullName).toBe(
+        typeof name === 'string' && name.trim() ? name.trim().slice(0, 100) : undefined,
+      );
     },
   );
 
-  it('resolves duplicate names and permits multiple Google accounts with absent phones/emails', async () => {
+  it('retries a generated username collision and pads the replacement to eight digits', async () => {
+    const existing = new Member({
+      authProvider: AuthProvider.GOOGLE,
+      googleId: 'existing-google-subject',
+      memberNick: 'GOOGLE_USER12345678',
+    });
+    await existing.validate();
+    members.push(existing);
+    const random = jest.spyOn(crypto, 'randomInt')
+      .mockImplementationOnce(() => 12345678)
+      .mockImplementationOnce(() => 7);
+    try {
+      const result = await googleLogin({ name: 'GooglePerson' });
+      expect(result.status).toBe(200);
+      expect(result.body.member.memberNick).toBe('google_user00000007');
+      expect(result.body.member.memberFullName).toBe('GooglePerson');
+      expect(random).toHaveBeenCalledTimes(2);
+      expect(random).toHaveBeenNthCalledWith(1, 100_000_000);
+      expect(random).toHaveBeenNthCalledWith(2, 100_000_000);
+      expect(members).toHaveLength(2);
+      expect(members[0].memberNick).toBe('GOOGLE_USER12345678');
+    } finally { random.mockRestore(); }
+  });
+
+  it('stops after ten generated username collisions without changing another account', async () => {
+    const existing = new Member({
+      authProvider: AuthProvider.GOOGLE,
+      googleId: 'existing-google-subject',
+      memberNick: 'google_user12345678',
+    });
+    await existing.validate();
+    members.push(existing);
+    const random = jest.spyOn(crypto, 'randomInt').mockImplementation(() => 12345678);
+    try {
+      const result = await googleLogin();
+      expect(result.status).toBe(409);
+      expect(random).toHaveBeenCalledTimes(10);
+      expect(members).toHaveLength(1);
+      expect(members[0].googleId).toBe('existing-google-subject');
+      expect(sessions.size).toBe(0);
+    } finally { random.mockRestore(); }
+  });
+
+  it('permits duplicate full names and multiple Google accounts with absent phones/emails', async () => {
     await googleLogin({ name: 'GooglePerson', email: undefined });
     const second = await googleLogin({
       sub: 'google-subject-2',
@@ -540,7 +587,7 @@ describe('Member REST authentication', () => {
       email: undefined,
     });
     expect(second.status).toBe(200);
-    expect(second.body.member.memberNick).toMatch(/^google_user\d{6}$/);
+    expect(second.body.member.memberNick).toMatch(/^google_user\d{8}$/);
     expect(members).toHaveLength(2);
   });
 

@@ -59,7 +59,7 @@ this does not establish deployed integration or enable automatic waitlist bookin
   saves uploaded profile images. Password changes invalidate existing sessions;
   successful image replacement deletes the previous owned image.
 - **Google sign-in API:** Nonce-bound Google ID-token verification, automatic USER
-  registration without phone/password, Google-name or unique fallback nicknames,
+  registration without phone/password, unique eight-digit generated usernames,
   and the existing access/refresh session contract. Next.js includes the Google
   button/callback flow; successful live provider login remains unverified.
 - **Authentication protection:** Authentication rate limiting and current-account
@@ -435,14 +435,11 @@ Cross-site deployments also depend on the browser allowing the nonce cookie;
 a same-site frontend/API deployment avoids third-party-cookie restrictions.
 
 New identities become active `USER` accounts with `authProvider=GOOGLE`; phone
-and password are omitted. The provider's trimmed display name supplies the
-username only when it meets the shared username rule, and full name (up to 100).
-Invalid/blank names or case-insensitive username
-nickname collisions use `google_user` plus six random digits, such as
-`google_user004271`, with bounded retries against the unique database index.
-Assigning eight-digit generated usernames to every new Google account and using
-the display name only as full name remains Step 3. The interim Step 2 writer must
-already produce valid usernames and lowercase keys to satisfy database validation.
+and password are omitted. The provider's trimmed display name supplies only the
+full name (up to 100 characters). Every new account receives `google_user` plus
+exactly eight random digits, such as `google_user00427139`, independently of that
+name. Database username collisions are retried up to ten attempts. Both the display
+username and its private lowercase key are saved together.
 Existing Google usernames require explicit review during legacy migration; they
 are never automatically renamed from their provider name.
 Verified Google email and picture are copied when supplied. Email is optional;

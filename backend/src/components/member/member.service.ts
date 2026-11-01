@@ -628,7 +628,7 @@ export class MemberService implements OnModuleInit {
   ): Promise<MemberAuthResponse> {
     const identity = await this.googleAuth.verify(idToken, nonce);
     const { members } = this.models();
-    // Await sparse unique indexes before creating accounts or resolving races.
+    // Schema initialization only; startup verifies the offline-installed indexes.
     await members.init();
     let member = await members
       .findOne({ googleId: identity.sub })
@@ -647,13 +647,9 @@ export class MemberService implements OnModuleInit {
     // Strip non-printing characters from the provider's display name.
     // oxlint-disable-next-line no-control-regex
     const name = identity.name?.replace(/[\u0000-\u001f\u007f]/g, '').trim();
-    const displayName = name ? name.slice(0, 40) : undefined;
     for (let attempt = 0; attempt < 10; attempt++) {
-      // Names can collide; the database index is authoritative, including races.
-      const memberNick =
-        attempt === 0 && displayName && isValidUsername(displayName)
-          ? displayName
-          : `google_user${randomInt(1_000_000).toString().padStart(6, '0')}`;
+      // Provider names are full names only. The unique index resolves collisions.
+      const memberNick = `google_user${randomInt(100_000_000).toString().padStart(8, '0')}`;
       try {
         return await members.create({
           googleId: identity.sub,
@@ -690,7 +686,7 @@ export class MemberService implements OnModuleInit {
       }
     }
     throw new ConflictException(
-      'Unable to assign a unique nickname; try again',
+      'Unable to assign a unique username; try again',
     );
   }
 

@@ -798,3 +798,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** TypeScript caught a new collection-metadata union assumption and an incorrect default session-schema import; lint caught an unused import. Codex corrected these before final checks (B-019). These were automated catches, not issues I manually reported. The duplicate-method blockers were pre-existing (B-018).
 
 **One decision I can explain without AI:** An Available message cannot enforce uniqueness under concurrent requests; the database must reject competing writes for the same lowercase username while preserving the spelling users see.
+
+## OAuth-fix Step3: generated Google usernames — 2026-11-01
+
+**Tool(s) used:** Codex, source/Git inspection, apply_patch, Nest build, TypeScript, oxlint, Jest/Supertest and owned disposable MongoDB processes.
+
+**What I asked for:** Implement Step3 after committing Step2; I handle all staging, commits and pushes manually.
+
+**Pre-planning:** The interim Google writer still tried a valid provider display name before a six-digit fallback. Existing identity lookup and bounded collision retries already protected returning accounts and duplicate identities.
+
+**Planning:** Always generate an eight-digit username for new identities, retain provider names only as full names, and reuse the established lowercase key, unique index and retry handling. Verify edited profiles through the real API/database.
+
+**Implementation process:** Simplified Google account creation and corrected its collision-exhaustion message. Added/updated cases for leading zeros, collision retries/exhaustion, name independence and profile preservation. Build/full TypeScript passed; lint has only the existing empty config.ts warning.220 API tests and13 real-MongoDB/CLI checks passed. Unit/booking suites were not rerun. Corrected existing README/architecture contract text without adding README sections; updated local plan/session records. No application/demo database migration, personal Google login, runtime/server restart, frontend code, staging, commit or push; no sprint covers November1.
+
+**What I kept as-is:** Google-sub identity, signature/nonce validation, full-name sanitization, private lowercase keys, unique database enforcement, email conflict behavior, session issuance, existing accounts and user-edited profiles.
+
+**What I changed or rejected, and why:** I removed display-name-derived usernames entirely for new Google accounts; full names need not be unique or satisfy username character restrictions. Eight digits include leading zeros so the format is always consistent.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Google identifies returning users by its stable subject ID, so later logins should preserve the username/full name they edited in our application.
