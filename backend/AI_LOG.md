@@ -738,3 +738,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** A historical opening notice must resolve current advisory availability rather than act as proof of reservation. The server derives targets from an owned notice instead of accepting patient/appointment references. No preference API silently suppresses required booking delivery; unreadOnly affects the view only.
 **Something the AI got wrong that I had to catch:** Build caught selected-field type erasure in the view mapper; full TypeScript caught default ObjectId fixture typing for string notification IDs. Codex corrected both using preserved generic/schema types (B-006/B-008 follow-ups). These were automated/agent catches, not issues I reported.
 **One decision I can explain without AI:** An old opening alert must show when someone else has already booked the slot, while keeping that other person's booking details private.
+
+## Step12 recovery, operations and local acceptance — 2026-11-01
+
+**Tool(s) used:** Codex, shell, Jest/Supertest, real disposable MongoDB/database tools, Chrome computer use, TypeScript, Yarn and oxlint.
+
+**What I asked for:** Finish booking Step12 after confirming Google OAuth signup works.
+
+**Pre-planning:** I reviewed the ignored booking checklist, existing workers, migration/audit behavior and delivered Next screens. Staging/production configuration was not part of the available local environment.
+
+**Planning:** Complete local recovery and migration evidence, replace the hard gate with explicit prerequisites, and document controlled operations before a native-worker browser pilot.
+
+**Implementation process:** Added guarded promotion activation and truthful waitlist flag output, read-only status/reconciliation CLI, rollout runbook, actual process-kill/pause/replay and backup/restore/migration tests. Fixed status asset roots and multi-batch audit timeout handling. Backend build/typecheck,22 unit,194 API E2E,186 real-MongoDB integration checks and lint passed (existing empty-file warning). Next typecheck/50 tests/build and native-worker patient-to-clinic browser pilot passed. Only the separate local demo was enabled; staging/production/load and external providers remain unperformed.
+
+**What I kept as-is:** Manual commits/pushes, default-off flags, trusted server booking rules, exact-slot consent, required durable IN_APP notices and application/production data.
+
+**What I changed or rejected, and why:** I retained bounded offline migration and read-only reconciliation instead of using initial migration to repair live queue history. No production activation was inferred from local success.
+
+**Something the AI got wrong that I had to catch:** Automated checks caught the new subprocess path resolving a shadowed join helper, timeoutMS conflict and string-ID fixture typing. Browser verification caught a remaining hardcoded paused response. These were corrected before final acceptance; Codex/tests found them, not me manually.
+
+**One decision I can explain without AI:** Checking availability of the API is different from proving queue recovery, so we test actual killed processes and inspect persistent ledger/outbox state separately.

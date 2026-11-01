@@ -401,14 +401,15 @@ notification fan-out belong to Step 8.
 Persisted claim/retry/result fields provide private failure visibility; poll failures
 log only a fixed safe code. The worker stops polling and waits for its current poll
 on shutdown. Tests use real MongoDB for worker contention, FIFO, rollback, abandoned
-leases, fresh instances, stale-owner fencing and cutoff/withdrawal races. Actual
-process-kill recovery and operational monitoring remain Step 12 validation.
+leases, fresh instances, stale-owner fencing and cutoff/withdrawal races. Step 12 now verifies actual process-kill recovery, expired-lease takeover and
+replay/read-state deduplication in owned disposable databases. The read-only
+`booking:status` CLI combines aggregate backlog/latency with consistent snapshot
+reconciliation without starting workers or creating collections/indexes.
 
-WAITLIST_PROMOTION_ENABLED defaults off and rejects true while verified patient-visible
-the patient-facing flow has not been browser-verified. Tests override internal enablement, not persistence or booking.
-The worker is implemented but production activation awaits the verified patient-facing flow in Step 11; persisted
-notification events alone do not satisfy delivery readiness. No application DB,
-production configuration or hosting changes were made.
+WAITLIST_PROMOTION_ENABLED defaults off and now accepts true only with booking V2,
+enrollment, IN_APP delivery and lifecycle enabled. The native-worker local browser
+pilot verifies the patient notice and clinic calendar. Production/staging activation
+remains separate; follow [Booking operations](../../backend/BOOKING_ROLLOUT.md).
 
 ### Cutoff lifecycle and in-app delivery (Step 8, October 31)
 
@@ -727,3 +728,21 @@ These scoped source observations are not a full runtime/security audit. Database
 | Local deployment workflow does not match source layout: ignored root `docker-compose.yml` runs npm in `/usr/src/medconnect`, while package.json is under backend/. `deploy.sh` hard-resets and selects master. | The recorded script cannot be assumed to build this checkout and can discard local changes when run. | Review the intended branch/release workflow, point container commands at backend/, and replace destructive checkout handling with an explicit release procedure. Validate configuration/build before attempting deployment. |
 
 Scheduling write ownership was established in Step 4: MemberService owns affiliation review and AppointmentScheduleService owns weekly/date schedule changes. AppointmentService retains explicit read dependencies and shares pure slot/override rules. No repository-wide service split was introduced.
+
+### Step 12 operational acceptance — November 1
+
+The offline migration auditor and startup/read-only reconciliation now set cursor
+query timeouts explicitly; read-only auditing uses a snapshot session. This avoids
+transaction CSOT placing an invalid maxTimeMS on getMore in the installed driver.
+Offline writes remain transactional, retry-bounded and majority-committed. A real
+125-record regression covers multiple cursor batches. Status assets use a fixed
+filename and trusted root, avoiding Express dotfile rejection of `.worktrees` parents.
+
+Backend build/typecheck, 22 unit, 194 API E2E and 186 real-MongoDB integration checks
+passed; Next typecheck/50 tests/build and the native-worker patient-to-clinic browser
+pilot passed. Dump/restore and reviewed migration were rehearsed only on disposable
+data. The local demo has promotion enabled; production configuration is unchanged.
+Earlier step-specific notes describe their historical scope; this section supersedes
+pending Step 12 integration/recovery statements. Production deployment, external
+providers, workload/SLA validation and databases above the auditor limit remain outside
+this acceptance. See the operations runbook for pause/retry/reconciliation procedures.

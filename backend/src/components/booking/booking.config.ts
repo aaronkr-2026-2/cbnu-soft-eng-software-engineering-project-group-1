@@ -41,16 +41,19 @@ export function validateWaitlistFlags(env: NodeJS.ProcessEnv = process.env) {
     throw new Error('Commitment replacement requires waitlist enrollment');
 }
 
-// The in-app API exists, but the patient-facing browser flow is still deferred.
-// A configuration switch alone
-// cannot attest that a patient-visible channel has been integrated and verified.
+// Default off. Enable only after the staged patient-visible delivery rehearsal.
 export function waitlistPromotionEnabled(env: NodeJS.ProcessEnv = process.env) {
   const requested = flag('WAITLIST_PROMOTION_ENABLED', env);
-  if (requested)
+  if (
+    requested &&
+    (!waitlistEnrollmentEnabled(env) ||
+      !waitlistNotificationsEnabled(env) ||
+      !waitlistLifecycleEnabled(env))
+  )
     throw new Error(
-      'Waitlist promotion requires verified patient-visible notification delivery (Steps 8 and 11)',
+      'Waitlist promotion requires booking policy V2, enrollment, in-app delivery and lifecycle',
     );
-  return false;
+  return requested;
 }
 
 export function waitlistNotificationsEnabled(

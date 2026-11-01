@@ -1217,8 +1217,7 @@ Other participants cannot enumerate entries through these operations.
 Ordinary booking of one's matching waitlist slot fulfills that entry atomically.
 It cannot jump a held queue outside the cutoff. Withdrawal of the last active
 waiter releases the hold; withdrawing a fulfilled entry never cancels its appointment.
-`automaticBookingEnabled` remains false: the promotion worker is implemented but
-its release gate awaits verification of the patient-facing flow. automaticBookingEligible
+`automaticBookingEnabled` reflects the validated promotion configuration. automaticBookingEligible
 reflects the current cutoff; the Step 8 lifecycle worker persists
 NOTIFICATION_ONLY/EXPIRED transitions when enabled. Existing active
 entries remain commitments until explicitly closed. Clients must refetch after an
@@ -1229,8 +1228,7 @@ uncertain/busy response before retrying or confirming a replacement.
 AppointmentPromotionService processes private SLOT_RELEASED events with QUEUE or
 UNAVAILABLE hints. It claims one event per poll using a unique token and a
 30-second lease. Expired claims are recoverable by another instance; every
-transaction fences the current token and checks the slot generation. Once enabled
-in a later release, polling runs in the Nest process at one-second intervals and
+transaction fences the current token and checks the slot generation. When enabled, polling runs in the Nest process at one-second intervals and
 stops on module shutdown. No worker API or new queue dependency is introduced.
 
 The worker selects ACTIVE entries by server FIFO sequence, then locks the doctor,
@@ -1256,15 +1254,15 @@ WORKER_RETRY with exponential backoff capped at 60 seconds; bounded batches use
 BATCH_LIMIT and a one-second delay. Error payloads and patient details are not logged.
 Operators can inspect aggregate pending/retrying/expired-claim counts and last safe
 failure codes through private database tooling. Public status endpoints expose no
-queue records. Full monitoring/reconciliation and process-crash rehearsal remain
-Step 12 work; recovery tests currently use fresh worker instances and abandoned leases.
+queue records. The read-only `npm run booking:status` command now provides aggregate
+backlog/latency and snapshot reconciliation. Step 12 tests include actual killed
+worker processes, expired-lease takeover, replay and read-state preservation.
 
-WAITLIST_PROMOTION_ENABLED defaults to false; the current hard gate rejects startup
-if it is true. The patient-visible IN_APP flow passed local Step 11 verification,
-but this frontend work does not remove that gate. Its source/configuration change
-and production activation remain a separate Step 12 rollout decision. Tests replace only the worker's internal enablement check;
-MongoDB claims, transactions, booking and event persistence remain real. Enrollment
-can be piloted separately with automation accurately labeled as disabled.
+WAITLIST_PROMOTION_ENABLED defaults to false. Enabling it requires booking V2,
+enrollment, IN_APP notification delivery and lifecycle flags. The patient-visible
+flow is verified locally; staging/production activation still requires the controlled
+procedure in [Booking operations](backend/BOOKING_ROLLOUT.md). No environment is
+activated merely by deploying this code.
 
 ## Cutoff lifecycle and in-app notifications (Step 8)
 
@@ -1381,9 +1379,9 @@ booking intents remain pending during delivery outages and can drain while new
 booking/enrollment are paused. There is no delivery-preference API that suppresses
 required booking notices; unreadOnly changes only a read view. IN_APP is the only
 configured channel; no external email/SMS provider has been selected or contacted.
-The Next.js notification center/link flow is implemented and locally browser-verified;
-see [Step 11 evidence and limits](next/README.md#patient-notification-center-step-11).
-Promotion stays behind its existing hard gate; no feature flag or deployment was activated.
+The Next.js notification center and target links passed the local Step 12 native-worker
+pilot. Only the local demo configuration was enabled; no staging/production flags or
+deployment changed.
 
 ## Deployment
 
@@ -1406,10 +1404,9 @@ checkout-to-deployment procedure for the current layout.
 - Email verification and logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;
-  application-database cutover, hosted frontend/API integration and Atlas rollout remain unverified.
-- FIFO promotion remains gated for controlled rollout; the local patient-facing flow
-  is verified. Cutoff lifecycle and in-app inbox delivery flags still default off.
-  External email/SMS/push providers are not configured.
+  application-database cutover, staging/production deployment and Atlas rollout remain unverified.
+- FIFO promotion, lifecycle and IN_APP delivery passed a normal-worker local browser pilot;
+  all flags still default off. External delivery providers remain unconfigured.
 - Authentication rate limiting is per process, without a shared multi-instance store.
 - Local deployment scripts still need the alignment described above.
 
@@ -1439,18 +1436,36 @@ After meaningful project work, append an accurate entry to `backend/AI_LOG.md`:
 Write reflections in first person, record only checks actually performed, and do
 not invent mistakes. Keep secrets and sensitive personal data out of project records.
 
-## Booking Step 12 — local acceptance (November 1)
+## Booking Step 12 — local acceptance and rollout preparation (November 1)
 
-The Next UI passed a native-worker browser pilot against the backend worktree:
-patient waitlist enrollment, clinic cancellation, automatic confirmed appointment,
-calendar polling, delivered patient notice/current context and explicit mark-read.
-Next typecheck, 50 tests and build passed. The backend branch now includes guarded
-promotion activation, read-only operational status/reconciliation, a rollout runbook,
-real process-kill recovery and backup/restore/migration regressions; all 186 integration,
-194 API E2E and 22 unit checks passed with build/typecheck. The hard promotion block
-is replaced by explicit booking/enrollment/delivery/lifecycle prerequisites, all default
-off. Only the local demo is activated. Staging/production cutover and external delivery
-remain separate. Google OAuth signup is project-owner confirmed. See the updated
+See [Booking operations](backend/BOOKING_ROLLOUT.md) for activation prerequisites,
+backup/restore, migration, pause/retry, aggregate monitoring and reconciliation.
+The promotion gate now accepts explicit true only with booking, enrollment,
+notification and lifecycle prerequisites; waitlist views report its real state.
+The `/status` page/assets now serve correctly from hidden worktree paths. Snapshot
+audits and offline migration handle multiple cursor batches with explicit per-query
+timeouts instead of the installed driver's incompatible transaction CSOT behavior.
+
+Verification: backend build/full TypeScript, 22 unit tests, 194 existing API E2E
+tests and 186 disposable real-MongoDB integration checks passed. Coverage includes
+contention/rollback/cutoff/24-hour/DST cases, actual worker SIGKILL and new-process
+lease recovery, paused-worker preservation, replay/read-state deduplication,
+protected legacy dump/restore and reviewed CLI migration/index installation,
+125-record multi-batch audit and aggregate operational-status/no-write checks.
+Lint passes with the existing empty config.ts warning. Next typecheck, 50 tests
+and production build passed.
+
+Chrome with normal Nest worker timers and real MongoDB verified patient enrollment,
+clinic cancellation, automatic CONFIRMED/WAITLIST booking, polling calendar visibility,
+patient-visible required notice/current appointment and explicit mark-read. No internal
+worker enable overrides were used in this browser pilot. Aggregate reconciliation
+was consistent with no held slots or pending/expired worker claims/backlog.
+Google OAuth signup is confirmed by the project owner; the agent did not complete
+a personal Google login. Only the separate local demo was activated. Staging,
+production cutover/load/SLA and external email/SMS delivery remain unperformed.
+No sprint covers November 1; no sprint was invented. No commit or push performed.
+
+The frontend evidence and verification limits are also recorded in the
 [Next README](next/README.md#booking-step-12--local-integration-acceptance-november-1).
-Earlier feature-stage notes describe their historical scope; this section supersedes
-pending Step 12 acceptance statements. No commit/push/deployment was performed.
+Earlier feature-stage notes describe their historical scope; this Step 12 record
+supersedes pending local-acceptance statements.
