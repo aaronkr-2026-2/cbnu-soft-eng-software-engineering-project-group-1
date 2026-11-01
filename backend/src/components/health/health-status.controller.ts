@@ -8,18 +8,18 @@ export class HealthStatusController {
   @Header('Content-Type', 'text/html; charset=utf-8')
   @Header('Cache-Control', 'no-store')
   getStatusPage(@Res() response: Response): void {
-    response.sendFile(join(__dirname, 'views', 'status.html'));
+    response.sendFile('status.html', { root: join(__dirname, 'views') });
   }
 
   @Get('assets/status.css')
   @Header('Cache-Control', 'no-store')
   getStyles(@Res() response: Response): void {
-    response.sendFile(join(__dirname, 'views', 'status.css'));
+    response.sendFile('status.css', { root: join(__dirname, 'views') });
   }
 
   @Get('assets/status.js')
   @Header('Cache-Control', 'no-store')
   getScript(@Res() response: Response): void {
-    response.sendFile(join(__dirname, 'views', 'status.js'));
+    response.sendFile('status.js', { root: join(__dirname, 'views') });
   }
 }

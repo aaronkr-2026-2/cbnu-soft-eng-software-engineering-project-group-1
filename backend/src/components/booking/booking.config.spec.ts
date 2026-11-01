@@ -29,14 +29,24 @@ describe('Booking activation and migration inputs', () => {
       validateWaitlistFlags({ WAITLIST_LIFECYCLE_ENABLED: 'yes' }),
     ).toThrow('true or false');
   });
-  it('keeps promotion off until patient-visible delivery is integrated and verified', () => {
+  it('defaults promotion off and requires every rollout prerequisite', () => {
     expect(waitlistPromotionEnabled({})).toBe(false);
-    expect(() =>
-      waitlistPromotionEnabled({ WAITLIST_PROMOTION_ENABLED: 'true' }),
-    ).toThrow('patient-visible');
-    expect(() =>
-      validateWaitlistFlags({ WAITLIST_PROMOTION_ENABLED: 'true' }),
-    ).toThrow('patient-visible');
+    const enabled = {
+      BOOKING_POLICY_V2_ENABLED: 'true',
+      WAITLIST_ENROLLMENT_ENABLED: 'true',
+      WAITLIST_NOTIFICATIONS_ENABLED: 'true',
+      WAITLIST_LIFECYCLE_ENABLED: 'true',
+      WAITLIST_PROMOTION_ENABLED: 'true',
+    };
+    expect(waitlistPromotionEnabled(enabled)).toBe(true);
+    expect(() => validateWaitlistFlags(enabled)).not.toThrow();
+    for (const key of Object.keys(enabled).filter(
+      (key) => key !== 'WAITLIST_PROMOTION_ENABLED',
+    )) {
+      expect(() =>
+        waitlistPromotionEnabled({ ...enabled, [key]: 'false' }),
+      ).toThrow('requires booking');
+    }
     expect(() =>
       waitlistPromotionEnabled({ WAITLIST_PROMOTION_ENABLED: '1' }),
     ).toThrow('true or false');

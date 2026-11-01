@@ -1,3 +1,4 @@
+import { waitlistPromotionEnabled } from '../booking/booking.config.js';
 import { NotificationService } from '../notification/notification.service.js';
 import {
   WAITLIST_CLEANUP,
@@ -156,7 +157,7 @@ export class WaitlistService {
         active &&
         row.status === WaitlistStatus.ACTIVE &&
         +row.startsAt - Date.now() >= 48 * 3600_000,
-      automaticBookingEnabled: false,
+      automaticBookingEnabled: waitlistPromotionEnabled(),
     };
   }
 

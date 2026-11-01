@@ -24,8 +24,15 @@ import { getConnectionToken } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { Types, type Connection } from 'mongoose';
 import { randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { execFileSync, fork } from 'node:child_process';
+import {
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+  chmod,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Server } from 'node:http';
@@ -478,6 +485,216 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     expect((await rest().expect(409)).body.booking.reason).toBe(
       'STALE_COMMITMENT',
     );
+  });
+
+  it('audits and migrates more than one cursor batch in a consistent snapshot', async () => {
+    process.env.BOOKING_POLICY_V2_ENABLED = 'false';
+    await connection
+      .db!.collection('appointments')
+      .insertMany(
+        Array.from({ length: 125 }, () => legacy({ status: 'CANCELED' })),
+      );
+    await migration.apply();
+    expect((await migration.auditSnapshot()).summary).toMatchObject({
+      total: 125,
+      ledgerMatches: true,
+      metadataMatches: true,
+    });
+  });
+
+  it('reports aggregate operational health without leaking identifiers or creating collections', async () => {
+    await rest().expect(201);
+    const oldest = new Date(Date.now() - 60000);
+    await connection
+      .db!.collection<{ _id: string; [key: string]: unknown }>(
+        'appointment_events',
+      )
+      .insertMany([
+        {
+          _id: 'pending',
+          type: 'SLOT_RELEASED',
+          state: 'PENDING',
+          attempts: 5,
+          occurredAt: oldest,
+        },
+        {
+          _id: 'expired',
+          type: 'SLOT_RELEASED',
+          state: 'PROCESSING',
+          attempts: 2,
+          occurredAt: new Date(+oldest + 1000),
+          leaseUntil: oldest,
+        },
+        {
+          _id: 'processed',
+          type: 'SLOT_RELEASED',
+          state: 'PROCESSED',
+          result: 'PROMOTED',
+          occurredAt: oldest,
+          processedAt: new Date(+oldest + 500),
+        },
+      ]);
+    await connection
+      .db!.collection<{ _id: string; [key: string]: unknown }>(
+        'notification_outbox',
+      )
+      .insertOne({
+        _id: 'pending-notice',
+        state: 'PENDING',
+        attempts: 1,
+        occurredAt: oldest,
+      });
+    const before = (await connection.db!.listCollections().toArray())
+      .map((row) => row.name)
+      .sort();
+    const output = execFileSync(
+      process.execPath,
+      ['dist/tools/booking-status.js'],
+      {
+        env: process.env,
+        encoding: 'utf8',
+        timeout: 15000,
+      },
+    );
+    expect(JSON.parse(output)).toMatchObject({
+      consistent: true,
+      queueDepth: 0,
+      heldSlots: 0,
+      reconciliation: { total: 1, ledgerMatches: true },
+    });
+    expect(JSON.parse(output)).toMatchObject({
+      promotion: {
+        pending: 1,
+        processing: 1,
+        retrying: 2,
+        repeatedFailures: 1,
+        expiredClaims: 1,
+        oldestPendingAt: oldest.toISOString(),
+      },
+      notifications: { pending: 1, processing: 0, expiredClaims: 0 },
+      promotionLatencyLast24Hours: { count: 1, averageMs: 500, maximumMs: 500 },
+    });
+    for (const value of [
+      String(patient),
+      String(doctor),
+      token,
+      process.env.JWT_ACCESS_SECRET!,
+    ])
+      expect(output).not.toContain(value);
+    expect(
+      (await connection.db!.listCollections().toArray())
+        .map((row) => row.name)
+        .sort(),
+    ).toEqual(before);
+    await connection.db!.collection('booking_commitments').deleteMany({});
+    let failedOutput = '';
+    try {
+      execFileSync(process.execPath, ['dist/tools/booking-status.js'], {
+        env: process.env,
+        encoding: 'utf8',
+        timeout: 15000,
+        stdio: 'pipe',
+      });
+      throw new Error('Drift should fail status');
+    } catch (error) {
+      const failure = error as { status?: number; stdout?: string };
+      expect(failure.status).toBe(2);
+      failedOutput = String(failure.stdout);
+    }
+    expect(JSON.parse(failedOutput).consistent).toBe(false);
+  });
+
+  it('backs up and restores legacy data before applying a reviewed CLI migration', async () => {
+    const row = legacy();
+    await seed(row);
+    const directory = await mkdtemp(join(tmpdir(), 'booking-backup-'));
+    const restored = connection.getClient().db(`${dbName}_restore`);
+    try {
+      const archive = join(directory, 'backup.archive');
+      execFileSync(
+        'mongodump',
+        ['--uri', process.env.MONGO_URI!, `--archive=${archive}`],
+        { stdio: 'pipe', timeout: 10000 },
+      );
+      await chmod(archive, 0o600);
+      execFileSync(
+        'mongorestore',
+        [
+          '--uri',
+          process.env.BOOKING_TEST_URI!,
+          `--archive=${archive}`,
+          '--nsFrom',
+          `${dbName}.*`,
+          '--nsTo',
+          `${dbName}_restore.*`,
+        ],
+        { stdio: 'pipe', timeout: 10000 },
+      );
+      expect(
+        await restored.collection('appointments').findOne({ _id: row._id }),
+      ).toEqual(row);
+      const resolutions = join(directory, 'resolutions.json');
+      await writeFile(
+        resolutions,
+        JSON.stringify([
+          {
+            appointmentId: String(row._id),
+            specialty: 'CARDIOLOGIST',
+            status: 'CONFIRMED',
+            evidenceRef: 'disposable-step12-review',
+          },
+        ]),
+        { mode: 0o600 },
+      );
+      const options = {
+        env: { ...process.env, BOOKING_POLICY_V2_ENABLED: 'false' },
+        encoding: 'utf8' as const,
+        timeout: 15000,
+      };
+      const dry = execFileSync(
+        process.execPath,
+        [
+          'dist/tools/booking-migration.js',
+          '--dry-run',
+          '--resolutions',
+          resolutions,
+          '--report',
+          join(directory, 'report.json'),
+        ],
+        options,
+      );
+      expect(JSON.parse(dry).readyToApply).toBe(true);
+      const result = execFileSync(
+        process.execPath,
+        [
+          'dist/tools/booking-migration.js',
+          '--apply',
+          '--writers-stopped',
+          '--resolutions',
+          resolutions,
+        ],
+        options,
+      );
+      expect(JSON.parse(result)).toMatchObject({
+        ledgerMatches: true,
+        metadataMatches: true,
+      });
+      const indexes = await connection.db!.collection('appointments').indexes();
+      expect(
+        indexes.some(
+          (index) => index.unique && index.key.doctorId && index.key.startsAt,
+        ),
+      ).toBe(true);
+      expect(
+        await restored.collection('appointments').findOne({ _id: row._id }),
+      ).toEqual(row);
+      expect((await migration.auditSnapshot()).summary.ledgerMatches).toBe(
+        true,
+      );
+    } finally {
+      await restored.dropDatabase();
+      await rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('dry-runs without inferring a specialty or silently confirming a pending record', async () => {
@@ -2259,6 +2476,33 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       process.env.COMMITMENT_REPLACEMENT_ENABLED = 'true';
     });
 
+    it('reports configured promotion readiness without scheduling fixture workers', async () => {
+      await occupied();
+      process.env.WAITLIST_NOTIFICATIONS_ENABLED = 'true';
+      process.env.WAITLIST_LIFECYCLE_ENABLED = 'true';
+      process.env.WAITLIST_PROMOTION_ENABLED = 'true';
+      const result = await join();
+      expect(result.body.errors).toBeUndefined();
+      expect(result.body.data.joinWaitlist.automaticBookingEnabled).toBe(true);
+      process.env.WAITLIST_PROMOTION_ENABLED = 'false';
+      const view = await app
+        .get(WaitlistService)
+        .get(result.body.data.joinWaitlist._id, {
+          _id: patient,
+          memberType: MemberType.USER,
+          authVersion: 0,
+        });
+      expect(
+        (
+          await app.get(WaitlistService).view(view, {
+            _id: patient,
+            memberType: MemberType.USER,
+            authVersion: 0,
+          })
+        ).automaticBookingEnabled,
+      ).toBe(false);
+    });
+
     it('joins an occupied exact slot, persists consent and FIFO, and validates startup queues', async () => {
       await occupied();
       const result = await join();
@@ -2744,6 +2988,53 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       ).rejects.toThrow(BookingUnavailableException);
     });
 
+    const processWorker = async (
+      kind: 'promotion' | 'notification',
+      crash = false,
+      paused = false,
+    ) => {
+      const child = fork(
+        `${process.cwd()}/test/booking-process-worker.cjs`,
+        [kind, crash ? 'claim' : paused ? 'paused' : 'run'],
+        {
+          env: { ...process.env, BOOKING_POLICY_V2_ENABLED: 'true' },
+          stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+        },
+      );
+      try {
+        const message = await new Promise<{ phase: string; worked?: boolean }>(
+          (resolve, reject) => {
+            const timeout = setTimeout(
+              () => reject(new Error('Worker process timed out')),
+              15000,
+            );
+            child.once('message', (value) => {
+              clearTimeout(timeout);
+              resolve(value as { phase: string; worked?: boolean });
+            });
+            child.once('error', (error) => {
+              clearTimeout(timeout);
+              reject(error);
+            });
+            child.once('exit', (code) => {
+              clearTimeout(timeout);
+              reject(new Error(`Worker exited before checkpoint: ${code}`));
+            });
+          },
+        );
+        expect(message.phase).toBe(crash ? 'claimed' : 'done');
+        return message;
+      } finally {
+        if (child.exitCode === null && child.signalCode === null) {
+          const exited = new Promise<void>((resolve) =>
+            child.once('exit', () => resolve()),
+          );
+          child.kill(crash ? 'SIGKILL' : 'SIGTERM');
+          await exited;
+        }
+      }
+    };
+
     describe('FIFO promotion worker', () => {
       const worker = () => app.get(AppointmentPromotionService);
       const events = () => connection.db!.collection('appointment_events');
@@ -2799,6 +3090,35 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         return instance;
       };
       beforeEach(() => jest.spyOn(worker(), 'isEnabled').mockReturnValue(true));
+
+      it('recovers an actual killed promotion process after lease expiry without duplicate bookings', async () => {
+        const entry = await setup();
+        expect((await processWorker('promotion', false, true)).worked).toBe(
+          false,
+        );
+        expect((await releaseEvent())!.state).toBe('PENDING');
+        expect((await originalRecord(entry._id, 'waitlists'))!.status).toBe(
+          'ACTIVE',
+        );
+        await processWorker('promotion', true);
+        expect((await releaseEvent())!.state).toBe('PROCESSING');
+        expect(await promoted()).toHaveLength(0);
+        await events().updateOne(
+          { type: 'SLOT_RELEASED' },
+          {
+            $set: { leaseUntil: new Date(Date.now() - 1) },
+          },
+        );
+        expect((await processWorker('promotion')).worked).toBe(true);
+        expect((await originalRecord(entry._id, 'waitlists'))!.status).toBe(
+          'FULFILLED',
+        );
+        expect(await promoted()).toHaveLength(1);
+        expect((await processWorker('promotion')).worked).toBe(false);
+        expect(
+          await events().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+        ).toBe(1);
+      });
 
       it('promotes the FIFO head and atomically persists exactly one booking notification', async () => {
         const booking = await occupied();
@@ -3575,6 +3895,36 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
           }),
         ).toBe(0);
         expect((await slotGate())!.allocationPending).toBe(false);
+      });
+
+      it('recovers a killed delivery process and replays without duplicating or clearing a read notice', async () => {
+        await occupied();
+        await join();
+        await processWorker('notification', true);
+        expect(await outbox().countDocuments({ state: 'PROCESSING' })).toBe(1);
+        expect(await inbox().countDocuments()).toBe(0);
+        await outbox().updateOne(
+          { state: 'PROCESSING' },
+          {
+            $set: { leaseUntil: new Date(Date.now() - 1) },
+          },
+        );
+        expect((await processWorker('notification')).worked).toBe(true);
+        const notice = (await inbox().findOne({}))!;
+        const readAt = new Date();
+        await inbox().updateOne({ _id: notice._id }, { $set: { readAt } });
+        await outbox().updateOne(
+          { _id: notice._id },
+          {
+            $set: { state: 'PENDING', nextAttemptAt: new Date(Date.now() - 1) },
+          },
+        );
+        await processWorker('notification');
+        expect(await inbox().countDocuments()).toBe(1);
+        expect((await inbox().findOne({ _id: notice._id }))!.readAt).toEqual(
+          readAt,
+        );
+        expect(await outbox().countDocuments({ state: 'DELIVERED' })).toBe(1);
       });
 
       it('delivers idempotently under concurrent workers and replay without resetting read state', async () => {

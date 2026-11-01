@@ -67,9 +67,11 @@ export class BookingMigrationService {
   ) {
     if (!this.connection?.db || !this.members || !this.commitments)
       throw new Error('Migration persistence is unavailable');
+    // Explicit per-query timeouts avoid transaction CSOT leaking maxTimeMS
+    // onto getMore in the installed driver. The offline apply also caps retries.
     const rows = await this.connection.db
       .collection<LegacyAppointment>('appointments')
-      .find({}, { session })
+      .find({}, { session, timeoutMS: 10_000 })
       .limit(5001)
       .toArray();
     if (rows.length > 5000)
@@ -84,17 +86,19 @@ export class BookingMigrationService {
     const participants = await this.members
       .find({ _id: { $in: participantIds } })
       .session(session ?? null)
+      .setOptions({ timeoutMS: 10_000 })
       .lean()
       .exec();
     const plan = planBookingMigration(rows, participants, resolutions);
     const ledger = await this.commitments
       .find({})
       .session(session ?? null)
+      .setOptions({ timeoutMS: 10_000 })
       .lean()
       .exec();
     const queues = await this.connection.db
       .collection('waitlists')
-      .find({}, { session })
+      .find({}, { session, timeoutMS: 10_000 })
       .limit(5001)
       .toArray();
     if (queues.length > 5000)
@@ -233,18 +237,11 @@ export class BookingMigrationService {
   async auditSnapshot() {
     if (!this.connection)
       throw new Error('Migration persistence is unavailable');
-    const session = await this.connection.startSession();
+    // Read-only snapshot sessions pin all audit queries to one cluster time,
+    // without inheriting transaction CSOT into subsequent cursor batches.
+    const session = await this.connection.startSession({ snapshot: true });
     try {
-      return await session.withTransaction(
-        () => this.audit([], session, true),
-        {
-          readConcern: { level: 'snapshot' },
-          writeConcern: { w: 'majority' },
-          readPreference: 'primary',
-          timeoutMS: 10_000,
-          maxCommitTimeMS: 5_000,
-        },
-      );
+      return await this.audit([], session, true);
     } finally {
       await session.endSession();
     }
@@ -343,7 +340,6 @@ export class BookingMigrationService {
           readConcern: { level: 'snapshot' },
           writeConcern: { w: 'majority' },
           readPreference: 'primary',
-          timeoutMS: 10_000,
           maxCommitTimeMS: 5_000,
         },
       );

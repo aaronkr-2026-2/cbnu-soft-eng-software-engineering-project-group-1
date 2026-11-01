@@ -51,8 +51,7 @@ export class AppointmentPromotionService
     private readonly events?: Model<ReleaseEvent>,
   ) {}
 
-  // No HTTP/GraphQL entry point. Delivery readiness remains a release gate;
-  // integration tests replace this method to exercise the real worker safely.
+  // No HTTP/GraphQL entry point. Configuration validates rollout dependencies.
   isEnabled() {
     return waitlistPromotionEnabled();
   }
