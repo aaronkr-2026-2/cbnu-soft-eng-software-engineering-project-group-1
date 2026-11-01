@@ -5,19 +5,21 @@ build/
 coverage/
 *.tsbuildinfo
 
-# Local session context
+# Local session context & Logs for backend
 /backend/AGENTS.md
 /backend/SESSION_LOG.md
 /backend/FIXES-and-BUGS.md
 /backend/BOOKING_WAITLIST_PLAN.md
+/backend/uploads/
 
 # Keep Next.js sources visible even when a local Git exclude hides next/.
 !/next/
 
-# Local session context for NEXT.JS
+# Local session context & Logs for NEXT.JS (frontend)
 /next/AGENTS.md
 /next/SESSION_LOG.md
 /next/FIXES-and-BUGS.md
+/next/OAUTH-FIX.md
 
 #Deployment
 /docker-compose.yml
@@ -80,5 +82,3 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # secrets
 .env
 *.env
-# Uploaded public images
-/backend/uploads/
