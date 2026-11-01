@@ -53,6 +53,8 @@ this does not establish deployed integration or enable automatic waitlist bookin
   display capitalization. A private lowercase key, unique database index and
   collection validator enforce case-insensitive uniqueness after the required offline
   migration. Signup, Google account creation and username edits maintain the key.
+  A rate-limited [availability API](docs/architecture/architecture-backend.md#username-availability)
+  supports signup and profile editing; checks do not reserve usernames.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
 - **Member editing:** Authenticated GraphQL `updateMember` edits your profile/contact
   fields, changes passwords with current-password verification and confirmation, and
@@ -665,7 +667,7 @@ trimming. The private `memberNickNormalized` field is updated atomically with th
 display name; it is excluded from public/auth/self-profile contracts. `Alex_1` and
 `alex_1` cannot coexist in a migrated database, while a user can change only the
 capitalization of their own username. Suspended/deleted accounts also retain their
-username reservation. Availability checks and frontend labels remain later steps.
+username reservation. Frontend availability controls and username labels remain later steps.
 
 ### Required offline username migration
 

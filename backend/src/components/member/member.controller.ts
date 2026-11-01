@@ -7,9 +7,23 @@ import {
   Post,
   Req,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  MemberAccessGuard,
+  type AuthenticatedRequest,
+} from '../auth/guards/member-access.guard.js';
+import {
+  UsernameAvailabilityInput,
+  UsernameAvailability,
+} from '../../libs/dto/member/member-username.dto.js';
 import {
   GoogleLoginDto,
   LoginDto,
@@ -27,6 +41,37 @@ export class MemberController {
     private readonly memberService: MemberService,
     private readonly googleAuth: GoogleAuthService,
   ) {}
+
+  @Post('username/availability')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Check username availability for signup; does not reserve it',
+  })
+  @ApiOkResponse({ type: UsernameAvailability })
+  usernameAvailability(@Body() input: UsernameAvailabilityInput) {
+    return this.memberService.usernameAvailability(input.memberNick);
+  }
+
+  @Post('username/availability/me')
+  @UseGuards(MemberAccessGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary:
+      'Check availability for profile editing, allowing your own username',
+  })
+  @ApiOkResponse({ type: UsernameAvailability })
+  ownUsernameAvailability(
+    @Body() input: UsernameAvailabilityInput,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.memberService.usernameAvailability(
+      input.memberNick,
+      request.member,
+    );
+  }
 
   private get nonceCookie() {
     const secure = process.env.NODE_ENV === 'production';

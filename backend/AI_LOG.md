@@ -818,3 +818,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** Google identifies returning users by its stable subject ID, so later logins should preserve the username/full name they edited in our application.
+
+## OAuth-fix Step4: username availability checks — 2026-11-01
+
+**Tool(s) used:** Codex, source/Git inspection, apply_patch, TypeScript/Nest build, oxlint, Jest/Supertest and owned disposable MongoDB processes.
+
+**What I asked for:** Implement Step4 in the backend worktree; I handle staging, commits and pushes manually.
+
+**Pre-planning:** Step3 was committed as94bcba8. Shared username rules, a normalized unique key and safe generated Google usernames already existed; there was no availability API or field-specific write-conflict marker.
+
+**Planning:** Provide public signup and authenticated current-owner checks with no account details. Use exact normalized-key lookups and a separate shared30/minute/IP budget. Keep checks advisory and preserve the existing GraphQL CONFLICT code while adding username reason/field metadata.
+
+**Implementation process:** Added request/response DTOs, controller/service checks, module-wired rate limits, driver-error classification and REST/GraphQL username conflicts. Added unit/API/database coverage for owner/case behavior, invalid inputs without queries, token revocation, outages, separate rate budgets, advisory-check races and unrelated phone conflicts.59 unit,222 API and18 real-MongoDB/CLI checks passed. Build/full TypeScript pass; lint has only the existing config.ts warning. The booking integration suite was not rerun. Updated detailed architecture/API contract, one short README feature link and local plan/session records. No application/demo database, provider traffic, server restart/configuration, frontend code, staging, commit or push; no sprint covers November1.
+
+**What I kept as-is:** Trusted principal ownership, username validation/normalization, reservation across account statuses, database uniqueness, email/Google login/session behavior and manual commits/pushes.
+
+**What I changed or rejected, and why:** I separated signup and current-owner checks so clients cannot submit an account ID to exclude another owner. Lookup failures never become Available, and a prior successful check never bypasses database conflict handling.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Two people may both see Available before saving, so the final write still needs database uniqueness and an inline username-specific conflict response.

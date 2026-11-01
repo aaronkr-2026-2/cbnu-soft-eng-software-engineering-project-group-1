@@ -49,6 +49,11 @@ import {
   USERNAME_VALIDATION_MESSAGE,
 } from './member-username.js';
 import { assertUsernameStorage } from './member-username-storage.js';
+import {
+  UsernameTakenException,
+  isUsernameDuplicate,
+} from './member-username-error.js';
+import type { UsernameAvailability } from '../../libs/dto/member/member-username.dto.js';
 
 const REFRESH_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const tokenHash = (token: string) =>
@@ -84,6 +89,30 @@ export class MemberService implements OnModuleInit {
     if (!this.members || !this.sessions)
       throw new ServiceUnavailableException('Authentication is unavailable');
     return { members: this.members, sessions: this.sessions };
+  }
+
+  async usernameAvailability(
+    value: string,
+    principal?: MemberPrincipal,
+  ): Promise<UsernameAvailability> {
+    if (principal) await this.myProfile(principal);
+    const memberNick = typeof value === 'string' ? value.trim() : '';
+    if (!isValidUsername(memberNick))
+      return { status: 'INVALID', available: false };
+    if (!this.members)
+      throw new ServiceUnavailableException('Username availability is unavailable');
+    try {
+      const row = await this.members
+        .findOne({ memberNickNormalized: normalizeUsername(memberNick) })
+        .select({ _id: 1 })
+        .lean()
+        .exec();
+      const available =
+        !row || (!!principal && String(row._id) === String(principal._id));
+      return { status: available ? 'AVAILABLE' : 'TAKEN', available };
+    } catch {
+      throw new ServiceUnavailableException('Username availability is unavailable');
+    }
   }
 
   async getMember(id: string): Promise<MemberProfile> {
@@ -484,10 +513,9 @@ export class MemberService implements OnModuleInit {
         error instanceof Error && error.name === 'ValidationError';
       // Unknown write outcomes retain the claim; cleanup can reconcile them later.
       if (duplicate || invalid) await releaseImage?.().catch(() => {});
+      if (isUsernameDuplicate(error)) throw new UsernameTakenException();
       if (duplicate)
-        throw new ConflictException(
-          'Phone number or nickname is already in use',
-        );
+        throw new ConflictException('Profile details are already in use');
       if (invalid) throw new BadRequestException('Invalid member update');
       throw new ServiceUnavailableException('Member update is unavailable');
     }
@@ -591,6 +619,7 @@ export class MemberService implements OnModuleInit {
         'code' in error &&
         error.code === 11000
       ) {
+        if (isUsernameDuplicate(error)) throw new UsernameTakenException();
         throw new ConflictException(
           'An account with these details already exists',
         );

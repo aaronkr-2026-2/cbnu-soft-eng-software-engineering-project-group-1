@@ -2,6 +2,7 @@ import { HttpException } from '@nestjs/common';
 import { ApolloDriver, type ApolloDriverConfig } from '@nestjs/apollo';
 import { unwrapResolverError } from '@apollo/server/errors';
 import type { Request, Response } from 'express';
+import { UsernameTakenException } from '../../components/member/member-username-error.js';
 import {
   BookingConflictException,
   BookingUnavailableException,
@@ -36,6 +37,9 @@ export const graphqlConfig: ApolloDriverConfig = {
         message: status >= 500 ? 'Service unavailable' : original.message,
         extensions: {
           code: codes[status] ?? 'INTERNAL_SERVER_ERROR',
+          ...(original instanceof UsernameTakenException
+            ? { reason: original.reason, field: original.field }
+            : {}),
           ...(original instanceof BookingConflictException ||
           original instanceof BookingUnavailableException
             ? { booking: original.booking }

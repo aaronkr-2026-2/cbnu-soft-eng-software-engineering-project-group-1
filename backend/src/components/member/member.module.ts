@@ -5,6 +5,7 @@ import {
   type NestModule,
 } from '@nestjs/common';
 import { memberRateLimit } from '../auth/member-rate-limit.js';
+import { memberUsernameRateLimit } from './member-username-rate-limit.js';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import MemberSchema, { MEMBER } from '../../schemas/member.model.js';
@@ -68,6 +69,12 @@ const mongoUri = getMongoUri();
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(memberUsernameRateLimit())
+      .forRoutes(
+        { path: 'member/username/availability', method: RequestMethod.POST },
+        { path: 'member/username/availability/me', method: RequestMethod.POST },
+      );
     consumer
       .apply(memberRateLimit())
       .forRoutes(

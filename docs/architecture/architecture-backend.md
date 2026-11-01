@@ -168,6 +168,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | --- | --- | --- |
 | REST | `POST /member/signup`, `/member/login`, `/member/refresh` | Public authentication endpoints with validation and auth rate limiting; `MemberController` → `MemberService` |
 | REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
+| REST | `POST /member/username/availability`, `/member/username/availability/me` | Public signup check and guarded own-profile check; shared separate 30/minute/IP budget; MemberService performs exact normalized-key lookup |
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
@@ -652,6 +653,35 @@ Update/ownership/concurrency/session tests use real GraphQL, Mongoose document
 validation, password helpers and filesystem operations with simulated database writes.
 Actual MongoDB concurrent writes/indexes, browser Save integration and deployment
 remain unverified.
+
+### Username availability
+
+Both POST endpoints accept JSON `{ "memberNick": "Alex#1" }` without a display-only
+`@` prefix. The public endpoint reports whether any account reserves the username;
+`/me` requires a current Bearer token and permits that account's own username,
+including case-only variants. Account IDs cannot be supplied to exclude another
+owner. All roles/statuses/deleted records retain their existing reservation.
+
+Successful responses are only `{ "status": "AVAILABLE", "available": true }`,
+`{ "status": "TAKEN", "available": false }`, or
+`{ "status": "INVALID", "available": false }`, with `Cache-Control: no-store`.
+Shared username validation trims surrounding whitespace, enforces the confirmed
+6–40-character rule, and uses the indexed lowercase key. Invalid usernames require
+no lookup. Malformed/extra fields or trimmed strings longer than the transport bound of
+256 characters return 400; missing/invalid/stale profile credentials return 401.
+Lookup failures return an error rather than availability. No account ID, profile,
+email, phone, or normalized key is returned.
+
+The two routes share 30 requests/minute/client IP per process, independently of the
+authentication budget; excess requests return 429 and `no-store`. Multiple API
+instances need a shared limiter store; forwarded client IPs require deliberate
+trusted-proxy configuration. Checks never write or reserve a username.
+
+Signup/profile saves still rely on database uniqueness. A username collision uses
+HTTP 409 with `reason: "USERNAME_TAKEN"` and `field: "memberNick"`. GraphQL retains
+`extensions.code: "CONFLICT"` and adds those same reason/field values in extensions.
+Phone/email/other conflicts do not acquire the username marker. A previously
+available username may be taken before save; clients must handle this inline.
 
 ## Public image uploads
 

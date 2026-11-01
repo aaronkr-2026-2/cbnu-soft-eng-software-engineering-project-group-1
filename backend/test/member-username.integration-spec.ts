@@ -339,13 +339,144 @@ describe('Offline username migration and real database enforcement', () => {
     expect(writes.filter((row) => row.status === 'rejected')).toHaveLength(1);
   });
 
+  const availability = (memberNick: unknown, token?: string) => {
+    const call = request(app!.getHttpServer()).post(
+      '/member/username/availability' + (token ? '/me' : ''),
+    );
+    if (token) call.set('Authorization', 'Bearer ' + token);
+    return call.send({ memberNick });
+  };
+
+  it('reports public/current-owner availability without exposing account details or reserving a name', async () => {
+    await startApi();
+    expect((await availability('Alex#1')).body).toEqual({
+      status: 'AVAILABLE',
+      available: true,
+    });
+    const owner = await signup('Alex#1', 1).expect(201);
+    const other = await signup('Other_1', 2).expect(201);
+    const taken = await availability(' aLEX#1 ').expect(200);
+    expect(taken.body).toEqual({ status: 'TAKEN', available: false });
+    expect(taken.headers['cache-control']).toBe('no-store');
+    expect((await availability('ALEX#1', owner.body.accessToken)).body).toEqual(
+      { status: 'AVAILABLE', available: true },
+    );
+    expect((await availability('ALEX#1', other.body.accessToken)).body).toEqual(
+      { status: 'TAKEN', available: false },
+    );
+    expect(
+      (await availability('Aa1_#$%!&?', owner.body.accessToken)).body,
+    ).toEqual({ status: 'AVAILABLE', available: true });
+    expect(await members().countDocuments()).toBe(2);
+    await members().updateOne(
+      { memberNick: 'Alex#1' },
+      { $set: { memberStatus: 'SUSPENDED' } },
+    );
+    expect((await availability('alex#1')).body.status).toBe('TAKEN');
+  });
+
+  it('rejects malformed inputs and reports invalid usernames without database lookups', async () => {
+    await startApi();
+    const lookup = jest.spyOn(model(), 'findOne');
+    for (const memberNick of [
+      '',
+      'short',
+      'a'.repeat(41),
+      'Bad@Name',
+      'Bad Name',
+      '홍길동abc',
+    ]) {
+      expect((await availability(memberNick).expect(200)).body).toEqual({
+        status: 'INVALID',
+        available: false,
+      });
+    }
+    for (const body of [
+      {},
+      { memberNick: null },
+      { memberNick: 123456 },
+      { memberNick: { $ne: null } },
+      { memberNick: 'a'.repeat(257) },
+      { memberNick: 'Valid_1', memberId: new ObjectId() },
+    ]) {
+      await request(app!.getHttpServer())
+        .post('/member/username/availability')
+        .send(body)
+        .expect(400);
+    }
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('requires a current authenticated account for the own-username check', async () => {
+    await startApi();
+    const owner = await signup('Owner_1', 1).expect(201);
+    await request(app!.getHttpServer())
+      .post('/member/username/availability/me')
+      .send({ memberNick: 'Owner_1' })
+      .expect(401);
+    await availability('Owner_1', 'invalid-token').expect(401);
+    await members().updateOne(
+      { memberNick: 'Owner_1' },
+      { $set: { authVersion: 1 } },
+    );
+    await availability('Owner_1', owner.body.accessToken).expect(401);
+    await members().updateOne(
+      { memberNick: 'Owner_1' },
+      { $set: { authVersion: 0, memberStatus: 'SUSPENDED' } },
+    );
+    await availability('Owner_1', owner.body.accessToken).expect(401);
+  });
+
+  it('reports an unavailable check during database failure instead of claiming the name is free', async () => {
+    await startApi();
+    const lookup = jest.spyOn(model(), 'findOne').mockImplementation(() => {
+      throw new Error('Synthetic database outage');
+    });
+    const failure = await availability('Unused_1').expect(503);
+    expect(failure.body).not.toHaveProperty('available');
+    expect(JSON.stringify(failure.body)).not.toContain('Synthetic');
+    lookup.mockRestore();
+    expect((await availability('Unused_1')).body).toEqual({
+      status: 'AVAILABLE',
+      available: true,
+    });
+  });
+
+  it('does not misclassify a phone conflict as a username conflict', async () => {
+    await startApi();
+    const owner = await signup('Owner_1', 1).expect(201);
+    const other = await signup('Owner_2', 2).expect(201);
+    const signupConflict = await request(app!.getHttpServer())
+      .post('/member/signup')
+      .send({
+        memberEmail: 'third@example.test',
+        memberPassword: 'test-only-password',
+        memberPhone: '+821055550001',
+        memberNick: 'Unused_1',
+      })
+      .expect(409);
+    expect(signupConflict.body.reason).toBeUndefined();
+    const profileConflict = await edit(other.body.accessToken, {
+      memberPhone: '+821055550001',
+    });
+    expect(profileConflict.body.errors[0].extensions.code).toBe('CONFLICT');
+    expect(profileConflict.body.errors[0].extensions.reason).toBeUndefined();
+    expect(owner.body.member.memberNick).toBe('Owner_1');
+  });
+
   it('allows only one of two simultaneous case-variant signups and keeps keys private', async () => {
     await startApi();
+    expect((await availability('Alex#1')).body.available).toBe(true);
+    expect((await availability('aLEX#1')).body.available).toBe(true);
     const replies = await Promise.all([
       signup('Alex#1', 1),
       signup('aLEX#1', 2),
     ]);
     expect(replies.map((row) => row.status).sort()).toEqual([201, 409]);
+    expect(replies.find((row) => row.status === 409)!.body).toMatchObject({
+      reason: 'USERNAME_TAKEN',
+      field: 'memberNick',
+    });
     const success = replies.find((row) => row.status === 201)!;
     expect(success.body.member).not.toHaveProperty('memberNickNormalized');
     expect(await members().countDocuments()).toBe(1);
@@ -356,6 +487,12 @@ describe('Offline username migration and real database enforcement', () => {
     await startApi();
     const a = await signup('Owner_1', 1),
       b = await signup('Owner_2', 2);
+    expect(
+      (await availability('Shared?1', a.body.accessToken)).body.available,
+    ).toBe(true);
+    expect(
+      (await availability('sHARED?1', b.body.accessToken)).body.available,
+    ).toBe(true);
     const results = await Promise.all([
       edit(a.body.accessToken, { memberNick: 'Shared?1' }),
       edit(b.body.accessToken, { memberNick: 'sHARED?1' }),
@@ -364,6 +501,9 @@ describe('Offline username migration and real database enforcement', () => {
     expect(
       results.find((row) => row.body.errors)?.body.errors[0].extensions.code,
     ).toBe('CONFLICT');
+    expect(
+      results.find((row) => row.body.errors)?.body.errors[0].extensions,
+    ).toMatchObject({ reason: 'USERNAME_TAKEN', field: 'memberNick' });
     const winner = results[0].body.errors ? b : a;
     expect(
       (await edit(winner.body.accessToken, { memberNick: 'SHARED?1' })).body
@@ -390,7 +530,8 @@ describe('Offline username migration and real database enforcement', () => {
   it('generates a normalized Google username independently of the full name and preserves profile edits on later login', async () => {
     await startApi();
     await signup('GOOGLE_USER12345678', 1).expect(201);
-    const random = jest.spyOn(crypto, 'randomInt')
+    const random = jest
+      .spyOn(crypto, 'randomInt')
       .mockImplementationOnce(() => 12345678)
       .mockImplementationOnce(() => 42);
     const reply = await request(app!.getHttpServer())
@@ -403,13 +544,22 @@ describe('Offline username migration and real database enforcement', () => {
     expect(reply.body.member.memberFullName).toBe('Case_1');
     const google = await members().findOne({ googleId: identity.sub });
     expect(google?.memberNickNormalized).toBe(google?.memberNick.toLowerCase());
-    expect((await edit(reply.body.accessToken, {
-      memberNick: 'Chosen#1', memberFullName: 'Preferred Full Name',
-    })).body.errors).toBeUndefined();
-    const again = await request(app!.getHttpServer()).post('/member/google/login').send({ idToken: 'synthetic-provider-token' });
+    expect(
+      (
+        await edit(reply.body.accessToken, {
+          memberNick: 'Chosen#1',
+          memberFullName: 'Preferred Full Name',
+        })
+      ).body.errors,
+    ).toBeUndefined();
+    const again = await request(app!.getHttpServer())
+      .post('/member/google/login')
+      .send({ idToken: 'synthetic-provider-token' });
     expect(again.status).toBe(200);
     expect(again.body.member).toMatchObject({
-      _id: reply.body.member._id, memberNick: 'Chosen#1', memberFullName: 'Preferred Full Name',
+      _id: reply.body.member._id,
+      memberNick: 'Chosen#1',
+      memberFullName: 'Preferred Full Name',
     });
   });
 
