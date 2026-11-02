@@ -539,3 +539,23 @@
 **Something the AI got wrong that I had to catch:** Browser verification caught focus attempted while inputs were disabled and a profile paragraph style overriding green Available. Both were corrected and rechecked before delivery; the typecheck also caught an unavailable icon import, replaced with installed CheckRounded. I did not identify these as owner-reported errors.
 
 **One decision I can explain without AI:** A previous Available result must be discarded after any edit because it describes an earlier input and never reserves a username.
+
+## Matching Next Sprint03–05 reviews — 2026-11-02
+
+**Tool(s) used:** Codex, Git history/diffs, current source and session/log inspection, Python document/link checks.
+
+**What I asked for:** Prepare Next sprint files; I then requested matching backend Sprint03–05 records as well, keeping each stack in its own worktree.
+
+**Pre-planning:** Backend Sprint02 ended October15 and no later calendar existed. I checked actual Next commits and verification records; no dated Next delivery was identified for October23–29.
+
+**Planning:** Match October16–22, October23–29 and October30–November5 across the two stacks. Treat03/04 as retrospective records and05 as in progress throughNovember2, with provisional continuation estimates and stable backlog IDs.
+
+**Implementation process:** Created SPRINT_03.md through SPRINT_05.md with source/commit evidence, checks/limits, prioritized continuation, top-item acceptance/dependencies and proposed tasks/check-ins. Sprint04 explicitly records its evidence gap. Added concise README record links and updated ignored current-sprint/session instructions. Verified six matching files, status/backlog structure,65 links/source paths, whitespace and preserved backend01/02. No application tests were run for this documentation-only task.
+
+**What I kept as-is:** Application code/dependencies, backend/Vite files in this worktree, closed records, runtime/configuration/data and manual Git workflow. Backend documents were written only in the backend worktree.
+
+**What I changed or rejected, and why:** I separated fixture checks from successful local integration, current automated-Google acceptance from fresh live-provider verification, and implementation from deployment. Missing historical delivery, actual hours and original sprint agreements are not invented.
+
+**Something the AI got wrong that I had to catch:** No substantive AI error identified during this task. Initial read-only path lookups were corrected before writing the records.
+
+**One decision I can explain without AI:** Record an evidence gap for a quiet week rather than backdate the later booking screens into it.

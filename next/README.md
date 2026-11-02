@@ -328,3 +328,11 @@ activation. Only the separate local demo configuration was enabled. Production/l
 external email/SMS, full OS-offline and live profile-storage checks are not claimed.
 Earlier step notes record their historical scope; this acceptance supersedes their
 pending Step 12 statements. No new sprint, commit or push was created.
+
+
+## Project records
+
+- [Sprint 03](SPRINT_03.md): October 16–22 discovery, sign-in and profiles.
+- [Sprint 04](SPRINT_04.md): October 23–29 integration preparation and recorded evidence gap.
+- [Sprint 05](SPRINT_05.md): October 30–November 5 booking, notifications and usernames; reviewed through November 2.
+- [AI collaboration log](AI_LOG.md): implementation decisions and recorded verification.
