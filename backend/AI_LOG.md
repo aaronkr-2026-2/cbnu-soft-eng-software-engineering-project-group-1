@@ -858,3 +858,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. Regression runs exposed existing tests whose weekend assumptions needed updating for the new rule.
 
 **One decision I can explain without AI:** Use the clinic-local weekday so UTC date boundaries cannot accidentally permit a Saturday booking.
+
+## Sprint03–05 backend delivery records — 2026-11-02
+
+**Tool(s) used:** Codex, Git history/diffs, source/session/log inspection and Python document/link checks.
+
+**What I asked for:** Create matching Sprint03,04 and05 backend records alongside the separately maintained Next records.
+
+**Pre-planning:** The existing calendar ended October15. I checked backend commits, source, historical checks and current acceptance; existing Sprint01–02 remain historical.
+
+**Planning:** Continue the calendar with October16–22, October23–29 and October30–November5. Mark the first two retrospective and Sprint05 in progress through November2. Keep capacity/estimates provisional and delivery separate from deployment.
+
+**Implementation process:** Added SPRINT_03.md through SPRINT_05.md with scoped delivery, verification limits, stable backlog IDs, top-item acceptance/dependencies/estimates, proposed tasks/check-ins and completion criteria. Added three root README links and updated ignored current-sprint/session instructions. Cross-worktree checks passed for six matching records, status/backlog structure,65 links/source paths, whitespace and unchanged Sprint01–02. No application tests were run for this documentation-only task.
+
+**What I kept as-is:** Source, runtime/configuration, databases, closed sprint history, Next application files and manual Git workflow.
+
+**What I changed or rejected, and why:** I distinguished commit dates from implementation-session dates, historical simulated-persistence checks from later real-stack acceptance, and automated Google acceptance from fresh live-provider verification. Remaining rollout work is proposed, not performed.
+
+**Something the AI got wrong that I had to catch:** No substantive AI error identified during this task. Initial read-only path lookups were corrected before writing the records.
+
+**One decision I can explain without AI:** Keep the same sprint dates across backend and Next so API delivery and browser delivery can be compared without attributing one stack's work to the other.
