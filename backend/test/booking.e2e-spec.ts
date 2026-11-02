@@ -37,6 +37,8 @@ const doctorId = new Types.ObjectId();
 const start = new Date();
 start.setUTCDate(start.getUTCDate() + 7);
 start.setUTCHours(1, 0, 0, 0); // 10:00 Asia/Seoul
+while ([0, 6].includes(start.getUTCDay()))
+  start.setUTCDate(start.getUTCDate() + 1);
 const input = {
   specialty: DoctorSpecialization.CARDIOLOGIST,
   doctorId: String(doctorId),

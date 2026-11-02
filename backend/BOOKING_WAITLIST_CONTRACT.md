@@ -34,6 +34,11 @@ activation, deployed legacy behavior remains as documented in the root README.
   Inputs include an explicit offset or Z; persist UTC instants and render using
   the clinic's IANA timezone. Generate candidates from weekly hours and date
   overrides; do not add a fixed list of times or documents for empty slots.
+  Only Monday–Friday are working days in the clinic timezone. Saturdays/Sundays
+  remain closed even with legacy weekly hours or custom overrides; new weekly
+  hours and custom date hours cannot open them. This applies to online/staff
+  bookings, waitlists, replacements and promotions. Existing weekend appointments
+  remain available for clinic management and are not automatically canceled.
 - Each commitment records one `specialty` from `DoctorSpecialization`, validated
   against the selected doctor's `doctorSpecializations` and approved affiliation
   with the selected active clinic. A doctor's later specialty edit does not

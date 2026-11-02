@@ -100,12 +100,17 @@ export function* appointmentCandidates(
   }
 }
 
+export function isWorkingWeekday(weekday: number) {
+  return Number.isInteger(weekday) && weekday >= 1 && weekday <= 5;
+}
+
 type Hours = { startMinute?: number | null; endMinute?: number | null };
 export function slotFitsSchedule(
-  slot: { startMinute: number; endMinute: number },
+  slot: { weekday: number; startMinute: number; endMinute: number },
   hours: Hours[],
   overrides: (Hours & { type: AvailabilityOverrideType })[],
 ) {
+  if (!isWorkingWeekday(slot.weekday)) return false;
   const blocked = overrides.some(
     (row) =>
       row.type === AvailabilityOverrideType.UNAVAILABLE &&
