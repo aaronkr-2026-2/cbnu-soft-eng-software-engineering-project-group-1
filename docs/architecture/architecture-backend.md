@@ -776,6 +776,54 @@ These scoped source observations are not a full runtime/security audit. Database
 
 Scheduling write ownership was established in Step 4: MemberService owns affiliation review and AppointmentScheduleService owns weekly/date schedule changes. AppointmentService retains explicit read dependencies and shares pure slot/override rules. No repository-wide service split was introduced.
 
+### Appointment service consolidation review — November 3, 2026
+
+Recommendation: retain the seven appointment service providers. The November 3
+implementation consolidates clinic/doctor/specialty/timezone eligibility in
+`backend/src/components/appointment/appointment-doctor.ts`, used by both booking
+and scheduling. A feature helper avoids injecting the schedule service and its
+unrelated model dependencies into booking. It receives the caller session, retains
+each API's validation order/errors and optional schedule specialty, and does not own
+a transaction. Service sources below are under `backend/src/components/appointment/`.
+The observations describe the pre-refactor review; further proposals remain deferred.
+
+| Observation and source | Consequence | Recommendation |
+| --- | --- | --- |
+| At review, `appointment.service.ts` was 1,049 lines, combining creation, transactional status/outbox writes, promotion eligibility and three read APIs. REST and GraphQL share it; commitment and worker services use its explicit transaction methods. | Merging another workflow here increases the responsibility and regression surface. | Keep the public facade and transaction interfaces. Consider a separate read provider only if that improves maintenance after the validation cleanup; preserve REST versus GraphQL ordering, limits and projections. |
+| `appointment-schedule.service.ts:doctor` and `appointment.service.ts:requireApprovedDoctor` both query active clinic/approved doctor, specialty and timezone. Both services also load hours/overrides, while already sharing `appointment-slot.ts` calculations. | Database eligibility checks can drift even though pure slot calculations are shared. | Implemented a shared session-aware appointment-doctor.ts helper for both services. Keep caller authorization, booking policy, reservation and occupancy checks in the mutation path. Preserve optional specialty for schedule management and required specialty for booking. |
+| `appointment-promotion.service.ts` and `appointment-waitlist-lifecycle.service.ts` share timer/shutdown scaffolding, but promotion uses durable claims, fencing and retry backoff; lifecycle also expires entries, processes cleanup and handles cutoff openings while promotion is disabled. | A combined worker would couple distinct controls and recovery paths. | Keep workers separate. Retain their feature flags, cutoff behavior and transaction ownership; do not introduce a generic worker framework just to remove short timer code. |
+| `appointment-commitment.service.ts` coordinates appointment/waitlist replacement in one BookingCoordinationService transaction. AppointmentService already injects WaitlistService. | Merging the orchestrator into WaitlistService would introduce a reverse service dependency; splitting replacement into independent calls would lose atomicity. | Retain the orchestrator in AppointmentModule. Clarify that a commitment means either a booked appointment or a waitlist place; avoid moving providers between modules solely to shorten names. |
+| `appointment-calendar.service.ts` owns authorized read snapshots, full-window revisions and pagination; `appointment-notification.service.ts` resolves owned notification targets through four existing services. | These are cohesive read workflows with different consistency and error contracts from booking writes. Moving notification context into NotificationService would reverse the current AppointmentModule-to-NotificationModule dependency. | Keep both services. A small orchestration service is justified here; optionally rename AppointmentNotificationService to AppointmentNotificationContextService to describe its actual role. |
+
+Review plan and implementation scope:
+
+1. Establish a fresh build/typecheck, unit/API and disposable MongoDB booking
+   integration baseline using the existing package scripts. Inspect existing
+   eligibility, replacement, calendar, notification and worker recovery cases before
+   adding tests; add only missing behavioral coverage.
+2. Implemented: consolidate clinic/doctor/specialty/timezone eligibility into a
+   session-aware feature helper, reused by schedule operations, booking validation
+   and reopening checks.
+   Preserve existing error contracts and the mutation's current transaction session;
+   never use advisory getAvailableSlots results to authorize a booking.
+3. Schedule loading remains separate: range-based advisory availability reads and
+   transaction-bound single-slot mutation checks have different query shapes. Their
+   pure slot/override rules already share appointment-slot.ts. Retain schedule-edit
+   commitment protection, doctor gates, slot reservations, unique indexes and outbox
+   writes in their current transactions.
+4. Deferred: optional notification-context renaming and further restructuring.
+   Defer read-service extraction and physical regrouping until there is a concrete
+   maintenance benefit. No immediate service merge is proposed.
+
+For any implemented step, rerun affected API and real-MongoDB integration cases,
+including weekday/timezone rules, concurrent booking versus schedule edits, failed
+replacement rollback, cutoff handling with promotion disabled, lease takeover,
+calendar revisions and notification ownership/error handling. November 3 verification:
+build/full TypeScript, 77 unit, 222 API and 193 disposable MongoDB integration tests
+passed. Lint retains only the pre-existing empty config.ts warning. Public API names,
+DTOs and feature flags remain unchanged; no schema migration is needed. Fresh browser
+and deployed runtime verification were not performed.
+
 ### Step 12 operational acceptance — November 1
 
 The offline migration auditor and startup/read-only reconciliation now set cursor

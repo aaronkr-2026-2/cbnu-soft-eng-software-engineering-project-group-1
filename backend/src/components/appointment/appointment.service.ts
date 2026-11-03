@@ -1,3 +1,4 @@
+import { requireAppointmentDoctor } from './appointment-doctor.js';
 import { appointmentFields } from '../../libs/types/appointment.types.js';
 import {
   PromotionIneligible,
@@ -34,7 +35,6 @@ import AppointmentSchema, {
 import {
   MemberType,
   MemberStatus,
-  DoctorClinicStatus,
   DoctorSpecialization,
 } from '../../libs/enum/member.enum.js';
 import { MEMBER } from '../../schemas/member.model.js';
@@ -509,46 +509,12 @@ export class AppointmentService {
     members: Model<MemberEntity>,
     session: ClientSession,
   ) {
-    const clinic = await members
-      .findOne({
-        _id: input.clinicId,
-        memberType: MemberType.CLINIC,
-        memberStatus: MemberStatus.ACTIVE,
-        deletedAt: null,
-      })
-      .select({ clinicTimezone: 1 })
-      .session(session)
-      .lean()
-      .exec();
-    const doctor = await members
-      .findOne({
-        _id: input.doctorId,
-        memberType: MemberType.DOCTOR,
-        memberStatus: MemberStatus.ACTIVE,
-        deletedAt: null,
-        clinicId: input.clinicId,
-        doctorClinicStatus: DoctorClinicStatus.APPROVED,
-      })
-      .select({ _id: 1, doctorSpecializations: 1 })
-      .session(session)
-      .lean()
-      .exec();
-    if (!clinic || !doctor)
-      throw new BadRequestException(
-        'An active clinic and its approved doctor are required',
-      );
-    if (
-      !Array.isArray(doctor.doctorSpecializations) ||
-      !doctor.doctorSpecializations.includes(input.specialty)
-    )
-      throw new BadRequestException(
-        'Doctor does not offer the selected specialty',
-      );
-    if (
-      typeof clinic.clinicTimezone !== 'string' ||
-      !clinic.clinicTimezone.trim()
-    )
-      throw new BadRequestException('Clinic timezone is invalid');
+    const clinic = await requireAppointmentDoctor(
+      members,
+      input,
+      'booking',
+      session,
+    );
     return clinic.clinicTimezone;
   }
 

@@ -878,3 +878,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No substantive AI error identified during this task. Initial read-only path lookups were corrected before writing the records.
 
 **One decision I can explain without AI:** Keep the same sprint dates across backend and Next so API delivery and browser delivery can be compared without attributing one stack's work to the other.
+
+## Share appointment doctor eligibility — 2026-11-03
+
+**Tool(s) used:** Codex; source/Git inspection, TypeScript/Nest build, Jest unit/API/disposable MongoDB integration suites, oxlint, Prettier and git diff --check.
+**What I asked for:** Review appointment service consolidation, then implement the focused refactor.
+**Pre-planning:** Seven services have distinct responsibilities; doctor/clinic eligibility queries were repeated in booking and scheduling. Existing schedule calculations already share appointment-slot.ts.
+**Planning:** Keep services separate and reuse a feature helper instead of adding service coupling. Preserve caller sessions, public errors and optional schedule specialty; defer naming/read-service changes.
+**Implementation process:** Added appointment-doctor.ts; both services delegate eligibility checks, including booking reopening through the existing wrapper. Added eight regression cases. Baseline build/full TypeScript,69 unit and222 API checks passed. Final build/full TypeScript,77 unit,222 API and193 disposable MongoDB integration checks passed. Socket suites needed local-socket permission after sandbox EPERM; lint retains only the pre-existing empty config.ts warning. Updated architecture, Sprint05 S05-07 and session records; no application DB, browser, deployment or Git write actions.
+**What I kept as-is:** All seven providers, REST/GraphQL contracts, authorization, schedule query shapes, slot/ledger/outbox transactions and worker behavior.
+**What I changed or rejected, and why:** Consolidated eligibility in a helper rather than injecting AppointmentScheduleService, avoiding unrelated model dependencies and provider changes. Kept range-based availability reads separate from transaction-bound slot checks because their query requirements differ.
+**Something the AI got wrong that I had to catch:** Lint caught an unused MemberStatus import after extraction; removed it and reran lint before completion.
+**One decision I can explain without AI:** Sharing the duplicated rule implementation reduces drift while keeping each workflow's transaction and public contract intact.

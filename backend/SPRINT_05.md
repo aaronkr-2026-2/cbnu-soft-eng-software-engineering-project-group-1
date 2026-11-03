@@ -1,7 +1,7 @@
 # Sprint 05 — Waitlists, operational readiness and usernames
 
 **Period:** October 30–November 5, 2026 (Asia/Seoul)
-**Review through:** November 2, 2026
+**Review through:** November 3, 2026
 **Status:** In progress; final review due November 5
 **Owner:** Me
 **Sprint goal:** Let patients safely join waitlists and manage unique usernames while giving operators a verifiable booking rollout path.
@@ -43,6 +43,19 @@ asserted. Frontend screens belong to the matching Next sprint, not this table.
   remains unverified. An earlier owner-confirmed signup is separate historical evidence.
 - No application/production DB migration, staging/production activation, load/SLA
   proof or external email/SMS provider delivery is claimed. Test stack was stopped.
+
+## November 3 maintenance — S05-07
+
+Completed the scoped appointment eligibility refactor supporting S05-07: booking,
+reopening and schedule lookups now share the session-aware appointment-doctor helper.
+All seven services, public API contracts, errors and transaction boundaries remain.
+Eight regression tests cover session propagation, approved affiliation scope,
+optional schedule specialty, errors and infrastructure failure propagation.
+Build/full TypeScript,77 unit,222 API and193 disposable MongoDB checks passed;
+lint retains only the existing empty config.ts warning. Socket-based suites required
+local-socket execution after sandbox EPERM. No browser/deployment verification,
+application database changes, staging, commit or push. Optional naming/read-provider
+changes remain deferred; this is not a production-readiness sign-off.
 
 ## Prioritized remaining backlog
 
