@@ -618,6 +618,286 @@ describe('Public directory search against owned disposable MongoDB', () => {
     });
   });
 
+  describe.each(['doctor', 'clinic'] as const)(
+    '%s name suggestions',
+    (kind) => {
+      const queryName =
+        kind === 'doctor' ? 'suggestDoctorNames' : 'suggestClinicNames';
+      const suggest = (input: object) =>
+        request(app.getHttpServer())
+          .post('/graphql')
+          .send({
+            query: `query($input:DirectoryNameSuggestionsInput!){${queryName}(input:$input)}`,
+            variables: { input },
+          });
+      const named = (name: string, fields: Record<string, unknown> = {}) =>
+        kind === 'doctor'
+          ? doctor({ memberFullName: name, ...fields })
+          : insert({
+              memberType: 'CLINIC',
+              clinicName: name,
+              location: 'SEOUL',
+              ...fields,
+            });
+
+      it.each(['김 의사', 'Dr [A]+(B)?^$.*|\\', 'Élodie'])(
+        'matches literal Unicode names %s',
+        async (name) => {
+          await named(name);
+          await named('Other');
+          const response = await suggest({ name: '  ' + name + '  ' });
+          expect(response.body.errors).toBeUndefined();
+          expect(response.body.data[queryName]).toEqual([name]);
+        },
+      );
+
+      it('deduplicates case-equivalent names deterministically and sorts before the eight-name limit', async () => {
+        for (const name of [
+          'Kim J',
+          'Kim I',
+          'Kim H',
+          'Kim G',
+          'Kim F',
+          'Kim E',
+          'Kim D',
+          'Kim C',
+          'Kim B',
+          'Kim A',
+        ])
+          await named(name);
+        await named('kim a');
+        await named('Kim A');
+        const expected = [
+          'Kim A',
+          'Kim B',
+          'Kim C',
+          'Kim D',
+          'Kim E',
+          'Kim F',
+          'Kim G',
+          'Kim H',
+        ];
+        for (let n = 0; n < 2; n++) {
+          expect((await suggest({ name: 'kIM' })).body.data[queryName]).toEqual(
+            expected,
+          );
+        }
+      });
+
+      it('accepts the trimmed two- and hundred-character boundaries and returns empty matches', async () => {
+        const longName = 'A'.repeat(100);
+        await named('Al');
+        await named(longName);
+        expect(
+          (await suggest({ name: '  Al  ' })).body.data[queryName],
+        ).toEqual(['Al']);
+        expect(
+          (await suggest({ name: longName })).body.data[queryName],
+        ).toEqual([longName]);
+        expect(
+          (await suggest({ name: 'Missing' })).body.data[queryName],
+        ).toEqual([]);
+      });
+
+      it('never matches a username or the other name field', async () => {
+        await named('Other', {
+          memberNick: 'NeedleNick',
+          memberNickNormalized: 'needlenick',
+          ...(kind === 'doctor'
+            ? { clinicName: 'Needle Clinic' }
+            : { memberFullName: 'Needle Owner' }),
+        });
+        expect(
+          (await suggest({ name: 'Needle' })).body.data[queryName],
+        ).toEqual([]);
+      });
+
+      it('applies city and specialty together with name, using the current clinic city', async () => {
+        if (kind === 'doctor') {
+          await named('Match Wanted', { location: 'BUSAN' });
+          await named('Match Wrong City', {
+            clinicId: busan,
+            location: 'SEOUL',
+          });
+          await named('Match Wrong Specialty', {
+            doctorSpecializations: ['SURGEON'],
+          });
+        } else {
+          const wanted = await named('Match Wanted');
+          await doctor({ clinicId: wanted });
+          await doctor({ clinicId: wanted });
+          const wrongCity = await named('Match Wrong City', {
+            location: 'BUSAN',
+          });
+          await doctor({ clinicId: wrongCity });
+          const wrongSpecialty = await named('Match Wrong Specialty');
+          await doctor({
+            clinicId: wrongSpecialty,
+            doctorSpecializations: ['SURGEON'],
+          });
+        }
+        expect(
+          (
+            await suggest({
+              name: 'Match',
+              city: 'SEOUL',
+              specialty: 'DENTIST',
+            })
+          ).body.data[queryName],
+        ).toEqual(['Match Wanted']);
+        if (kind === 'doctor') {
+          await collection().updateOne(
+            { _id: seoul },
+            { $set: { location: 'BUSAN' } },
+          );
+          expect(
+            (
+              await suggest({
+                name: 'Match',
+                city: 'SEOUL',
+                specialty: 'DENTIST',
+              })
+            ).body.data[queryName],
+          ).toEqual([]);
+        }
+      });
+
+      it('excludes inactive/deleted accounts and enforces approved affiliation for doctor discovery', async () => {
+        await named('Match Active');
+        for (const fields of [
+          { memberStatus: 'SUSPENDED' },
+          { memberStatus: 'DELETED' },
+          { deletedAt: new Date() },
+          { memberType: 'USER' },
+        ])
+          await named('Match Hidden', fields);
+        if (kind === 'doctor') {
+          for (const fields of [
+            { doctorClinicStatus: 'PENDING' },
+            { doctorClinicStatus: 'REJECTED' },
+            { doctorClinicStatus: 'REMOVED' },
+            { clinicId: null },
+            { clinicId: oid() },
+          ])
+            await named('Match Hidden', fields);
+          for (const fields of [
+            { memberStatus: 'SUSPENDED' },
+            { deletedAt: new Date() },
+            { memberType: 'USER' },
+          ]) {
+            const clinicId = await insert({ memberType: 'CLINIC', ...fields });
+            await named('Match Hidden', { clinicId });
+          }
+        }
+        expect((await suggest({ name: 'Match' })).body.data[queryName]).toEqual(
+          ['Match Active'],
+        );
+      });
+
+      it.each([
+        {},
+        { name: null },
+        { name: '' },
+        { name: ' ' },
+        { name: 'A' },
+        { name: ' A ' },
+        { name: 'A'.repeat(101) },
+        { name: 12 },
+        { name: 'Al', city: null },
+        { name: 'Al', city: 'INVALID' },
+        { name: 'Al', specialty: null },
+        { name: 'Al', specialty: 'INVALID' },
+        { name: 'Al', limit: 50 },
+        { name: 'Al', page: 1 },
+        { name: 'Al', sort: 'NAME_DESC' },
+      ])(
+        'rejects invalid suggestion input %j without querying',
+        async (input) => {
+          const spy = jest.spyOn(model, 'aggregate');
+          try {
+            expect((await suggest(input)).body.errors?.length).toBeGreaterThan(
+              0,
+            );
+            expect(spy).not.toHaveBeenCalled();
+          } finally {
+            spy.mockRestore();
+          }
+        },
+      );
+
+      it('returns only name strings from the real service with a bounded query', async () => {
+        await named('Match Public', {
+          memberEmail: 'secret@example.test',
+          memberPhone: 'secret',
+          memberPassword: 'secret',
+          googleId: 'private-provider',
+          authVersion: 6,
+        });
+        const spy = jest.spyOn(model, 'aggregate');
+        try {
+          const input = { name: 'Match' };
+          const result =
+            kind === 'doctor'
+              ? await service.suggestDoctorNames(input)
+              : await service.suggestClinicNames(input);
+          expect(result).toEqual(['Match Public']);
+          expect(spy.mock.results[0].value.options).toMatchObject({
+            maxTimeMS: 5000,
+            collation: { locale: 'en', strength: 2 },
+          });
+        } finally {
+          spy.mockRestore();
+        }
+      });
+    },
+  );
+
+  it('clinic suggestions require eligible doctors only when specialty is supplied', async () => {
+    const suggest = (input: object) =>
+      request(app.getHttpServer()).post('/graphql').send({
+        query:
+          'query($input:DirectoryNameSuggestionsInput!){suggestClinicNames(input:$input)}',
+        variables: { input },
+      });
+    const empty = await insert({
+      memberType: 'CLINIC',
+      clinicName: 'Match Empty',
+      location: 'SEOUL',
+    });
+    for (const fields of [
+      { memberStatus: 'SUSPENDED' },
+      { memberStatus: 'DELETED' },
+      { deletedAt: new Date() },
+      { doctorClinicStatus: 'PENDING' },
+      { doctorClinicStatus: 'REJECTED' },
+      { doctorClinicStatus: 'REMOVED' },
+      { doctorSpecializations: ['SURGEON'] },
+      { memberType: 'USER' },
+    ]) {
+      await doctor({ clinicId: empty, ...fields });
+    }
+    expect(
+      (await suggest({ name: 'Match' })).body.data.suggestClinicNames,
+    ).toEqual(['Match Empty']);
+    expect(
+      (await suggest({ name: 'Match', specialty: 'DENTIST' })).body.data
+        .suggestClinicNames,
+    ).toEqual([]);
+    await doctor({ clinicId: empty });
+    expect(
+      (await suggest({ name: 'Match', specialty: 'DENTIST' })).body.data
+        .suggestClinicNames,
+    ).toEqual(['Match Empty']);
+    await collection().updateOne(
+      { _id: empty },
+      { $set: { memberStatus: 'SUSPENDED' } },
+    );
+    expect(
+      (await suggest({ name: 'Match', specialty: 'DENTIST' })).body.data
+        .suggestClinicNames,
+    ).toEqual([]);
+  });
+
   it('uses bounded aggregation and inspects execution plans on disposable representative data', async () => {
     for (let n = 0; n < 150; n++)
       await doctor({

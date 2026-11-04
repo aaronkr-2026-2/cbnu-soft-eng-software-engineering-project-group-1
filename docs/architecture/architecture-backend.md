@@ -172,6 +172,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `searchDoctors(input: DirectorySearchInput!)` at `POST /graphql` | Public paged full-name/city/specialty doctor search; `MemberResolver` → `MemberService.searchDoctors`; contract below |
 | GraphQL | `searchClinics(input: DirectorySearchInput!)` at `POST /graphql` | Public paged clinic-name/city search with eligible affiliated-doctor specialty matching; `MemberResolver` → `MemberService.searchClinics`; contract below |
+| GraphQL | `suggestDoctorNames(input)`, `suggestClinicNames(input)` at `POST /graphql` | Public filtered name strings; `DirectoryNameSuggestionsInput`, maximum eight; `MemberResolver` → matching `MemberService` method; contract below |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
 | GraphQL | `getNotification`, `notificationContext`, `myNotifications`, `markNotificationRead` | Guarded patient-owned inbox/current-target reads and read state; separate ADMIN delivery-status counts |
@@ -676,7 +677,51 @@ query {
   migration or production-scale latency claims are introduced. Representative target
   workload measurements are needed before proposing indexes for specialty joins.
 
-Suggestions and frontend search controls remain subsequent plan steps.
+## Directory name suggestions (November 5, 2026)
+
+Public GraphQL queries:
+
+```graphql
+query {
+  suggestDoctorNames(input: { name: "Ki", city: SEOUL, specialty: DENTIST })
+  suggestClinicNames(input: { name: "Ca", city: BUSAN, specialty: DENTIST })
+}
+```
+
+Both take `DirectoryNameSuggestionsInput!` and return `[String!]!`. Required `name`
+is trimmed and must contain 2–100 characters. Optional `city: Location` and
+`specialty: DoctorSpecialization` intersect with name matching. Omit unused filters;
+explicit nulls, unknown fields and enum values are rejected. No page, limit or sort
+arguments are accepted. Short/blank queries are rejected before database access;
+the frontend should wait for two trimmed characters before sending a request.
+
+The resolver delegates to MemberService. Shared abstract filter input fields retain
+the same city/specialty validation as directory search. Each suggestion method uses
+the same doctor/clinic pipeline builder as its search query, preserving literal
+substring matching, Unicode, account/affiliation eligibility and authoritative city:
+
+- Doctor names come only from `memberFullName` on active, approved, nondeleted
+  doctors with active nondeleted clinics. City uses the joined clinic's location.
+- Clinic names come only from `clinicName` on active nondeleted clinics. Specialty
+  requires an eligible affiliated doctor; without specialty, clinics without doctors
+  can be suggested. Clinic city is its own location.
+- Eligibility and all filters precede grouping/limiting. The shared names aggregation
+  groups equivalent names with ICU `en`, strength 2 (case-insensitive, accent-sensitive)
+  collation, sorts alphabetically ascending and returns at most eight distinct names.
+  For equivalent names with different casing, the eligible matching record with the
+  smallest `_id` supplies the display string, making repeat requests deterministic
+  while data is unchanged. Names select text, not a unique member identity.
+- Responses contain only name strings: no member IDs, private contact fields,
+  credentials, provider identities, session data or joined doctor/clinic objects.
+  Each aggregation has the same 5-second `maxTimeMS` bound as directory search.
+- `npm run test:directory:integration` verifies both suggestion queries through real
+  GraphQL/MongoDB, including boundary lengths, literal/Unicode names, distinct names,
+  deterministic casing/order, the eight-name cap, filters, eligibility and privacy.
+  Existing directory regression cases run in the same disposable suite. No production
+  database, index/migration or frontend/deployment changes are required by this API step.
+
+Debouncing, obsolete-response suppression, accessible combobox behavior, URL selection
+and independent suggestion-error handling remain frontend Steps 4–6.
 
 ## Authenticated member updates
 

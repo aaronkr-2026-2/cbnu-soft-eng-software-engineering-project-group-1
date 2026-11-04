@@ -95,6 +95,23 @@ frontend integration and browser acceptance remain pending; no application datab
 deployment, staging, commit or push changes. This is an interim November5 delivery
 update, not the final sprint review or authorization for remaining backlog work.
 
+## November 5 name suggestions — S05-08
+
+Directory Step3 completed locally after Step2 commit `8071ba5`. Public
+`suggestDoctorNames` and `suggestClinicNames` reuse directory eligibility/city/
+specialty rules and return at most eight distinct names, alphabetically ordered.
+Required name input is trimmed and bounded to2–100 characters. Case-equivalent
+names share a stable display string; responses expose only names. Extracted shared
+directory pipeline builders and filter DTO fields without changing search contracts.
+
+Build/full TypeScript,77 unit,222 API and118 disposable MongoDB directory checks
+passed, including49 new suggestion checks for bounds, literal/Unicode matching,
+deduplication/cap, order, filtering, eligibility and privacy. Lint retains only the
+existing config.ts warning. Architecture/README/plan updated. No application DB,
+indexes, frontend/deployment, staging, commit or push changes. Frontend autocomplete,
+URL behavior and browser acceptance remain Steps4–6; this is backend completion
+only and does not close the whole sprint.
+
 ## Prioritized remaining backlog
 
 Labels indicate current planning: 🔴 Thinking = candidate; 🔵 Planning = refined.

@@ -914,3 +914,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Used a lookup limited to one eligible doctor plus an existence filter rather than unwinding all doctors. Shared only literal matching and final pagination execution; doctor/clinic eligibility pipelines remain explicit in MemberService.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** A clinic needs only one eligible doctor to match a specialty. Testing existence keeps that clinic in one result row and counts it once even when many doctors match.
+
+## Filtered directory name suggestions — 2026-11-05
+
+**Tool(s) used:** Codex; source inspection, apply_patch, Prettier, Nest build, TypeScript, oxlint, Jest, Supertest and owned disposable MongoDB runner.
+**What I asked for:** Implement DIRECTORY_SEARCH_PLAN.md Step3, then stop for manual commit.
+**Pre-planning:** Verified clean backend8071ba5 with Step2 committed; inspected instructions, records/B-020, directory DTOs, service/resolver and real database tests. Existing public filters/eligibility must remain consistent across search and suggestions.
+**Planning:** Add required name input with shared city/specialty validation; reuse doctor/clinic pipeline builders, then group/order/limit name strings. Preserve existing search contracts and put frontend interaction in later steps.
+**Implementation process:** Added suggestDoctorNames/suggestClinicNames and DirectoryNameSuggestionsInput. Required trimmed names accept2–100 characters; grouping uses en strength2 collation with smallest-ID display casing, alphabetical order and eight-name cap. Each query has5s maxTimeMS and returns only strings. Added49 suggestion checks; build/full TypeScript,77 unit,222 API and118 real disposable directory tests passed; lint only existing config.ts warning. Updated architecture/README/S05-08/plan/session records.
+**What I kept as-is:** Search/legacy discovery contracts, public eligibility, authoritative clinic cities, schema/indexes, application databases, frontend/deployment and manual Git workflow.
+**What I changed or rejected, and why:** Shared feature-local eligibility pipeline builders prevent search/suggestion drift. Dedicated suggestion input rejects blank/short requests, pagination and client-chosen limits; database grouping runs after all filters and before the cap.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Deduplicate eligible names before applying the eight-name limit so repeated doctor/clinic names do not consume multiple suggestions; deterministic display casing keeps repeated requests stable.

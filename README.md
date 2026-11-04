@@ -80,8 +80,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   search full names/clinic names with city and specialty filters, alphabetical
   sorting, server pagination and matching totals. Public-only results require active
   clinics and approved doctors for doctor discovery/specialty matching. Verified
-  against disposable MongoDB; frontend integration is pending. Legacy discovery
-  queries remain available with their 100-record limits.
+  against disposable MongoDB. `suggestDoctorNames` / `suggestClinicNames` return up
+  to eight distinct, filter-aware names after two characters; frontend integration
+  is pending. Legacy discovery queries remain available with their 100-record limits.
 - **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
   for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
 - **Clinic/doctor calendar APIs:** Authorized, paginated calendar snapshots and

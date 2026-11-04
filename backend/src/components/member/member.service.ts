@@ -13,7 +13,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { Model, Types, type PipelineStage } from 'mongoose';
-import { DirectorySearchInput } from '../../libs/dto/directory/directory.input.js';
+import {
+  DirectoryNameSuggestionsInput,
+  DirectorySearchInput,
+} from '../../libs/dto/directory/directory.input.js';
 import { DirectorySort } from '../../libs/enum/directory.enum.js';
 import {
   AuthProvider,
@@ -233,6 +236,23 @@ export class MemberService implements OnModuleInit {
   }
 
   async searchDoctors(input: DirectorySearchInput) {
+    return this.directoryPage(
+      this.doctorDirectoryPipeline(input),
+      'memberFullName',
+      input,
+    );
+  }
+
+  async suggestDoctorNames(input: DirectoryNameSuggestionsInput) {
+    return this.directoryNames(
+      this.doctorDirectoryPipeline(input),
+      'memberFullName',
+    );
+  }
+
+  private doctorDirectoryPipeline(
+    input: Pick<DirectorySearchInput, 'name' | 'city' | 'specialty'>,
+  ) {
     if (!this.members)
       throw new ServiceUnavailableException('Member lookup is unavailable');
     const { name, city, specialty } = input;
@@ -274,10 +294,27 @@ export class MemberService implements OnModuleInit {
       // A legacy clinic without a city yields null, never the doctor's stale city.
       { $set: { location: { $ifNull: ['$directoryClinic.location', null] } } },
     ];
-    return this.directoryPage(pipeline, 'memberFullName', input);
+    return pipeline;
   }
 
   async searchClinics(input: DirectorySearchInput) {
+    return this.directoryPage(
+      this.clinicDirectoryPipeline(input),
+      'clinicName',
+      input,
+    );
+  }
+
+  async suggestClinicNames(input: DirectoryNameSuggestionsInput) {
+    return this.directoryNames(
+      this.clinicDirectoryPipeline(input),
+      'clinicName',
+    );
+  }
+
+  private clinicDirectoryPipeline(
+    input: Pick<DirectorySearchInput, 'name' | 'city' | 'specialty'>,
+  ) {
     if (!this.members)
       throw new ServiceUnavailableException('Member lookup is unavailable');
     const { name, city, specialty } = input;
@@ -318,7 +355,29 @@ export class MemberService implements OnModuleInit {
         { $match: { 'directoryDoctor.0': { $exists: true } } },
       );
     }
-    return this.directoryPage(pipeline, 'clinicName', input);
+    return pipeline;
+  }
+
+  private async directoryNames(
+    pipeline: PipelineStage[],
+    nameField: 'memberFullName' | 'clinicName',
+  ): Promise<string[]> {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    pipeline.push(
+      // Choose stable display casing when equivalent names belong to several members.
+      { $sort: { _id: 1 } },
+      { $group: { _id: '$' + nameField, name: { $first: '$' + nameField } } },
+      { $sort: { name: 1 } },
+      { $limit: 8 },
+      { $project: { _id: 0, name: 1 } },
+    );
+    const names = await this.members
+      .aggregate<{ name: string }>(pipeline)
+      .collation({ locale: 'en', strength: 2 })
+      .option({ maxTimeMS: 5000 })
+      .exec();
+    return names.map(({ name }) => name);
   }
 
   private directoryNameMatch(name: string) {

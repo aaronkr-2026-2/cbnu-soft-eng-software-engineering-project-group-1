@@ -2,9 +2,9 @@
 
 Date: November 4, 2026 (Asia/Seoul)
 
-Status: Step 1 committed in `39549ea`; Step 2 implemented and locally verified
-November 5, awaiting owner manual commit. Steps 3–6 remain unimplemented by this
-plan. No deployment activation.
+Status: Steps 1–2 committed (`39549ea`, `8071ba5`); Step 3 implemented and locally
+verified November 5, awaiting owner manual commit. Steps 4–6 remain unimplemented
+by this plan. No deployment activation.
 
 ## Goal
 
@@ -159,6 +159,15 @@ changes. Step 3 awaits the owner's next instruction after manual commit.
 **Commit:** `feat(backend): add filtered clinic directory search`
 
 ### Step 3 — Name suggestion APIs
+
+**Completed locally November 5, 2026:** public suggestDoctorNames/suggestClinicNames
+accept required 2–100-character trimmed names and optional city/specialty. Shared
+directory eligibility pipelines feed case-insensitive distinct name grouping,
+stable display casing/alphabetical order and an eight-name maximum with a5s bound.
+Responses are strings only. Build/full TypeScript,77 unit,222 API and118 disposable
+directory checks passed (49 new suggestion checks); lint only existing config.ts
+warning. Architecture/README/S05-08 updated. No staging/commit/push, application DB,
+frontend or deployment changes. Stop for manual commit before Step4.
 
 **Place:** backend branch, `.worktrees/backend/backend/`.
 

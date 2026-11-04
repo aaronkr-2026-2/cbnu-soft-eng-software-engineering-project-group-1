@@ -7,21 +7,15 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateIf,
 } from 'class-validator';
 import { DirectorySort } from '../../enum/directory.enum.js';
 import { Location } from '../../enum/location.enum.js';
 import { DoctorSpecialization } from '../../enum/member.enum.js';
 
-@InputType()
-export class DirectorySearchInput {
-  @Field(() => String, { nullable: true })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  @ValidateIf((_object, value) => value !== undefined)
-  @IsString()
-  @MaxLength(100)
-  name?: string;
-
+@InputType({ isAbstract: true })
+abstract class DirectoryFiltersInput {
   @Field(() => Location, { nullable: true })
   @ValidateIf((_object, value) => value !== undefined)
   @IsEnum(Location)
@@ -31,6 +25,26 @@ export class DirectorySearchInput {
   @ValidateIf((_object, value) => value !== undefined)
   @IsEnum(DoctorSpecialization)
   specialty?: DoctorSpecialization;
+}
+
+@InputType()
+export class DirectoryNameSuggestionsInput extends DirectoryFiltersInput {
+  @Field(() => String)
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  name: string;
+}
+
+@InputType()
+export class DirectorySearchInput extends DirectoryFiltersInput {
+  @Field(() => String, { nullable: true })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MaxLength(100)
+  name?: string;
 
   @Field(() => Int, { defaultValue: 1 })
   @IsInt()
