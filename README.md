@@ -82,7 +82,8 @@ this does not establish deployed integration or enable automatic waitlist bookin
   clinics and approved doctors for doctor discovery/specialty matching. Verified
   against disposable MongoDB. `suggestDoctorNames` / `suggestClinicNames` return up
   to eight distinct, filter-aware names after two characters; frontend integration
-  is pending. Legacy discovery queries remain available with their 100-record limits.
+  is implemented on `/doctors`; clinic-screen integration remains pending. Legacy
+  discovery queries remain available with their 100-record limits.
 - **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
   for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
 - **Clinic/doctor calendar APIs:** Authorized, paginated calendar snapshots and
@@ -125,10 +126,11 @@ this does not establish deployed integration or enable automatic waitlist bookin
 - **Frontend starter screens:** Login, registration, and a protected dashboard
   layout. Dashboard statistics and appointments currently use sample data;
   frontend/backend integration is not verified.
-- **Next.js discovery:** `/`, `/clinics`, and `/doctors` provide clinic/doctor cards,
-  local search, doctor previews, and View times links. Clinics are resolved from
-  the first 100 approved public doctors; clinics outside that list and complete
-  pagination are unavailable. Ratings remain labeled placeholders.
+- **Next.js discovery:** `/doctors` uses server search with full-name, clinic-city and
+  specialty filters, alphabetical sorting, pagination, name suggestions and shareable
+  URLs. `/` and `/clinics` retain local search and clinic previews derived from the
+  first100 approved public doctors. Cards provide View times links; ratings remain
+  labeled placeholders. Clinic-directory migration remains pending.
 - **Next.js authentication:** `/auth` offers email/password login, patient signup,
   and optional Google popup sign-in. A same-origin session bridge keeps rotating
   refresh tokens in HttpOnly cookies; access tokens stay in memory. Reload restores

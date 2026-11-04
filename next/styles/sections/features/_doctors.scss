@@ -38,8 +38,9 @@
   }
 
   .doctors-page__toolbar {
-    display: flex;
-    align-items: center;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
     gap: 1rem;
 
     .MuiButton-root {
@@ -51,6 +52,21 @@
     margin-block: 1.25rem;
     color: v.$mutedTextColor;
     font-size: 0.9rem;
+  }
+
+  .doctors-page__name {
+    grid-column: 1 / -1;
+  }
+  .doctors-page__buttons {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .doctors-page__pagination {
+    display: flex;
+    justify-content: center;
+    margin-top: 2rem;
   }
 
   .doctors-page__grid {
@@ -98,7 +114,7 @@
     }
 
     .doctors-page__toolbar {
-      flex-wrap: wrap;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 }

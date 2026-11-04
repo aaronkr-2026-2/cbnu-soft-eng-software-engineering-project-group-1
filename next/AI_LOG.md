@@ -559,3 +559,27 @@
 **Something the AI got wrong that I had to catch:** No substantive AI error identified during this task. Initial read-only path lookups were corrected before writing the records.
 
 **One decision I can explain without AI:** Record an evidence gap for a quiet week rather than backdate the later booking screens into it.
+
+## URL-driven doctor search and autocomplete — 2026-11-05
+
+**Tool(s) used:** Codex, Git/source inspection, installed Next documentation, MediBridge reference inspection, apply_patch, Prettier, Yarn/TypeScript/Node tests/Next build, temporary Node fixtures, normal compiled Nest, disposable MongoDB and native Chrome/Safari control.
+
+**What I asked for:** Implement directory search Step4 in the Next worktree; commits remain manual.
+
+**Pre-planning:** Verified clean next8527abb and delivered backend search/suggestion contracts. Doctor screen locally filtered capped public results; other discovery flows still rely on that transport. Read worktree rules/current logs/lessons, installed Pages Router guides and MediBridge DoctorsList before implementation. Backend/Vite folders are protected from writes.
+
+**Planning:** Add public GraphQL documents/adapters, shared URL parsing/navigation and result/suggestion hooks, then replace only the doctor screen's discovery path. Use URL state for committed filters/page and local draft typing; keep independent request/error states and preserve existing card booking links.
+
+**Implementation process:** Added city/specialty/sort controls,12-result pagination/totals,loading/error/retry/empty/clear states and MUI9 free-text autocomplete. Drafts debounce300ms with replace history; deliberate actions push; filter/name/sort changes reset page. Router transitions cancel pending typing, preserve new own-route drafts and restore URL state. Shared abort guards ignore late success/failure and displayed data is request-keyed. Typecheck,81 tests (16 new) and final isolated production build with fixture URLs empty passed. Real frontend adapters→normal Nest→owned disposable MongoDB verified125 matching records,12/page,both sorts/page2,combined filters,clinic city,Unicode literals,username exclusion,empty pages/totals,eight names and independent503 recovery. Native Chrome confirmed combined deep-link controls/count/cards and pagination URL/request. Remaining keyboard/Escape/Back/Forward/error UI/mobile browser acceptance is unverified after Chrome active-user-change rejections and Safari timeout (NEXT-007). Updated architecture,both READMEs,NEXT-B11 and session records. Verified owned runner18695 stopped and its Mongo files removed; production/app data untouched.
+
+**What I kept as-is:** Existing DoctorCard booking links,homepage/clinic/booking discovery,authentication,backend/Vite source,dependencies/source configuration,application databases and manual staging/commit/push workflow. Step5 clinic migration and Step6 combined acceptance remain separate.
+
+**What I changed or rejected, and why:** Replaced local full-name/username/specialty matching with the server's full-name contract. Shared URL/history behavior has a current doctor-screen caller; city/specialty enums match backend source. Used established fetch/MUI/SCSS and Pages Router rather than adding another router,request library or cache.
+
+**Something the AI got wrong that I had to catch:** The first whole-file replacement attempted same-path delete/add in one apply_patch call; the tool rejected it. Codex split the operations before typecheck/tests (NEXT-006). No human correction is claimed. Browser-control failures are recorded as tooling limitations, not application defects or passed acceptance.
+
+**One decision I can explain without AI:** Cancel pending typing when navigation begins and key results to the committed request, so an old timer or response cannot overwrite a newer city, page or Back/Forward destination.
+
+**November5 follow-up:** At my request, centered the doctor pagination with flex
+layout in `_doctors.scss`. Sass compilation and whitespace checks passed. No new
+browser verification; existing Step4 acceptance limits remain. No staging/commit/push.

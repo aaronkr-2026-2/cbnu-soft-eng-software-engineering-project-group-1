@@ -10,6 +10,7 @@ export interface PublicMember {
   memberStatus?: string;
   memberNick: string;
   memberFullName?: string | null;
+  location?: string | null;
   memberImage?: string | null;
   memberAddress?: string | null;
   memberDesc?: string | null;

@@ -1,6 +1,7 @@
 # Next.js architecture
 
-Updated November 1, 2026 for patient booking/waitlist Step 9, staff workspace Step 10, and patient notifications Step 11. This document covers
+Updated November 5, 2026 for doctor directory search Step4. Earlier patient booking,
+staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
 
@@ -36,10 +37,63 @@ preflight, and read reconciliation. Both originals and targets are displayed.
 `PatientGate` restricts the UI to USER accounts and unmounts private state at sign-out
 or identity changes. Nest guards enforce actual access and patient-derived ownership.
 
-Public discovery uses `getDoctors` (maximum 100) and public `getMember` for clinics;
-clinic-specific lists filter those public doctors. Public metadata lookup failures
+The `/doctors` directory uses `searchDoctors` and `suggestDoctorNames` as detailed
+below. Other public discovery uses `getDoctors` (maximum100) and public `getMember`
+for clinics; clinic-specific lists filter those public doctors. Public metadata lookup failures
 fall back to identifiers and labeled UTC time; no private profile endpoint is used.
 `myProfile` and update/image operations remain separate authenticated helpers.
+
+## Doctor directory search — November 5, 2026
+
+`pages/doctors.tsx` composes `components/doctors/DoctorsPage.tsx`, retaining the
+existing DoctorCard and booking links. The directory now reads server-filtered
+results instead of filtering a capped `getDoctors` array. The homepage, clinic
+screen and other discovery callers retain their existing transport until Step5.
+
+- `apollo/user/directory.ts` defines executable `SearchDoctors` and
+  `SuggestDoctorNames` documents for the delivered Nest contracts. The public
+  `libs/api/directory.ts` adapter uses fetch with omitted credentials, no-store,
+  abort propagation and a10s client timeout. HTTP failures and HTTP200 GraphQL
+  errors become safe messages. Pages contain12 entries and the actual server total;
+  suggestion responses contain at most eight strings. Backend filters, eligibility,
+  projection, collation and query bounds remain authoritative.
+- `libs/directory.ts` owns the UI enum lists, URL parsing/serialization and
+  DirectoryNavigation. Supported URL keys are `name`, `city`, `specialty`, `sort`
+  and `page`. Name is trimmed/bounded to100 characters; invalid/repeated values use
+  safe defaults, cities/specialties are allowlisted and page is1–1000. Sort defaults
+  to NAME_ASC. URLSearchParams encodes names; new URLs omit empty/default values.
+- `useDirectoryLocation` in `libs/hooks/useDirectory.ts` connects the store to the
+  installed Pages Router. Restoration waits for router readiness and follows asPath,
+  including refresh/shared links and Back/Forward. Draft text commits after300ms
+  using router.replace; Enter, suggestions and deliberate filter/sort/page actions
+  use router.push. Filter/name/sort changes reset page1; pagination changes only page.
+  Clearing resets everything. Route-start cancels pending typing, and rapid choices
+  compose against the pending route. New typing during an own route transition is
+  preserved when that transition completes.
+- Result and suggestion effects abort obsolete reads and key displayed state to the
+  matching URL/draft. Shared directoryRead also ignores late successes/failures from
+  transports that finish after cancellation. Main search has independent loading,
+  retry, error and empty/out-of-range states; old cards are hidden while navigating.
+- MUI9 Autocomplete renders a free-text combobox with server-provided options and
+  no extra client filtering. Requests wait for two trimmed characters and a300ms
+  debounce, using current city/specialty. Selecting a name submits page1. Enter can
+  submit arbitrary text, Escape closes suggestions, and suggestion failure leaves
+  ordinary search available. Labels, live result counts and responsive controls are
+  included. No IDs, highlighted option or popup state are stored in URLs.
+
+Example: `/doctors?name=Kim&city=SEOUL&specialty=DENTIST&sort=NAME_DESC&page=2`.
+
+Verification:81 Node tests cover existing flows and16 new URL/navigation/transport/
+stale-response cases; TypeScript and an isolated production build pass. Actual
+frontend adapters/documents were checked against compiled Nest and owned disposable
+MongoDB:125 matching doctors,12/page, both sorts/page2, authoritative city, combined
+filters, literal Unicode, username exclusion, empty pages/totals, suggestions and
+independent503 recovery passed. Native Chrome confirmed the combined deep link's
+controls/count/cards and a pagination URL/request change. Further native control
+was interrupted by active Chrome use; Safari control timed out. Keyboard suggestion
+selection/Escape, real Back/Forward, error/retry UI and mobile acceptance remain
+unverified in a browser. Automated history-command/timer tests do not establish those
+browser interactions. No deployment or production-data claims are made.
 
 ## Sessions and deployment
 
@@ -88,8 +142,8 @@ Typecheck, production build, 26 focused Node tests, and 18 real-schema operation
 validations passed. The final build excludes fixture API URLs. This is not evidence
 of production deployment or real Google sign-in.
 
-- Discovery is limited to the first 100 approved doctors and their clinics.
-  Complete clinic/doctor pagination needs a future backend public directory contract.
+- Clinic/homepage/booking discovery still uses the first100 approved doctors and
+  their clinics. `/doctors` has server pagination; clinic-directory migration is Step5.
 - Refresh coalescing is process-local; Web Locks coordinate supporting browsers.
   Multi-instance deployments and browsers without those locks need separate
   concurrency verification before claiming equivalent session reliability.
