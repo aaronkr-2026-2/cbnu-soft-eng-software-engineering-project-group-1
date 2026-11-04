@@ -13,7 +13,10 @@ import {
 import { MemberService } from './member.service.js';
 import { DoctorClinicStatus } from '../../libs/enum/member.enum.js';
 import { DirectorySearchInput } from '../../libs/dto/directory/directory.input.js';
-import { DoctorDirectoryPage } from '../../libs/dto/directory/directory.js';
+import {
+  ClinicDirectoryPage,
+  DoctorDirectoryPage,
+} from '../../libs/dto/directory/directory.js';
 
 @Resolver(() => Member)
 export class MemberResolver {
@@ -77,5 +80,10 @@ export class MemberResolver {
   @Query(() => DoctorDirectoryPage)
   searchDoctors(@Args('input') input: DirectorySearchInput) {
     return this.memberService.searchDoctors(input);
+  }
+
+  @Query(() => ClinicDirectoryPage)
+  searchClinics(@Args('input') input: DirectorySearchInput) {
+    return this.memberService.searchClinics(input);
   }
 }

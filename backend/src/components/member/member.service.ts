@@ -235,8 +235,7 @@ export class MemberService implements OnModuleInit {
   async searchDoctors(input: DirectorySearchInput) {
     if (!this.members)
       throw new ServiceUnavailableException('Member lookup is unavailable');
-    const { name, city, specialty, page, limit, sort } = input;
-    const direction = sort === DirectorySort.NAME_DESC ? -1 : 1;
+    const { name, city, specialty } = input;
     const pipeline: PipelineStage[] = [
       {
         $match: {
@@ -246,10 +245,7 @@ export class MemberService implements OnModuleInit {
           doctorClinicStatus: DoctorClinicStatus.APPROVED,
           ...(name
             ? {
-                memberFullName: {
-                  $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-                  $options: 'i',
-                },
+                memberFullName: this.directoryNameMatch(name),
               }
             : {}),
           ...(specialty ? { doctorSpecializations: specialty } : {}),
@@ -277,18 +273,80 @@ export class MemberService implements OnModuleInit {
       { $unwind: '$directoryClinic' },
       // A legacy clinic without a city yields null, never the doctor's stale city.
       { $set: { location: { $ifNull: ['$directoryClinic.location', null] } } },
+    ];
+    return this.directoryPage(pipeline, 'memberFullName', input);
+  }
+
+  async searchClinics(input: DirectorySearchInput) {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const { name, city, specialty } = input;
+    const pipeline: PipelineStage[] = [
       {
-        $facet: {
-          entries: [
-            { $sort: { memberFullName: direction, _id: direction } },
-            { $skip: (page - 1) * limit },
-            { $limit: limit },
-            { $project: this.publicFields },
-          ],
-          count: [{ $count: 'total' }],
+        $match: {
+          memberType: MemberType.CLINIC,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+          ...(name ? { clinicName: this.directoryNameMatch(name) } : {}),
+          ...(city ? { location: city } : {}),
         },
       },
     ];
+    if (specialty) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: this.members.collection.name,
+            localField: '_id',
+            foreignField: 'clinicId',
+            pipeline: [
+              {
+                $match: {
+                  memberType: MemberType.DOCTOR,
+                  memberStatus: MemberStatus.ACTIVE,
+                  deletedAt: null,
+                  doctorClinicStatus: DoctorClinicStatus.APPROVED,
+                  doctorSpecializations: specialty,
+                },
+              },
+              { $limit: 1 },
+              { $project: { _id: 1 } },
+            ],
+            as: 'directoryDoctor',
+          },
+        },
+        { $match: { 'directoryDoctor.0': { $exists: true } } },
+      );
+    }
+    return this.directoryPage(pipeline, 'clinicName', input);
+  }
+
+  private directoryNameMatch(name: string) {
+    return {
+      $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      $options: 'i',
+    };
+  }
+
+  private async directoryPage(
+    pipeline: PipelineStage[],
+    nameField: 'memberFullName' | 'clinicName',
+    { page, limit, sort }: DirectorySearchInput,
+  ) {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const direction = sort === DirectorySort.NAME_DESC ? -1 : 1;
+    pipeline.push({
+      $facet: {
+        entries: [
+          { $sort: { [nameField]: direction, _id: direction } },
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+          { $project: this.publicFields },
+        ],
+        count: [{ $count: 'total' }],
+      },
+    });
     const [result] = await this.members
       .aggregate<{
         entries: MemberProfile[];

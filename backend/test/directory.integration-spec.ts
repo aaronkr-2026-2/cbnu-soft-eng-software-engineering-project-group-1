@@ -17,7 +17,7 @@ import type { MemberEntity } from '../src/libs/types/member.types.js';
 
 const selection =
   '_id memberFullName memberNick location clinicId doctorSpecializations';
-describe('Public doctor search against owned disposable MongoDB', () => {
+describe('Public directory search against owned disposable MongoDB', () => {
   let connection: Connection;
   let app: INestApplication;
   let service: MemberService;
@@ -31,6 +31,16 @@ describe('Public doctor search against owned disposable MongoDB', () => {
       .post('/graphql')
       .send({
         query: `query($input:DirectorySearchInput!){searchDoctors(input:$input){entries{${fields}} total page limit}}`,
+        variables: { input },
+      });
+  const searchClinics = (
+    input: object = {},
+    fields = '_id clinicName memberNick location',
+  ) =>
+    request(app.getHttpServer())
+      .post('/graphql')
+      .send({
+        query: `query($input:DirectorySearchInput!){searchClinics(input:$input){entries{${fields}} total page limit}}`,
         variables: { input },
       });
   async function insert(fields: Record<string, unknown>) {
@@ -302,6 +312,312 @@ describe('Public doctor search against owned disposable MongoDB', () => {
     );
     expect((await search({}, 'memberEmail')).body.errors).toBeDefined();
   });
+  describe('clinic search', () => {
+    it.each(['김 병원', 'Care [A]+(B)?^$.*|\\', 'Élodie Care'])(
+      'matches literal trimmed clinic name %s',
+      async (clinicName) => {
+        const id = await insert({ memberType: 'CLINIC', clinicName });
+        const result = (await searchClinics({ name: '  ' + clinicName + '  ' }))
+          .body;
+        expect(result.errors).toBeUndefined();
+        expect(result.data.searchClinics).toEqual({
+          entries: [
+            {
+              _id: String(id),
+              clinicName,
+              memberNick: 'user_' + id,
+              location: null,
+            },
+          ],
+          total: 1,
+          page: 1,
+          limit: 12,
+        });
+      },
+    );
+
+    it('matches clinic-name substrings case-insensitively, excluding usernames and full names', async () => {
+      await insert({
+        memberType: 'CLINIC',
+        clinicName: 'Other',
+        memberNick: 'SeoulNick',
+        memberNickNormalized: 'seoulnick',
+        memberFullName: 'Seoul Owner',
+      });
+      const result = (await searchClinics({ name: 'sEOuL' })).body.data
+        .searchClinics;
+      expect(result.total).toBe(1);
+      expect(result.entries[0]._id).toBe(String(seoul));
+      expect(
+        (await searchClinics({ name: '  ' })).body.data.searchClinics.total,
+      ).toBe(3);
+    });
+
+    it('combines filters before pagination/counting without duplicating clinics with many matching doctors', async () => {
+      await doctor({ location: 'BUSAN' });
+      await doctor();
+      await doctor({ clinicId: busan, location: 'SEOUL' });
+      const other = await insert({
+        memberType: 'CLINIC',
+        clinicName: 'Seoul Other',
+        location: 'SEOUL',
+      });
+      await doctor({ clinicId: other, doctorSpecializations: ['SURGEON'] });
+      const result = (
+        await searchClinics({
+          name: 'care',
+          city: 'SEOUL',
+          specialty: 'DENTIST',
+          limit: 1,
+        })
+      ).body.data.searchClinics;
+      expect(result).toEqual({
+        entries: [
+          {
+            _id: String(seoul),
+            clinicName: 'Seoul Care',
+            memberNick: 'user_' + seoul,
+            location: 'SEOUL',
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 1,
+      });
+      expect(
+        (await searchClinics({ specialty: 'DENTIST', limit: 1 })).body.data
+          .searchClinics.total,
+      ).toBe(2);
+      expect(
+        (await searchClinics({ city: 'SEOUL' })).body.data.searchClinics.total,
+      ).toBe(2);
+      await collection().updateOne(
+        { _id: seoul },
+        { $set: { location: 'BUSAN' } },
+      );
+      expect(
+        (await searchClinics({ city: 'SEOUL', specialty: 'DENTIST' })).body.data
+          .searchClinics.total,
+      ).toBe(0);
+    });
+
+    it('includes clinics without doctors only when no specialty is selected', async () => {
+      expect((await searchClinics()).body.data.searchClinics.total).toBe(2);
+      expect(
+        (await searchClinics({ city: 'SEOUL' })).body.data.searchClinics.total,
+      ).toBe(1);
+      expect(
+        (await searchClinics({ specialty: 'DENTIST' })).body.data.searchClinics
+          .total,
+      ).toBe(0);
+      await doctor({ doctorSpecializations: ['SURGEON', 'DENTIST'] });
+      expect(
+        (await searchClinics({ specialty: 'SURGEON' })).body.data.searchClinics
+          .total,
+      ).toBe(1);
+    });
+
+    it.each([
+      { memberStatus: 'SUSPENDED' },
+      { memberStatus: 'DELETED' },
+      { deletedAt: new Date() },
+      { doctorClinicStatus: 'PENDING' },
+      { doctorClinicStatus: 'REJECTED' },
+      { doctorClinicStatus: 'REMOVED' },
+      { doctorSpecializations: ['SURGEON'] },
+      { doctorSpecializations: [] },
+      { clinicId: null },
+      { clinicId: new Types.ObjectId() },
+      { memberType: 'USER' },
+    ])('ignores ineligible specialty contributor %j', async (fields) => {
+      await doctor(fields);
+      expect(
+        (await searchClinics({ name: 'Seoul', specialty: 'DENTIST' })).body.data
+          .searchClinics.total,
+      ).toBe(0);
+      expect(
+        (await searchClinics({ name: 'Seoul' })).body.data.searchClinics.total,
+      ).toBe(1);
+    });
+
+    it('excludes inactive/deleted clinics and other member roles even when an eligible doctor refers to them', async () => {
+      for (const fields of [
+        { memberStatus: 'SUSPENDED' },
+        { memberStatus: 'DELETED' },
+        { deletedAt: new Date() },
+        { memberType: 'USER' },
+        { memberType: 'DOCTOR' },
+      ]) {
+        const clinicId = await insert({
+          memberType: 'CLINIC',
+          clinicName: 'Unavailable',
+          ...fields,
+        });
+        await doctor({ clinicId });
+      }
+      expect((await searchClinics()).body.data.searchClinics.total).toBe(2);
+      expect(
+        (await searchClinics({ specialty: 'DENTIST' })).body.data.searchClinics
+          .total,
+      ).toBe(0);
+    });
+
+    it('sorts by clinic name in both directions, independent of member full name', async () => {
+      await collection().updateOne(
+        { _id: seoul },
+        { $set: { clinicName: 'alice', memberFullName: 'Zoe Owner' } },
+      );
+      await collection().updateOne(
+        { _id: busan },
+        { $set: { clinicName: 'Zoe', memberFullName: 'Alice Owner' } },
+      );
+      for (const [sort, expected] of [
+        ['NAME_ASC', ['alice', 'Zoe']],
+        ['NAME_DESC', ['Zoe', 'alice']],
+      ] as const) {
+        const result = (await searchClinics({ sort })).body.data.searchClinics;
+        expect(
+          result.entries.map((row: { clinicName: string }) => row.clinicName),
+        ).toEqual(expected);
+      }
+    });
+
+    it('paginates over 100 tied clinic names with accurate specialty totals in both directions', async () => {
+      await collection().deleteMany({});
+      const ids: string[] = [];
+      for (let n = 0; n < 105; n++) {
+        const clinicId = await insert({
+          memberType: 'CLINIC',
+          clinicName: n % 2 ? 'care' : 'Care',
+          location: 'SEOUL',
+        });
+        ids.push(String(clinicId));
+        await doctor({ clinicId });
+        await doctor({ clinicId });
+      }
+      ids.sort();
+      for (const sort of ['NAME_ASC', 'NAME_DESC']) {
+        const found: string[] = [];
+        for (let page = 1; page <= 3; page++) {
+          const result = (
+            await searchClinics({
+              name: 'care',
+              city: 'SEOUL',
+              specialty: 'DENTIST',
+              sort,
+              page,
+              limit: 50,
+            })
+          ).body.data.searchClinics;
+          expect(result.total).toBe(105);
+          found.push(...result.entries.map((row: { _id: string }) => row._id));
+        }
+        expect(found).toEqual(sort === 'NAME_ASC' ? ids : [...ids].reverse());
+      }
+      expect(
+        (await searchClinics({ specialty: 'DENTIST', page: 1000 })).body.data
+          .searchClinics,
+      ).toEqual({ entries: [], total: 105, page: 1000, limit: 12 });
+    });
+
+    it('returns empty results with pagination metadata', async () => {
+      expect(
+        (await searchClinics({ name: 'Missing' })).body.data.searchClinics,
+      ).toEqual({ entries: [], total: 0, page: 1, limit: 12 });
+    });
+
+    it.each([
+      { page: 0 },
+      { page: 1001 },
+      { page: 1.5 },
+      { page: null },
+      { limit: 0 },
+      { limit: 51 },
+      { limit: null },
+      { name: 'x'.repeat(101) },
+      { name: null },
+      { city: 'INVALID' },
+      { city: null },
+      { specialty: 'INVALID' },
+      { specialty: null },
+      { sort: 'INVALID' },
+      { sort: null },
+      { unknown: true },
+    ])('rejects invalid clinic input %j before querying', async (input) => {
+      const spy = jest.spyOn(model, 'aggregate');
+      try {
+        expect(
+          (await searchClinics(input)).body.errors?.length,
+        ).toBeGreaterThan(0);
+        expect(spy).not.toHaveBeenCalled();
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('projects public fields and excludes private clinic/affiliated-doctor data', async () => {
+      await collection().updateOne(
+        { _id: seoul },
+        {
+          $set: {
+            memberEmail: 'clinic@example.test',
+            memberPhone: 'private',
+            memberPassword: 'secret',
+            authVersion: 8,
+            googleId: 'private-clinic',
+          },
+        },
+      );
+      await doctor();
+      const input = Object.assign(new DirectorySearchInput(), {
+        specialty: 'DENTIST',
+      });
+      const result = await service.searchClinics(input);
+      expect(Object.keys(result.entries[0]).sort()).toEqual(
+        [
+          '_id',
+          'memberNick',
+          'memberType',
+          'memberStatus',
+          'clinicName',
+          'location',
+        ].sort(),
+      );
+      expect(
+        (await searchClinics({}, 'memberPhone')).body.errors,
+      ).toBeDefined();
+    });
+
+    it('bounds clinic queries and inspects the specialty lookup plan without proposing indexes', async () => {
+      for (let n = 0; n < 50; n++) {
+        const clinicId = await insert({
+          memberType: 'CLINIC',
+          clinicName: 'Fixture Care ' + n,
+        });
+        await doctor({ clinicId });
+      }
+      const spy = jest.spyOn(model, 'aggregate');
+      try {
+        await service.searchClinics(
+          Object.assign(new DirectorySearchInput(), { specialty: 'DENTIST' }),
+        );
+        expect(spy.mock.results[0].value.options).toMatchObject({
+          maxTimeMS: 5000,
+          collation: { locale: 'en', strength: 2 },
+        });
+        const plan = await model
+          .aggregate(spy.mock.calls[0][0]!)
+          .collation({ locale: 'en', strength: 2 })
+          .option({ maxTimeMS: 5000 })
+          .explain('executionStats');
+        expect(JSON.stringify(plan)).toContain('executionStats');
+        expect(JSON.stringify(plan)).toContain('COLLSCAN');
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
+
   it('uses bounded aggregation and inspects execution plans on disposable representative data', async () => {
     for (let n = 0; n < 150; n++)
       await doctor({

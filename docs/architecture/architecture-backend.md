@@ -171,6 +171,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | REST | `POST /member/username/availability`, `/member/username/availability/me` | Public signup check and guarded own-profile check; shared separate 30/minute/IP budget; MemberService performs exact normalized-key lookup |
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
 | GraphQL | `searchDoctors(input: DirectorySearchInput!)` at `POST /graphql` | Public paged full-name/city/specialty doctor search; `MemberResolver` → `MemberService.searchDoctors`; contract below |
+| GraphQL | `searchClinics(input: DirectorySearchInput!)` at `POST /graphql` | Public paged clinic-name/city search with eligible affiliated-doctor specialty matching; `MemberResolver` → `MemberService.searchClinics`; contract below |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
 | GraphQL | `getNotification`, `notificationContext`, `myNotifications`, `markNotificationRead` | Guarded patient-owned inbox/current-target reads and read state; separate ADMIN delivery-status counts |
@@ -634,7 +635,48 @@ query {
   No indexes or migrations are proposed from this small fixture; production-scale
   latency/load remains unmeasured.
 
-Clinic search, suggestions and frontend search controls remain subsequent plan steps.
+## Public clinic search (November 5, 2026)
+
+`searchClinics(input: DirectorySearchInput!): ClinicDirectoryPage!` is public and
+returns the same `{ entries: [Member!]!, total: Int!, page: Int!, limit: Int! }`
+shape as doctor search. Both page DTOs inherit a shared abstract directory page;
+existing GraphQL names/contracts are preserved. `MemberResolver` delegates to
+`MemberService.searchClinics`. Shared private helpers implement literal name
+matching and the final facet, public projection, collation and timeout.
+
+```graphql
+query {
+  searchClinics(input: {
+    name: "Care", city: BUSAN, specialty: DENTIST,
+    sort: NAME_DESC, page: 1, limit: 12
+  }) {
+    entries { _id clinicName location memberImage memberAddress memberDesc }
+    total page limit
+  }
+}
+```
+
+- Input validation/defaults/bounds are identical to doctor search. Name searches
+  only `clinicName`, using escaped case-insensitive literal substrings and Unicode;
+  neither username nor member full name is matched. City uses the clinic's own location.
+- Initial filtering requires active, nondeleted CLINIC members. With `specialty`,
+  a self-lookup from clinic `_id` to doctor `clinicId` requires at least one active,
+  approved, nondeleted DOCTOR offering that specialty. The lookup returns at most
+  one public identifier internally, and an existence filter precedes the facet.
+  No unwind is needed: multiple matching doctors cannot duplicate a clinic or total.
+- Without specialty, no doctor lookup is performed; active clinics without doctors
+  can appear. A legacy clinic without a city appears only when no city is selected.
+- Sort is clinic name then `_id`, both ascending or both descending, with the same
+  ICU `en`, strength 2 collation. Page/count share all filters and return actual totals
+  for empty/out-of-range pages. The shared public allowlist strips private fields
+  and joined doctor data; the execution bound remains `maxTimeMS: 5000`.
+- `npm run test:directory:integration` now exercises both queries on owned disposable
+  MongoDB, including 105 tied clinics each with two eligible doctors. A separate
+  52-clinic/50-doctor explain fixture confirms collection scanning; no new indexes,
+  migration or production-scale latency claims are introduced. Representative target
+  workload measurements are needed before proposing indexes for specialty joins.
+
+Suggestions and frontend search controls remain subsequent plan steps.
 
 ## Authenticated member updates
 

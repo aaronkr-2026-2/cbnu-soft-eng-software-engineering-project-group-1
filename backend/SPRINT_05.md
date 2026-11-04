@@ -1,7 +1,7 @@
 # Sprint 05 — Waitlists, operational readiness and usernames
 
 **Period:** October 30–November 5, 2026 (Asia/Seoul)
-**Review through:** November 4, 2026
+**Review through:** November 5, 2026
 **Status:** In progress; final review due November 5
 **Owner:** Me
 **Sprint goal:** Let patients safely join waitlists and manage unique usernames while giving operators a verifiable booking rollout path.
@@ -75,6 +75,25 @@ Initial fixture validation/unique-key mistakes were corrected before final passi
 checks. Sandbox socket EPERM required local-port execution. No application DB,
 frontend, deployment, staging, commit or push changes. Clinic search, suggestions,
 URL-driven screens and combined browser acceptance remain later steps.
+
+## November 5 delivery continuation — S05-08
+
+Clinic search API (directory Step 2) completed locally November 5 from committed
+Step 1 (`39549ea`). Public `searchClinics` matches clinic name/city and requires an
+active approved nondeleted affiliated doctor for specialty filtering. The existence
+lookup avoids duplicate clinics/counts; clinics without doctors appear without a
+specialty filter. Shared literal matching, facet pagination/public projection and
+execution options preserve doctor search and legacy discovery contracts.
+
+Build/full TypeScript,77 unit,222 API and69 disposable directory integration checks
+passed (39 new clinic checks). Verified both sort directions,105 tied clinics with
+two doctors each, combined filters, eligibility, invalid inputs, empty pages and
+privacy. The52-clinic/50-doctor explain fixture confirms collection scanning; no
+indexes proposed or production-scale performance claimed. Lint retains only the
+existing config.ts warning. API documentation/README/local plan updated. Suggestions,
+frontend integration and browser acceptance remain pending; no application database,
+deployment, staging, commit or push changes. This is an interim November5 delivery
+update, not the final sprint review or authorization for remaining backlog work.
 
 ## Prioritized remaining backlog
 

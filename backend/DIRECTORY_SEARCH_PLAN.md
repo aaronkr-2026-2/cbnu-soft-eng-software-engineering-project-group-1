@@ -2,8 +2,9 @@
 
 Date: November 4, 2026 (Asia/Seoul)
 
-Status: Step 1 implemented and locally verified November 4; awaiting owner manual
-commit. Steps 2–6 remain unimplemented by this plan. No deployment activation.
+Status: Step 1 committed in `39549ea`; Step 2 implemented and locally verified
+November 5, awaiting owner manual commit. Steps 3–6 remain unimplemented by this
+plan. No deployment activation.
 
 ## Goal
 
@@ -135,6 +136,16 @@ application DB or deployment changes; owner handles the commit before Step 2.
 **Commit:** `feat(backend): add filtered doctor directory search`
 
 ### Step 2 — Clinic search API
+
+**Completed locally November 5, 2026:** public searchClinics reuses the shared
+directory input and page conventions, literal matching and bounded facet execution.
+Specialty requires an eligible affiliated doctor using an existence lookup; clinics
+without doctors remain discoverable without specialty. Both sort directions,
+105 tied clinics with two doctors each, combined filters, eligibility and privacy
+verified against disposable MongoDB. Build/full TypeScript,77 unit,222 API and69
+directory integration checks passed; lint only existing config.ts warning. Updated
+architecture/README/S05-08. No staging/commit/push, application DB or deployment
+changes. Step 3 awaits the owner's next instruction after manual commit.
 
 **Place:** backend branch, `.worktrees/backend/backend/`.
 

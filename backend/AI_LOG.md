@@ -902,3 +902,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Used escaped memberFullName matching rather than reference username regex; moved clinic eligibility/city before counting and pagination. Chose case-insensitive/accent-sensitive en strength2 collation with _id tie-breaks in both sort directions.
 **Something the AI got wrong that I had to catch:** The first test fixtures used invalid Unicode usernames and repeated unique contact/provider values. The real database tests caught this; Codex corrected fixtures before all30 passed (B-020). No human correction is claimed.
 **One decision I can explain without AI:** Filter by the joined clinic's city before pagination/counting so stale doctor city values cannot produce incorrect matches or totals.
+
+## Clinic directory search API — 2026-11-05
+
+**Tool(s) used:** Codex; source/reference inspection, apply_patch, Nest build, TypeScript, oxlint, Jest, Supertest and owned disposable MongoDB runner/explain.
+**What I asked for:** Implement DIRECTORY_SEARCH_PLAN.md Step 2, then stop for manual commit.
+**Pre-planning:** Verified clean backend39549ea with Step 1 committed; read instructions, current records and B-020 fixture lesson. Inspected shared directory DTOs, service/resolver and MediBridge aggregation reference.
+**Planning:** Reuse directory validation and public Member output. Filter clinics directly by name/city, add an eligible-doctor existence lookup only for specialty, and share the final page/count/projection execution with doctor search.
+**Implementation process:** Added searchClinics/ClinicDirectoryPage and shared abstract page DTO, literal-name matcher and bounded facet helper. Added39 clinic integration checks covering Unicode/literal names, combined filters, no duplicate counts, no-doctor clinics, eligibility, both sorts,105 tied clinics/two doctors each, invalid input and private fields. Build/full TypeScript,77 unit,222 API and69 real disposable directory checks passed; lint only existing config.ts warning.52-clinic/50-doctor explain confirms collection scanning, without index changes or production-scale performance claims. Updated architecture/README/S05-08/local plan/session records.
+**What I kept as-is:** Existing doctor search and legacy discovery contracts, schema/indexes, authentication, application databases, frontend/deployment and manual Git workflow.
+**What I changed or rejected, and why:** Used a lookup limited to one eligible doctor plus an existence filter rather than unwinding all doctors. Shared only literal matching and final pagination execution; doctor/clinic eligibility pipelines remain explicit in MemberService.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** A clinic needs only one eligible doctor to match a specialty. Testing existence keeps that clinic in one result row and counts it once even when many doctors match.
