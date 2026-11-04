@@ -170,6 +170,9 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
 | REST | `POST /member/username/availability`, `/member/username/availability/me` | Public signup check and guarded own-profile check; shared separate 30/minute/IP budget; MemberService performs exact normalized-key lookup |
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
+| GraphQL | `searchDoctors(input: DirectorySearchInput!)` at `POST /graphql` | Public paged full-name/city/specialty doctor search; `MemberResolver` → `MemberService.searchDoctors`; contract below |
+| GraphQL | `searchClinics(input: DirectorySearchInput!)` at `POST /graphql` | Public paged clinic-name/city search with eligible affiliated-doctor specialty matching; `MemberResolver` → `MemberService.searchClinics`; contract below |
+| GraphQL | `suggestDoctorNames(input)`, `suggestClinicNames(input)` at `POST /graphql` | Public filtered name strings; `DirectoryNameSuggestionsInput`, maximum eight; `MemberResolver` → matching `MemberService` method; contract below |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
 | GraphQL | `getNotification`, `notificationContext`, `myNotifications`, `markNotificationRead` | Guarded patient-owned inbox/current-target reads and read state; separate ADMIN delivery-status counts |
@@ -581,9 +584,144 @@ clinic or legacy clinic without a city yields an absent city (GraphQL null). Cli
 responses use the clinic's stored city; USER responses do not expose legacy city data.
 
 Clinics can edit their city through updateMember; doctor responses reflect it on the
-next read. No migration, workplace-change endpoint, or directory city filter
-is implemented. Tests change simulated persistence to verify affiliation/city changes;
-no live database or frontend workplace-change workflow was exercised.
+next read. No migration or workplace-change endpoint is implemented. Legacy read
+tests use simulated persistence; the new search query below is also verified with
+disposable MongoDB. No frontend workplace-change workflow was exercised.
+
+## Public doctor search (November 4, 2026)
+
+`searchDoctors(input: DirectorySearchInput!): DoctorDirectoryPage!` is public and
+returns `{ entries: [Member!]!, total: Int!, page: Int!, limit: Int! }`.
+The resolver delegates to `MemberService.searchDoctors`; input/output DTOs live in
+`backend/src/libs/dto/directory`, with `DirectorySort` in `src/libs/enum`.
+Existing `getDoctors`, `getClinics` and `getClinicDoctors` contracts are preserved.
+
+```graphql
+query {
+  searchDoctors(input: {
+    name: "Kim", city: SEOUL, specialty: DENTIST,
+    sort: NAME_ASC, page: 1, limit: 12
+  }) {
+    entries { _id memberFullName memberNick location doctorSpecializations clinicId }
+    total page limit
+  }
+}
+```
+
+- Optional `name` is trimmed, at most 100 characters, and matches a literal,
+  case-insensitive substring of `memberFullName`; regex metacharacters are escaped.
+  Unicode is supported; usernames are never searched. Empty name means no name filter.
+- Optional `city` uses `Location`; optional `specialty` uses `DoctorSpecialization`.
+  All supplied filters intersect. Explicit null values are rejected; omit unused filters.
+- `page` defaults to 1 and accepts integers 1–1000; `limit` defaults to 12 and
+  accepts integers 1–50. `sort` defaults to `NAME_ASC`, or accepts `NAME_DESC`.
+  Unknown fields/enum values, nulls and invalid bounds are rejected at the API boundary.
+- An initial doctor match requires active, nondeleted, approved doctors. A self-lookup
+  joins only active, nondeleted CLINIC members through `clinicId`; unavailable clinics
+  exclude their doctors. City filtering uses the joined clinic and the returned
+  `location` always comes from it. Legacy clinics without city return null without
+  a city filter. Specialty membership is tested on the doctor.
+- All eligibility/filter stages precede `$facet`. Entries sort by full name, then
+  `_id`, both ascending or both descending, using ICU `en`, strength 2 (case-insensitive,
+  accent-sensitive) collation in both directions. Missing names follow MongoDB's
+  null/missing name ordering. Pagination and actual total share the filtered stream;
+  empty/out-of-range pages return empty entries with the actual total.
+- Results use the existing explicit public-field projection. No email, phone,
+  password, normalized username key, provider identity or session fields are returned,
+  including from direct service results. The query sets `maxTimeMS: 5000`.
+- `npm run test:directory:integration` builds and invokes the existing owned disposable
+  MongoDB runner; it loads no application database settings. Real GraphQL/aggregation
+  checks include 125 tied-name rows and 150-row execution-plan inspection. The inspected
+  substring search scans the member collection and the clinic lookup uses `_id_`.
+  No indexes or migrations are proposed from this small fixture; production-scale
+  latency/load remains unmeasured.
+
+## Public clinic search (November 5, 2026)
+
+`searchClinics(input: DirectorySearchInput!): ClinicDirectoryPage!` is public and
+returns the same `{ entries: [Member!]!, total: Int!, page: Int!, limit: Int! }`
+shape as doctor search. Both page DTOs inherit a shared abstract directory page;
+existing GraphQL names/contracts are preserved. `MemberResolver` delegates to
+`MemberService.searchClinics`. Shared private helpers implement literal name
+matching and the final facet, public projection, collation and timeout.
+
+```graphql
+query {
+  searchClinics(input: {
+    name: "Care", city: BUSAN, specialty: DENTIST,
+    sort: NAME_DESC, page: 1, limit: 12
+  }) {
+    entries { _id clinicName location memberImage memberAddress memberDesc }
+    total page limit
+  }
+}
+```
+
+- Input validation/defaults/bounds are identical to doctor search. Name searches
+  only `clinicName`, using escaped case-insensitive literal substrings and Unicode;
+  neither username nor member full name is matched. City uses the clinic's own location.
+- Initial filtering requires active, nondeleted CLINIC members. With `specialty`,
+  a self-lookup from clinic `_id` to doctor `clinicId` requires at least one active,
+  approved, nondeleted DOCTOR offering that specialty. The lookup returns at most
+  one public identifier internally, and an existence filter precedes the facet.
+  No unwind is needed: multiple matching doctors cannot duplicate a clinic or total.
+- Without specialty, no doctor lookup is performed; active clinics without doctors
+  can appear. A legacy clinic without a city appears only when no city is selected.
+- Sort is clinic name then `_id`, both ascending or both descending, with the same
+  ICU `en`, strength 2 collation. Page/count share all filters and return actual totals
+  for empty/out-of-range pages. The shared public allowlist strips private fields
+  and joined doctor data; the execution bound remains `maxTimeMS: 5000`.
+- `npm run test:directory:integration` now exercises both queries on owned disposable
+  MongoDB, including 105 tied clinics each with two eligible doctors. A separate
+  52-clinic/50-doctor explain fixture confirms collection scanning; no new indexes,
+  migration or production-scale latency claims are introduced. Representative target
+  workload measurements are needed before proposing indexes for specialty joins.
+
+## Directory name suggestions (November 5, 2026)
+
+Public GraphQL queries:
+
+```graphql
+query {
+  suggestDoctorNames(input: { name: "Ki", city: SEOUL, specialty: DENTIST })
+  suggestClinicNames(input: { name: "Ca", city: BUSAN, specialty: DENTIST })
+}
+```
+
+Both take `DirectoryNameSuggestionsInput!` and return `[String!]!`. Required `name`
+is trimmed and must contain 2–100 characters. Optional `city: Location` and
+`specialty: DoctorSpecialization` intersect with name matching. Omit unused filters;
+explicit nulls, unknown fields and enum values are rejected. No page, limit or sort
+arguments are accepted. Short/blank queries are rejected before database access;
+the frontend should wait for two trimmed characters before sending a request.
+
+The resolver delegates to MemberService. Shared abstract filter input fields retain
+the same city/specialty validation as directory search. Each suggestion method uses
+the same doctor/clinic pipeline builder as its search query, preserving literal
+substring matching, Unicode, account/affiliation eligibility and authoritative city:
+
+- Doctor names come only from `memberFullName` on active, approved, nondeleted
+  doctors with active nondeleted clinics. City uses the joined clinic's location.
+- Clinic names come only from `clinicName` on active nondeleted clinics. Specialty
+  requires an eligible affiliated doctor; without specialty, clinics without doctors
+  can be suggested. Clinic city is its own location.
+- Eligibility and all filters precede grouping/limiting. The shared names aggregation
+  groups equivalent names with ICU `en`, strength 2 (case-insensitive, accent-sensitive)
+  collation, sorts alphabetically ascending and returns at most eight distinct names.
+  For equivalent names with different casing, the eligible matching record with the
+  smallest `_id` supplies the display string, making repeat requests deterministic
+  while data is unchanged. Names select text, not a unique member identity.
+- Responses contain only name strings: no member IDs, private contact fields,
+  credentials, provider identities, session data or joined doctor/clinic objects.
+  Each aggregation has the same 5-second `maxTimeMS` bound as directory search.
+- `npm run test:directory:integration` verifies both suggestion queries through real
+  GraphQL/MongoDB, including boundary lengths, literal/Unicode names, distinct names,
+  deterministic casing/order, the eight-name cap, filters, eligibility and privacy.
+  Existing directory regression cases run in the same disposable suite. No production
+  database, index/migration or frontend/deployment changes are required by this API step.
+
+Debouncing, obsolete-response suppression, accessible combobox behavior, URL selection
+and independent suggestion-error handling remain frontend Steps 4–6.
 
 ## Authenticated member updates
 
@@ -775,6 +913,54 @@ These scoped source observations are not a full runtime/security audit. Database
 | Local deployment workflow does not match source layout: ignored root `docker-compose.yml` runs npm in `/usr/src/medconnect`, while package.json is under backend/. `deploy.sh` hard-resets and selects master. | The recorded script cannot be assumed to build this checkout and can discard local changes when run. | Review the intended branch/release workflow, point container commands at backend/, and replace destructive checkout handling with an explicit release procedure. Validate configuration/build before attempting deployment. |
 
 Scheduling write ownership was established in Step 4: MemberService owns affiliation review and AppointmentScheduleService owns weekly/date schedule changes. AppointmentService retains explicit read dependencies and shares pure slot/override rules. No repository-wide service split was introduced.
+
+### Appointment service consolidation review — November 3, 2026
+
+Recommendation: retain the seven appointment service providers. The November 3
+implementation consolidates clinic/doctor/specialty/timezone eligibility in
+`backend/src/components/appointment/appointment-doctor.ts`, used by both booking
+and scheduling. A feature helper avoids injecting the schedule service and its
+unrelated model dependencies into booking. It receives the caller session, retains
+each API's validation order/errors and optional schedule specialty, and does not own
+a transaction. Service sources below are under `backend/src/components/appointment/`.
+The observations describe the pre-refactor review; further proposals remain deferred.
+
+| Observation and source | Consequence | Recommendation |
+| --- | --- | --- |
+| At review, `appointment.service.ts` was 1,049 lines, combining creation, transactional status/outbox writes, promotion eligibility and three read APIs. REST and GraphQL share it; commitment and worker services use its explicit transaction methods. | Merging another workflow here increases the responsibility and regression surface. | Keep the public facade and transaction interfaces. Consider a separate read provider only if that improves maintenance after the validation cleanup; preserve REST versus GraphQL ordering, limits and projections. |
+| `appointment-schedule.service.ts:doctor` and `appointment.service.ts:requireApprovedDoctor` both query active clinic/approved doctor, specialty and timezone. Both services also load hours/overrides, while already sharing `appointment-slot.ts` calculations. | Database eligibility checks can drift even though pure slot calculations are shared. | Implemented a shared session-aware appointment-doctor.ts helper for both services. Keep caller authorization, booking policy, reservation and occupancy checks in the mutation path. Preserve optional specialty for schedule management and required specialty for booking. |
+| `appointment-promotion.service.ts` and `appointment-waitlist-lifecycle.service.ts` share timer/shutdown scaffolding, but promotion uses durable claims, fencing and retry backoff; lifecycle also expires entries, processes cleanup and handles cutoff openings while promotion is disabled. | A combined worker would couple distinct controls and recovery paths. | Keep workers separate. Retain their feature flags, cutoff behavior and transaction ownership; do not introduce a generic worker framework just to remove short timer code. |
+| `appointment-commitment.service.ts` coordinates appointment/waitlist replacement in one BookingCoordinationService transaction. AppointmentService already injects WaitlistService. | Merging the orchestrator into WaitlistService would introduce a reverse service dependency; splitting replacement into independent calls would lose atomicity. | Retain the orchestrator in AppointmentModule. Clarify that a commitment means either a booked appointment or a waitlist place; avoid moving providers between modules solely to shorten names. |
+| `appointment-calendar.service.ts` owns authorized read snapshots, full-window revisions and pagination; `appointment-notification.service.ts` resolves owned notification targets through four existing services. | These are cohesive read workflows with different consistency and error contracts from booking writes. Moving notification context into NotificationService would reverse the current AppointmentModule-to-NotificationModule dependency. | Keep both services. A small orchestration service is justified here; optionally rename AppointmentNotificationService to AppointmentNotificationContextService to describe its actual role. |
+
+Review plan and implementation scope:
+
+1. Establish a fresh build/typecheck, unit/API and disposable MongoDB booking
+   integration baseline using the existing package scripts. Inspect existing
+   eligibility, replacement, calendar, notification and worker recovery cases before
+   adding tests; add only missing behavioral coverage.
+2. Implemented: consolidate clinic/doctor/specialty/timezone eligibility into a
+   session-aware feature helper, reused by schedule operations, booking validation
+   and reopening checks.
+   Preserve existing error contracts and the mutation's current transaction session;
+   never use advisory getAvailableSlots results to authorize a booking.
+3. Schedule loading remains separate: range-based advisory availability reads and
+   transaction-bound single-slot mutation checks have different query shapes. Their
+   pure slot/override rules already share appointment-slot.ts. Retain schedule-edit
+   commitment protection, doctor gates, slot reservations, unique indexes and outbox
+   writes in their current transactions.
+4. Deferred: optional notification-context renaming and further restructuring.
+   Defer read-service extraction and physical regrouping until there is a concrete
+   maintenance benefit. No immediate service merge is proposed.
+
+For any implemented step, rerun affected API and real-MongoDB integration cases,
+including weekday/timezone rules, concurrent booking versus schedule edits, failed
+replacement rollback, cutoff handling with promotion disabled, lease takeover,
+calendar revisions and notification ownership/error handling. November 3 verification:
+build/full TypeScript, 77 unit, 222 API and 193 disposable MongoDB integration tests
+passed. Lint retains only the pre-existing empty config.ts warning. Public API names,
+DTOs and feature flags remain unchanged; no schema migration is needed. Fresh browser
+and deployed runtime verification were not performed.
 
 ### Step 12 operational acceptance — November 1
 

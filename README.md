@@ -76,9 +76,13 @@ this does not establish deployed integration or enable automatic waitlist bookin
 - **Clinic and doctor cities:** Clinics must select a city from MediBridge’s 10-city
   `Location` enum during signup. Doctor cities are derived from their current clinic
   in auth responses and public profiles, including the doctor directory.
-- **Public doctor directory:** GraphQL `getDoctors` returns up to 100 active,
-  approved, nondeleted doctors, using public fields and name/ID ordering.
-  Focused tests use mocked persistence; live database integration is unverified.
+- **Public doctor and clinic search:** GraphQL `searchDoctors` and `searchClinics`
+  search full names/clinic names with city and specialty filters, alphabetical
+  sorting, server pagination and matching totals. Public-only results require active
+  clinics and approved doctors for doctor discovery/specialty matching. Verified
+  against disposable MongoDB. `suggestDoctorNames` / `suggestClinicNames` return up
+  to eight distinct, filter-aware names after two characters; frontend integration
+  is pending. Legacy discovery queries remain available with their 100-record limits.
 - **Image uploads:** Authenticated GraphQL single/batch PNG, JPEG, and WebP uploads
   for member/clinic images; up to five files, 10 MB each, with public URLs and local disk storage.
 - **Clinic/doctor calendar APIs:** Authorized, paginated calendar snapshots and

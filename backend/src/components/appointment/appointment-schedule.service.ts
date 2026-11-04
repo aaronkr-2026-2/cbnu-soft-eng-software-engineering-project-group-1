@@ -1,3 +1,4 @@
+import { requireAppointmentDoctor } from './appointment-doctor.js';
 import type { BookAppointmentDto } from '../../libs/dto/appointment/book-appointment.dto.js';
 import { waitlistEnrollmentEnabled } from '../booking/booking.config.js';
 import {
@@ -40,9 +41,7 @@ import {
   AvailabilityOverrideType,
 } from '../../libs/enum/appointment.enum.js';
 import {
-  DoctorClinicStatus,
   DoctorSpecialization,
-  MemberStatus,
   MemberType,
 } from '../../libs/enum/member.enum.js';
 import type {
@@ -117,49 +116,12 @@ export class AppointmentScheduleService {
     session?: ClientSession,
     specialty?: DoctorSpecialization,
   ) {
-    const { members } = this.models();
-    if (![doctorId, clinicId].every((id) => /^[a-f\d]{24}$/i.test(id)))
-      throw new BadRequestException('Invalid clinic or doctor ID');
-    const clinic = await members
-      .findOne({
-        _id: clinicId,
-        memberType: MemberType.CLINIC,
-        memberStatus: MemberStatus.ACTIVE,
-        deletedAt: null,
-      })
-      .select({ clinicTimezone: 1, authVersion: 1 })
-      .session(session ?? null)
-      .lean()
-      .exec();
-    const doctor = await members
-      .findOne({
-        _id: doctorId,
-        clinicId,
-        memberType: MemberType.DOCTOR,
-        memberStatus: MemberStatus.ACTIVE,
-        deletedAt: null,
-        doctorClinicStatus: DoctorClinicStatus.APPROVED,
-      })
-      .select({ doctorSpecializations: 1 })
-      .session(session ?? null)
-      .lean()
-      .exec();
-    if (
-      !clinic ||
-      !doctor ||
-      typeof clinic.clinicTimezone !== 'string' ||
-      !clinic.clinicTimezone
-    )
-      throw new BadRequestException(
-        'An active clinic and approved doctor with a valid timezone are required',
-      );
-    if (
-      specialty !== undefined &&
-      (!Array.isArray(doctor.doctorSpecializations) ||
-        !doctor.doctorSpecializations.includes(specialty))
-    )
-      throw new BadRequestException('Doctor does not offer this specialty');
-    return clinic;
+    return requireAppointmentDoctor(
+      this.models().members,
+      { doctorId, clinicId, specialty },
+      'schedule',
+      session,
+    );
   }
 
   async getSlotForTarget(input: BookAppointmentDto) {

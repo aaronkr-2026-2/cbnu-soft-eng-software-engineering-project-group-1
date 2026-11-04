@@ -12,7 +12,12 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
-import { Model, Types } from 'mongoose';
+import { Model, Types, type PipelineStage } from 'mongoose';
+import {
+  DirectoryNameSuggestionsInput,
+  DirectorySearchInput,
+} from '../../libs/dto/directory/directory.input.js';
+import { DirectorySort } from '../../libs/enum/directory.enum.js';
 import {
   AuthProvider,
   DoctorClinicStatus,
@@ -227,6 +232,194 @@ export class MemberService implements OnModuleInit {
       memberPhone: member.memberPhone ?? undefined,
       memberEmail: member.memberEmail ?? undefined,
       canChangePassword: member.authProvider === AuthProvider.EMAIL,
+    };
+  }
+
+  async searchDoctors(input: DirectorySearchInput) {
+    return this.directoryPage(
+      this.doctorDirectoryPipeline(input),
+      'memberFullName',
+      input,
+    );
+  }
+
+  async suggestDoctorNames(input: DirectoryNameSuggestionsInput) {
+    return this.directoryNames(
+      this.doctorDirectoryPipeline(input),
+      'memberFullName',
+    );
+  }
+
+  private doctorDirectoryPipeline(
+    input: Pick<DirectorySearchInput, 'name' | 'city' | 'specialty'>,
+  ) {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const { name, city, specialty } = input;
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          memberType: MemberType.DOCTOR,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+          doctorClinicStatus: DoctorClinicStatus.APPROVED,
+          ...(name
+            ? {
+                memberFullName: this.directoryNameMatch(name),
+              }
+            : {}),
+          ...(specialty ? { doctorSpecializations: specialty } : {}),
+        },
+      },
+      {
+        $lookup: {
+          from: this.members.collection.name,
+          localField: 'clinicId',
+          foreignField: '_id',
+          pipeline: [
+            {
+              $match: {
+                memberType: MemberType.CLINIC,
+                memberStatus: MemberStatus.ACTIVE,
+                deletedAt: null,
+                ...(city ? { location: city } : {}),
+              },
+            },
+            { $project: { _id: 0, location: 1 } },
+          ],
+          as: 'directoryClinic',
+        },
+      },
+      { $unwind: '$directoryClinic' },
+      // A legacy clinic without a city yields null, never the doctor's stale city.
+      { $set: { location: { $ifNull: ['$directoryClinic.location', null] } } },
+    ];
+    return pipeline;
+  }
+
+  async searchClinics(input: DirectorySearchInput) {
+    return this.directoryPage(
+      this.clinicDirectoryPipeline(input),
+      'clinicName',
+      input,
+    );
+  }
+
+  async suggestClinicNames(input: DirectoryNameSuggestionsInput) {
+    return this.directoryNames(
+      this.clinicDirectoryPipeline(input),
+      'clinicName',
+    );
+  }
+
+  private clinicDirectoryPipeline(
+    input: Pick<DirectorySearchInput, 'name' | 'city' | 'specialty'>,
+  ) {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const { name, city, specialty } = input;
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          memberType: MemberType.CLINIC,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+          ...(name ? { clinicName: this.directoryNameMatch(name) } : {}),
+          ...(city ? { location: city } : {}),
+        },
+      },
+    ];
+    if (specialty) {
+      pipeline.push(
+        {
+          $lookup: {
+            from: this.members.collection.name,
+            localField: '_id',
+            foreignField: 'clinicId',
+            pipeline: [
+              {
+                $match: {
+                  memberType: MemberType.DOCTOR,
+                  memberStatus: MemberStatus.ACTIVE,
+                  deletedAt: null,
+                  doctorClinicStatus: DoctorClinicStatus.APPROVED,
+                  doctorSpecializations: specialty,
+                },
+              },
+              { $limit: 1 },
+              { $project: { _id: 1 } },
+            ],
+            as: 'directoryDoctor',
+          },
+        },
+        { $match: { 'directoryDoctor.0': { $exists: true } } },
+      );
+    }
+    return pipeline;
+  }
+
+  private async directoryNames(
+    pipeline: PipelineStage[],
+    nameField: 'memberFullName' | 'clinicName',
+  ): Promise<string[]> {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    pipeline.push(
+      // Choose stable display casing when equivalent names belong to several members.
+      { $sort: { _id: 1 } },
+      { $group: { _id: '$' + nameField, name: { $first: '$' + nameField } } },
+      { $sort: { name: 1 } },
+      { $limit: 8 },
+      { $project: { _id: 0, name: 1 } },
+    );
+    const names = await this.members
+      .aggregate<{ name: string }>(pipeline)
+      .collation({ locale: 'en', strength: 2 })
+      .option({ maxTimeMS: 5000 })
+      .exec();
+    return names.map(({ name }) => name);
+  }
+
+  private directoryNameMatch(name: string) {
+    return {
+      $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+      $options: 'i',
+    };
+  }
+
+  private async directoryPage(
+    pipeline: PipelineStage[],
+    nameField: 'memberFullName' | 'clinicName',
+    { page, limit, sort }: DirectorySearchInput,
+  ) {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const direction = sort === DirectorySort.NAME_DESC ? -1 : 1;
+    pipeline.push({
+      $facet: {
+        entries: [
+          { $sort: { [nameField]: direction, _id: direction } },
+          { $skip: (page - 1) * limit },
+          { $limit: limit },
+          { $project: this.publicFields },
+        ],
+        count: [{ $count: 'total' }],
+      },
+    });
+    const [result] = await this.members
+      .aggregate<{
+        entries: MemberProfile[];
+        count: { total: number }[];
+      }>(pipeline)
+      // English ICU secondary strength: case-insensitive, accent-sensitive names.
+      .collation({ locale: 'en', strength: 2 })
+      .option({ maxTimeMS: 5000 })
+      .exec();
+    return {
+      entries: result?.entries ?? [],
+      total: result?.count[0]?.total ?? 0,
+      page,
+      limit,
     };
   }
 

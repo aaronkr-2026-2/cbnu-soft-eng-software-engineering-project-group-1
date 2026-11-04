@@ -878,3 +878,51 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No substantive AI error identified during this task. Initial read-only path lookups were corrected before writing the records.
 
 **One decision I can explain without AI:** Keep the same sprint dates across backend and Next so API delivery and browser delivery can be compared without attributing one stack's work to the other.
+
+## Share appointment doctor eligibility — 2026-11-03
+
+**Tool(s) used:** Codex; source/Git inspection, TypeScript/Nest build, Jest unit/API/disposable MongoDB integration suites, oxlint, Prettier and git diff --check.
+**What I asked for:** Review appointment service consolidation, then implement the focused refactor.
+**Pre-planning:** Seven services have distinct responsibilities; doctor/clinic eligibility queries were repeated in booking and scheduling. Existing schedule calculations already share appointment-slot.ts.
+**Planning:** Keep services separate and reuse a feature helper instead of adding service coupling. Preserve caller sessions, public errors and optional schedule specialty; defer naming/read-service changes.
+**Implementation process:** Added appointment-doctor.ts; both services delegate eligibility checks, including booking reopening through the existing wrapper. Added eight regression cases. Baseline build/full TypeScript,69 unit and222 API checks passed. Final build/full TypeScript,77 unit,222 API and193 disposable MongoDB integration checks passed. Socket suites needed local-socket permission after sandbox EPERM; lint retains only the pre-existing empty config.ts warning. Updated architecture, Sprint05 S05-07 and session records; no application DB, browser, deployment or Git write actions.
+**What I kept as-is:** All seven providers, REST/GraphQL contracts, authorization, schedule query shapes, slot/ledger/outbox transactions and worker behavior.
+**What I changed or rejected, and why:** Consolidated eligibility in a helper rather than injecting AppointmentScheduleService, avoiding unrelated model dependencies and provider changes. Kept range-based availability reads separate from transaction-bound slot checks because their query requirements differ.
+**Something the AI got wrong that I had to catch:** Lint caught an unused MemberStatus import after extraction; removed it and reran lint before completion.
+**One decision I can explain without AI:** Sharing the duplicated rule implementation reduces drift while keeping each workflow's transaction and public contract intact.
+
+## Doctor directory search API — 2026-11-04
+
+**Tool(s) used:** Codex; source/reference inspection, Nest build, TypeScript, oxlint, Jest, Supertest and owned disposable MongoDB runner/explain.
+**What I asked for:** Start DIRECTORY_SEARCH_PLAN.md Step1 in the backend worktree and stop for manual commit.
+**Pre-planning:** Existing member resolver/service owns discovery and public projection; clinic city is authoritative. Inspected MediBridge aggregation/facet reference and repository instructions/current records.
+**Planning:** Reuse the member feature and public Member output; shared validated directory DTOs/enum under libs. Put all joined eligibility/filtering before facet to keep entries/count consistent and preserve existing query contracts.
+**Implementation process:** Added searchDoctors full-name literal/Unicode matching, city/specialty filters, stable bidirectional sorting, pagination/totals, active-clinic eligibility and5s execution limit. Added30 real GraphQL/MongoDB tests and runner command; updated architecture/README/S05-08. Build/full TypeScript,77 unit,222 API and30 directory tests pass; lint only existing config.ts warning. Initial localhost EPERM required approved local-port execution.150-row explain confirms scan and indexed clinic lookup; no production performance claim/index changes. Frontend and later plan steps remain pending.
+**What I kept as-is:** Existing getDoctors/getClinics/getClinicDoctors contracts, public fields, schemas/indexes, application databases, deployment and manual Git workflow.
+**What I changed or rejected, and why:** Used escaped memberFullName matching rather than reference username regex; moved clinic eligibility/city before counting and pagination. Chose case-insensitive/accent-sensitive en strength2 collation with _id tie-breaks in both sort directions.
+**Something the AI got wrong that I had to catch:** The first test fixtures used invalid Unicode usernames and repeated unique contact/provider values. The real database tests caught this; Codex corrected fixtures before all30 passed (B-020). No human correction is claimed.
+**One decision I can explain without AI:** Filter by the joined clinic's city before pagination/counting so stale doctor city values cannot produce incorrect matches or totals.
+
+## Clinic directory search API — 2026-11-05
+
+**Tool(s) used:** Codex; source/reference inspection, apply_patch, Nest build, TypeScript, oxlint, Jest, Supertest and owned disposable MongoDB runner/explain.
+**What I asked for:** Implement DIRECTORY_SEARCH_PLAN.md Step 2, then stop for manual commit.
+**Pre-planning:** Verified clean backend39549ea with Step 1 committed; read instructions, current records and B-020 fixture lesson. Inspected shared directory DTOs, service/resolver and MediBridge aggregation reference.
+**Planning:** Reuse directory validation and public Member output. Filter clinics directly by name/city, add an eligible-doctor existence lookup only for specialty, and share the final page/count/projection execution with doctor search.
+**Implementation process:** Added searchClinics/ClinicDirectoryPage and shared abstract page DTO, literal-name matcher and bounded facet helper. Added39 clinic integration checks covering Unicode/literal names, combined filters, no duplicate counts, no-doctor clinics, eligibility, both sorts,105 tied clinics/two doctors each, invalid input and private fields. Build/full TypeScript,77 unit,222 API and69 real disposable directory checks passed; lint only existing config.ts warning.52-clinic/50-doctor explain confirms collection scanning, without index changes or production-scale performance claims. Updated architecture/README/S05-08/local plan/session records.
+**What I kept as-is:** Existing doctor search and legacy discovery contracts, schema/indexes, authentication, application databases, frontend/deployment and manual Git workflow.
+**What I changed or rejected, and why:** Used a lookup limited to one eligible doctor plus an existence filter rather than unwinding all doctors. Shared only literal matching and final pagination execution; doctor/clinic eligibility pipelines remain explicit in MemberService.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** A clinic needs only one eligible doctor to match a specialty. Testing existence keeps that clinic in one result row and counts it once even when many doctors match.
+
+## Filtered directory name suggestions — 2026-11-05
+
+**Tool(s) used:** Codex; source inspection, apply_patch, Prettier, Nest build, TypeScript, oxlint, Jest, Supertest and owned disposable MongoDB runner.
+**What I asked for:** Implement DIRECTORY_SEARCH_PLAN.md Step3, then stop for manual commit.
+**Pre-planning:** Verified clean backend8071ba5 with Step2 committed; inspected instructions, records/B-020, directory DTOs, service/resolver and real database tests. Existing public filters/eligibility must remain consistent across search and suggestions.
+**Planning:** Add required name input with shared city/specialty validation; reuse doctor/clinic pipeline builders, then group/order/limit name strings. Preserve existing search contracts and put frontend interaction in later steps.
+**Implementation process:** Added suggestDoctorNames/suggestClinicNames and DirectoryNameSuggestionsInput. Required trimmed names accept2–100 characters; grouping uses en strength2 collation with smallest-ID display casing, alphabetical order and eight-name cap. Each query has5s maxTimeMS and returns only strings. Added49 suggestion checks; build/full TypeScript,77 unit,222 API and118 real disposable directory tests passed; lint only existing config.ts warning. Updated architecture/README/S05-08/plan/session records.
+**What I kept as-is:** Search/legacy discovery contracts, public eligibility, authoritative clinic cities, schema/indexes, application databases, frontend/deployment and manual Git workflow.
+**What I changed or rejected, and why:** Shared feature-local eligibility pipeline builders prevent search/suggestion drift. Dedicated suggestion input rejects blank/short requests, pagination and client-chosen limits; database grouping runs after all filters and before the cap.
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+**One decision I can explain without AI:** Deduplicate eligible names before applying the eight-name limit so repeated doctor/clinic names do not consume multiple suggestions; deterministic display casing keeps repeated requests stable.
