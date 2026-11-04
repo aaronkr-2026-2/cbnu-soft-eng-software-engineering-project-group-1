@@ -12,7 +12,9 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
-import { Model, Types } from 'mongoose';
+import { Model, Types, type PipelineStage } from 'mongoose';
+import { DirectorySearchInput } from '../../libs/dto/directory/directory.input.js';
+import { DirectorySort } from '../../libs/enum/directory.enum.js';
 import {
   AuthProvider,
   DoctorClinicStatus,
@@ -227,6 +229,80 @@ export class MemberService implements OnModuleInit {
       memberPhone: member.memberPhone ?? undefined,
       memberEmail: member.memberEmail ?? undefined,
       canChangePassword: member.authProvider === AuthProvider.EMAIL,
+    };
+  }
+
+  async searchDoctors(input: DirectorySearchInput) {
+    if (!this.members)
+      throw new ServiceUnavailableException('Member lookup is unavailable');
+    const { name, city, specialty, page, limit, sort } = input;
+    const direction = sort === DirectorySort.NAME_DESC ? -1 : 1;
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          memberType: MemberType.DOCTOR,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+          doctorClinicStatus: DoctorClinicStatus.APPROVED,
+          ...(name
+            ? {
+                memberFullName: {
+                  $regex: name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                  $options: 'i',
+                },
+              }
+            : {}),
+          ...(specialty ? { doctorSpecializations: specialty } : {}),
+        },
+      },
+      {
+        $lookup: {
+          from: this.members.collection.name,
+          localField: 'clinicId',
+          foreignField: '_id',
+          pipeline: [
+            {
+              $match: {
+                memberType: MemberType.CLINIC,
+                memberStatus: MemberStatus.ACTIVE,
+                deletedAt: null,
+                ...(city ? { location: city } : {}),
+              },
+            },
+            { $project: { _id: 0, location: 1 } },
+          ],
+          as: 'directoryClinic',
+        },
+      },
+      { $unwind: '$directoryClinic' },
+      // A legacy clinic without a city yields null, never the doctor's stale city.
+      { $set: { location: { $ifNull: ['$directoryClinic.location', null] } } },
+      {
+        $facet: {
+          entries: [
+            { $sort: { memberFullName: direction, _id: direction } },
+            { $skip: (page - 1) * limit },
+            { $limit: limit },
+            { $project: this.publicFields },
+          ],
+          count: [{ $count: 'total' }],
+        },
+      },
+    ];
+    const [result] = await this.members
+      .aggregate<{
+        entries: MemberProfile[];
+        count: { total: number }[];
+      }>(pipeline)
+      // English ICU secondary strength: case-insensitive, accent-sensitive names.
+      .collation({ locale: 'en', strength: 2 })
+      .option({ maxTimeMS: 5000 })
+      .exec();
+    return {
+      entries: result?.entries ?? [],
+      total: result?.count[0]?.total ?? 0,
+      page,
+      limit,
     };
   }
 

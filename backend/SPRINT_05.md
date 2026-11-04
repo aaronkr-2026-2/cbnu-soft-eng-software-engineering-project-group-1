@@ -1,7 +1,7 @@
 # Sprint 05 — Waitlists, operational readiness and usernames
 
 **Period:** October 30–November 5, 2026 (Asia/Seoul)
-**Review through:** November 3, 2026
+**Review through:** November 4, 2026
 **Status:** In progress; final review due November 5
 **Owner:** Me
 **Sprint goal:** Let patients safely join waitlists and manage unique usernames while giving operators a verifiable booking rollout path.
@@ -56,6 +56,25 @@ lint retains only the existing empty config.ts warning. Socket-based suites requ
 local-socket execution after sandbox EPERM. No browser/deployment verification,
 application database changes, staging, commit or push. Optional naming/read-provider
 changes remain deferred; this is not a production-readiness sign-off.
+
+## November 4 delivery — S05-08
+
+Doctor directory search API (Step 1) completed locally November 4. Public
+`searchDoctors` adds validated full-name/city/specialty filters, both alphabetical
+sorts, stable name/ID pagination and actual totals. Active approved doctors require
+an active clinic; city comes from the clinic and responses use a public allowlist.
+Existing discovery queries remain compatible. Added directory DTOs/sort enum and
+`npm run test:directory:integration` using the owned disposable runner.
+
+Build/full TypeScript,77 unit,222 API and30 disposable MongoDB search tests passed;
+lint has only the existing empty config.ts warning. Tests cover literal/Unicode
+names, username exclusion, combined filters, clinic city changes, eligibility,
+125 tied-name rows, invalid inputs and privacy. A150-row explain check confirms
+collection scan/name substring and `_id_` clinic lookup; no index changes proposed.
+Initial fixture validation/unique-key mistakes were corrected before final passing
+checks. Sandbox socket EPERM required local-port execution. No application DB,
+frontend, deployment, staging, commit or push changes. Clinic search, suggestions,
+URL-driven screens and combined browser acceptance remain later steps.
 
 ## Prioritized remaining backlog
 

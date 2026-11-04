@@ -890,3 +890,15 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Consolidated eligibility in a helper rather than injecting AppointmentScheduleService, avoiding unrelated model dependencies and provider changes. Kept range-based availability reads separate from transaction-bound slot checks because their query requirements differ.
 **Something the AI got wrong that I had to catch:** Lint caught an unused MemberStatus import after extraction; removed it and reran lint before completion.
 **One decision I can explain without AI:** Sharing the duplicated rule implementation reduces drift while keeping each workflow's transaction and public contract intact.
+
+## Doctor directory search API — 2026-11-04
+
+**Tool(s) used:** Codex; source/reference inspection, Nest build, TypeScript, oxlint, Jest, Supertest and owned disposable MongoDB runner/explain.
+**What I asked for:** Start DIRECTORY_SEARCH_PLAN.md Step1 in the backend worktree and stop for manual commit.
+**Pre-planning:** Existing member resolver/service owns discovery and public projection; clinic city is authoritative. Inspected MediBridge aggregation/facet reference and repository instructions/current records.
+**Planning:** Reuse the member feature and public Member output; shared validated directory DTOs/enum under libs. Put all joined eligibility/filtering before facet to keep entries/count consistent and preserve existing query contracts.
+**Implementation process:** Added searchDoctors full-name literal/Unicode matching, city/specialty filters, stable bidirectional sorting, pagination/totals, active-clinic eligibility and5s execution limit. Added30 real GraphQL/MongoDB tests and runner command; updated architecture/README/S05-08. Build/full TypeScript,77 unit,222 API and30 directory tests pass; lint only existing config.ts warning. Initial localhost EPERM required approved local-port execution.150-row explain confirms scan and indexed clinic lookup; no production performance claim/index changes. Frontend and later plan steps remain pending.
+**What I kept as-is:** Existing getDoctors/getClinics/getClinicDoctors contracts, public fields, schemas/indexes, application databases, deployment and manual Git workflow.
+**What I changed or rejected, and why:** Used escaped memberFullName matching rather than reference username regex; moved clinic eligibility/city before counting and pagination. Chose case-insensitive/accent-sensitive en strength2 collation with _id tie-breaks in both sort directions.
+**Something the AI got wrong that I had to catch:** The first test fixtures used invalid Unicode usernames and repeated unique contact/provider values. The real database tests caught this; Codex corrected fixtures before all30 passed (B-020). No human correction is claimed.
+**One decision I can explain without AI:** Filter by the joined clinic's city before pagination/counting so stale doctor city values cannot produce incorrect matches or totals.

@@ -2,8 +2,8 @@
 
 Date: November 4, 2026 (Asia/Seoul)
 
-Status: agreed scope, awaiting implementation. Creating this document does not
-implement or activate the features below.
+Status: Step 1 implemented and locally verified November 4; awaiting owner manual
+commit. Steps 2–6 remain unimplemented by this plan. No deployment activation.
 
 ## Goal
 
@@ -112,6 +112,13 @@ to stage/commit manually. Commit messages are provisional and must match the
 final diff. No automatic staging, committing, pushing or merging.
 
 ### Step 1 — Doctor search API
+
+**Completed locally November 4, 2026:** shared directory input/sort/page DTOs and
+public searchDoctors aggregation delivered. Build/full TypeScript,77 unit,222 API
+and30 disposable MongoDB search checks passed; lint only existing config.ts warning.
+Explain on150 disposable records: substring collection scan and `_id_` clinic join;
+no indexes proposed. Documentation and S05-08 updated. No staging/commit/push,
+application DB or deployment changes; owner handles the commit before Step 2.
 
 **Place:** backend branch, `.worktrees/backend/backend/`.
 

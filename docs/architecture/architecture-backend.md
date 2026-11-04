@@ -170,6 +170,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
 | REST | `POST /member/username/availability`, `/member/username/availability/me` | Public signup check and guarded own-profile check; shared separate 30/minute/IP budget; MemberService performs exact normalized-key lookup |
 | GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
+| GraphQL | `searchDoctors(input: DirectorySearchInput!)` at `POST /graphql` | Public paged full-name/city/specialty doctor search; `MemberResolver` → `MemberService.searchDoctors`; contract below |
 | GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
 | GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
 | GraphQL | `getNotification`, `notificationContext`, `myNotifications`, `markNotificationRead` | Guarded patient-owned inbox/current-target reads and read state; separate ADMIN delivery-status counts |
@@ -581,9 +582,59 @@ clinic or legacy clinic without a city yields an absent city (GraphQL null). Cli
 responses use the clinic's stored city; USER responses do not expose legacy city data.
 
 Clinics can edit their city through updateMember; doctor responses reflect it on the
-next read. No migration, workplace-change endpoint, or directory city filter
-is implemented. Tests change simulated persistence to verify affiliation/city changes;
-no live database or frontend workplace-change workflow was exercised.
+next read. No migration or workplace-change endpoint is implemented. Legacy read
+tests use simulated persistence; the new search query below is also verified with
+disposable MongoDB. No frontend workplace-change workflow was exercised.
+
+## Public doctor search (November 4, 2026)
+
+`searchDoctors(input: DirectorySearchInput!): DoctorDirectoryPage!` is public and
+returns `{ entries: [Member!]!, total: Int!, page: Int!, limit: Int! }`.
+The resolver delegates to `MemberService.searchDoctors`; input/output DTOs live in
+`backend/src/libs/dto/directory`, with `DirectorySort` in `src/libs/enum`.
+Existing `getDoctors`, `getClinics` and `getClinicDoctors` contracts are preserved.
+
+```graphql
+query {
+  searchDoctors(input: {
+    name: "Kim", city: SEOUL, specialty: DENTIST,
+    sort: NAME_ASC, page: 1, limit: 12
+  }) {
+    entries { _id memberFullName memberNick location doctorSpecializations clinicId }
+    total page limit
+  }
+}
+```
+
+- Optional `name` is trimmed, at most 100 characters, and matches a literal,
+  case-insensitive substring of `memberFullName`; regex metacharacters are escaped.
+  Unicode is supported; usernames are never searched. Empty name means no name filter.
+- Optional `city` uses `Location`; optional `specialty` uses `DoctorSpecialization`.
+  All supplied filters intersect. Explicit null values are rejected; omit unused filters.
+- `page` defaults to 1 and accepts integers 1–1000; `limit` defaults to 12 and
+  accepts integers 1–50. `sort` defaults to `NAME_ASC`, or accepts `NAME_DESC`.
+  Unknown fields/enum values, nulls and invalid bounds are rejected at the API boundary.
+- An initial doctor match requires active, nondeleted, approved doctors. A self-lookup
+  joins only active, nondeleted CLINIC members through `clinicId`; unavailable clinics
+  exclude their doctors. City filtering uses the joined clinic and the returned
+  `location` always comes from it. Legacy clinics without city return null without
+  a city filter. Specialty membership is tested on the doctor.
+- All eligibility/filter stages precede `$facet`. Entries sort by full name, then
+  `_id`, both ascending or both descending, using ICU `en`, strength 2 (case-insensitive,
+  accent-sensitive) collation in both directions. Missing names follow MongoDB's
+  null/missing name ordering. Pagination and actual total share the filtered stream;
+  empty/out-of-range pages return empty entries with the actual total.
+- Results use the existing explicit public-field projection. No email, phone,
+  password, normalized username key, provider identity or session fields are returned,
+  including from direct service results. The query sets `maxTimeMS: 5000`.
+- `npm run test:directory:integration` builds and invokes the existing owned disposable
+  MongoDB runner; it loads no application database settings. Real GraphQL/aggregation
+  checks include 125 tied-name rows and 150-row execution-plan inspection. The inspected
+  substring search scans the member collection and the clinic lookup uses `_id_`.
+  No indexes or migrations are proposed from this small fixture; production-scale
+  latency/load remains unmeasured.
+
+Clinic search, suggestions and frontend search controls remain subsequent plan steps.
 
 ## Authenticated member updates
 
