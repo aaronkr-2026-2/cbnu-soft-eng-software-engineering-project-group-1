@@ -93,10 +93,35 @@ Step6 still owns polish and combined acceptance, including Step4's remaining che
 Owned fixture stopped and database removed. No protected source/app DB/configuration/
 dependency/deployment/staging/commit/push changes. This does not close the whole sprint.
 
+## November 5 — NEXT-B11 filter polish and combined acceptance
+
+Step6 implements removable filter chips, clinical specialty labels, explicit default
+selector text, name-input focus after removal/clear, pagination result-summary focus,
+wrapping chips and reduced-motion loading polish. Both directories keep centered
+pagination. The name-removal patch now overrides pending typing and resets page1.
+
+TypeScript,92 tests,isolated production build and real frontend-adapter checks
+against normal Nest/disposable MongoDB pass. Both directories return125 matching
+records with correct filters,sorts,page2,totals and suggestions; separate503 recovery,
+Unicode literals,username exclusion,clinic distinct counts and selected-clinic team
+lookup pass. Chrome verifies doctor keyboard suggestion selection,refresh/history,
+chip removal and pagination focus; clinic dialog/focus,booking link/Back restoration,
+independent suggestion failure,main-error/retry and clear/focus pass. Clinic390px
+top/control layout and cards inspected; Escape closes clinic suggestions without
+changing filters. Inspection caught left-aligned wrapped pagination rows; the shared
+list now centers each row and the updated production build passes. Final390px visual rechecks pass for centered wrapped pagination on both pages,
+doctor controls and single-column cards. Combined local directory acceptance is complete.
+See [architecture acceptance details](../docs/architecture/architecture-next.md).
+No production deployment or whole-sprint closure is implied.
+
+Square doctor/clinic photos and square upload cropping are deferred to NEXT-B13.
+Review found MediBridge's react-easy-crop flow; a separate plan must define reuse,
+upload behavior and treatment of existing images before implementation.
+
 ## Remaining work and lessons
 
 Production TLS/proxy/multiple-instance/load behavior, intended profile image storage
-and password submission, full OS-offline behavior and combined directory browser acceptance remain
+and password submission, full OS-offline behavior remain
 unverified or undelivered. Ratings are placeholders; doctor/clinic registration UI
 is pending. Test servers were stopped after Step7; no production deployment or
 application-database migration is claimed.
@@ -115,8 +140,9 @@ require separate implementation requests.
 | --- | --- | --- | --- |
 | NEXT-B10 | P1 / Engineering/test | Review staging session/proxy/TLS/private-cache acceptance and backend activation dependencies | 🔵 Planning |
 | NEXT-B06 | P2 / Test | Verify real profile upload/replacement/password flows against intended storage | 🔵 Planning |
-| NEXT-B11 | P2 / Feature | Paginated discovery using delivered public backend contracts | 🟢 Doing; both directory screens implemented, Step6 polish/combined browser acceptance pending |
+| NEXT-B11 | P2 / Feature | Paginated discovery using delivered public backend contracts | Completed locally November5; Step6 polish and automated/API/desktop/mobile acceptance passed |
 | NEXT-B12 | P3 / Feature | Doctor/clinic registration UI with role-specific validation and pending affiliation | 🔴 Thinking; confirm desired onboarding scope |
+| NEXT-B13 | P3 / Feature | Square doctor/clinic card photos and upload cropper informed by MediBridge | 🔴 Thinking; deferred by owner until directory search is finished; separate plan required |
 | NEXT-B05 | P3 / Optional verification | Fresh live Google-provider acceptance only if the owner reopens that scope | 🔴 Thinking; automated acceptance already satisfied |
 
 **Remaining-work capacity assumption:**8 h of review/test work, not confirmed owner

@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated November 5, 2026 for doctor/clinic directory search Steps4–5. Earlier patient booking,
+Updated November 5, 2026 for doctor/clinic directory search Steps4–6. Earlier patient booking,
 staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
@@ -141,6 +141,49 @@ correct controls/cards. Further native input returned active-app/no-window error
 or no observable state change. Dialog/booking-return, keyboard autocomplete/history,
 error/retry UI and mobile browser acceptance remain unverified; Step6 must distinguish
 these outstanding interaction checks from the completed API/automated checks.
+
+## Directory filter polish and combined acceptance — November 5, 2026
+
+Step6 adds removable name/city/specialty/reverse-sort chips to the shared
+DirectoryPage. Removing a chip preserves other filters and resets page1; explicit
+name removal takes precedence over the pending text draft. Clear filters restores
+defaults. Both actions return focus to the name input. City labels explain that
+doctor city belongs to the clinic; specialty options use clinical labels while
+URLs/API requests retain the existing enums. Empty selectors explicitly show All
+cities and All specialties.
+
+Pagination focuses and scrolls to the live result summary after the new read
+finishes. Long chips wrap, results reserve loading space, and skeleton motion
+respects reduced-motion preferences. Both pages retain centered pagination.
+
+TypeScript,92 tests and an isolated production build with fixture URLs empty pass.
+Actual frontend adapters against normal compiled Nest and owned disposable MongoDB
+pass for both directories:125 matching records,12/page,both sorts/page2,combined
+filters,Unicode literal names,username exclusion,out-of-range totals,eight filtered
+suggestions and independent search/suggestion503 recovery. Clinic counts remain
+distinct with two matching doctors each; public Care112 team lookup and homepage
+regressions pass. Additional delayed real HTTP checks verify obsolete search and
+suggestion requests are aborted and only the latest result publishes for both kinds.
+
+Chrome desktop checks pass for doctor autocomplete keyboard selection,refresh,
+Back/Forward,name-chip deletion,preserved filters,page reset and pagination-summary
+focus. Clinic combined links,page2,doctor-dialog close/focus,booking target IDs and
+Back restoration pass. Injected suggestion failure leaves ordinary search usable;
+main-search failure hides stale cards and Try again recovers. Clear filters removes
+URL parameters and restores name-input focus. The390px clinic top/control layout
+has been visually inspected. A follow-up confirms Escape closes clinic suggestions
+without changing filters, and mobile clinic cards fit the viewport. Mobile inspection
+caught left-aligned wrapped pagination rows; the shared `.MuiPagination-ul` now
+centers each row, and the updated isolated production build passes. Final390px
+browser rechecks pass for centered wrapped pagination on both pages, doctor controls,
+single-column cards and booking links without visible horizontal overflow. The
+browser surface recovered after the owner brought the preview forward; earlier
+control failures are historical tooling limits. Combined local Step6 acceptance is
+complete. These results supersede the corresponding historical Step4/5 gaps above.
+Deployment and production-scale performance remain unverified.
+
+Square doctor/clinic card photos and a MediBridge-style square upload cropper are
+deferred for a separate plan; Step6 does not change image rendering or uploads.
 
 ## Sessions and deployment
 

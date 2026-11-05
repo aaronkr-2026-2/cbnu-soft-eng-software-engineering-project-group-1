@@ -53,6 +53,12 @@ for (const [kind, Component, nameLabel] of [
       /first 100 listed doctors|Showing up to 100 clinics/,
     );
     assert.match(html, /Clear filters/);
+    assert.match(html, /All cities/);
+    assert.match(html, /All specialties/);
+    assert.match(
+      html,
+      kind === 'doctors' ? /Doctor specialty/ : /Specialty offered/,
+    );
     assert.match(html, /aria-busy="true"/);
     assert.doesNotMatch(html, /View doctors at|View times/);
   });

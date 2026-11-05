@@ -52,6 +52,39 @@
     margin-block: 1.25rem;
     color: v.$mutedTextColor;
     font-size: 0.9rem;
+    scroll-margin-top: 7rem;
+    &:focus-visible {
+      outline: 2px solid v.$primary;
+      outline-offset: 0.35rem;
+    }
+  }
+  .directory-page__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    .MuiChip-root {
+      max-width: 100%;
+      height: auto;
+      min-height: 2rem;
+    }
+    .MuiChip-label {
+      white-space: normal;
+      overflow-wrap: anywhere;
+      padding-block: 0.35rem;
+    }
+    .MuiChip-deleteIcon {
+      flex-shrink: 0;
+    }
+  }
+  .directory-page__results {
+    min-height: 20rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .MuiSkeleton-root,
+    .MuiSkeleton-root::after {
+      animation: none;
+    }
   }
 
   .directory-page__name {
@@ -67,6 +100,10 @@
     display: flex;
     justify-content: center;
     margin-top: 2rem;
+
+    .MuiPagination-ul {
+      justify-content: center;
+    }
   }
 
   .directory-page__grid {

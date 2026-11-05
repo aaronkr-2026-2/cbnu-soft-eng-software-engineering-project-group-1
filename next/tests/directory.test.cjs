@@ -21,6 +21,8 @@ const {
   defaultDirectory,
   directoryCities,
   directorySpecialties,
+  directorySpecialtyLabel,
+  directoryChips,
 } = require('../libs/directory.ts');
 const {
   searchDoctors,
@@ -461,4 +463,65 @@ test('clinic navigation preserves URL filters through pagination, suggestion sel
   assert.equal(calls[1].filters.page, 1);
   assert.equal(calls[1].filters.city, 'BUSAN');
   assert.equal(calls[1].filters.name, 'Care Selected');
+});
+
+test('active chips use clear labels and omit default/empty filters', () => {
+  assert.deepEqual(directoryChips(defaultDirectory), []);
+  assert.deepEqual(
+    directoryChips({
+      ...defaultDirectory,
+      name: 'Kim',
+      city: 'SEOUL',
+      specialty: 'DENTIST',
+      sort: 'NAME_DESC',
+    }).map(({ key, label }) => ({ key, label })),
+    [
+      { key: 'name', label: 'Name: Kim' },
+      { key: 'city', label: 'City: Seoul' },
+      { key: 'specialty', label: 'Specialty: Dentistry' },
+      { key: 'sort', label: 'Name Z–A' },
+    ],
+  );
+  for (const specialty of directorySpecialties)
+    assert.ok(directorySpecialtyLabel(specialty).length > 0);
+  assert.equal(
+    directorySpecialtyLabel('OTOLARYNGOLOGIST'),
+    'Ear, nose and throat',
+  );
+});
+
+test('removing any chip resets page and preserves other committed filters', async (context) => {
+  const url =
+    '/doctors?name=Kim&city=SEOUL&specialty=DENTIST&sort=NAME_DESC&page=3';
+  const initial = parseDirectoryUrl(url);
+  const { navigation, calls, tick } = fixture(context, url);
+  for (const chip of directoryChips(initial)) {
+    navigation.restore(url);
+    await navigation.filter(chip.remove);
+    tick(1000);
+    assert.deepEqual(calls.at(-1).filters, {
+      ...initial,
+      ...chip.remove,
+      page: 1,
+    });
+    assert.equal(calls.at(-1).replace, false);
+  }
+});
+
+test('name-chip removal overrides a pending draft and prevents its timer from restoring the filter', async (context) => {
+  const { navigation, calls, tick } = fixture(
+    context,
+    '/clinics?name=Care&city=BUSAN&page=2',
+  );
+  navigation.edit('Pending Care');
+  await navigation.filter({ name: '' });
+  tick(1000);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].filters, { ...defaultDirectory, city: 'BUSAN' });
+  navigation.restore(directoryUrl('/clinics', calls[0].filters));
+  assert.equal(navigation.snapshot().draft, '');
+  assert.deepEqual(
+    directoryChips(navigation.snapshot().filters).map((c) => c.key),
+    ['city'],
+  );
 });

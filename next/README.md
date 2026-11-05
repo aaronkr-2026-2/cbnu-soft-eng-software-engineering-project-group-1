@@ -72,7 +72,7 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 
 The two directories use public `searchDoctors`/`searchClinics` and their name
 suggestion queries, with12 results per page and actual matching totals. They share
-URL controls, result states and centered pagination. Refresh and Back/Forward restore
+URL controls, removable filter chips, result states and centered pagination. Refresh and Back/Forward restore
 committed controls; explicit choices add history and debounced typing replaces it.
 Loading/error/retry/empty states and clear filters are included. Suggestions require
 two trimmed characters and fail independently of ordinary search.

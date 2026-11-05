@@ -67,6 +67,62 @@ export function directoryLabel(value: string) {
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
+export const directorySpecialtyLabels: Record<
+  (typeof directorySpecialties)[number],
+  string
+> = {
+  CARDIOLOGIST: 'Cardiology',
+  DENTIST: 'Dentistry',
+  PEDIATRICIAN: 'Pediatrics',
+  DERMATOLOGIST: 'Dermatology',
+  PSYCHIATRIST: 'Psychiatry',
+  NEUROLOGIST: 'Neurology',
+  OPHTHALMOLOGIST: 'Ophthalmology',
+  ORTHOPEDIC: 'Orthopedics',
+  ONCOLOGIST: 'Oncology',
+  GYNAECOLOGIST: 'Gynecology',
+  GASTROENTEROLOGIST: 'Gastroenterology',
+  OTOLARYNGOLOGIST: 'Ear, nose and throat',
+  SURGEON: 'Surgery',
+};
+export function directorySpecialtyLabel(value: string) {
+  return (
+    directorySpecialtyLabels[value as (typeof directorySpecialties)[number]] ||
+    directoryLabel(value)
+  );
+}
+export function directoryChips(filters: DirectoryFilters) {
+  const chips: {
+    key: keyof DirectoryFilters;
+    label: string;
+    remove: Partial<DirectoryFilters>;
+  }[] = [];
+  if (filters.name)
+    chips.push({
+      key: 'name',
+      label: `Name: ${filters.name}`,
+      remove: { name: '' },
+    });
+  if (filters.city)
+    chips.push({
+      key: 'city',
+      label: `City: ${directoryLabel(filters.city)}`,
+      remove: { city: '' },
+    });
+  if (filters.specialty)
+    chips.push({
+      key: 'specialty',
+      label: `Specialty: ${directorySpecialtyLabel(filters.specialty)}`,
+      remove: { specialty: '' },
+    });
+  if (filters.sort === 'NAME_DESC')
+    chips.push({
+      key: 'sort',
+      label: 'Name Z–A',
+      remove: { sort: 'NAME_ASC' },
+    });
+  return chips;
+}
 export function parseDirectoryUrl(url: string): DirectoryFilters {
   const params = new URL(url, 'http://directory.local').searchParams;
   const one = (key: string) =>
@@ -173,7 +229,7 @@ export class DirectoryNavigation {
   };
   submit = (name = this.state.draft) => this.go({ name: name.trim(), page: 1 });
   filter = (patch: Partial<DirectoryFilters>) =>
-    this.go({ ...patch, name: this.state.draft.trim(), page: 1 });
+    this.go({ name: this.state.draft.trim(), ...patch, page: 1 });
   page = (page: number) => this.go({ page });
   clear = () => this.go(defaultDirectory);
   private async go(patch: Partial<DirectoryFilters>, replace = false) {

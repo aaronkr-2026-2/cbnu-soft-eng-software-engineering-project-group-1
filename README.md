@@ -127,10 +127,10 @@ this does not establish deployed integration or enable automatic waitlist bookin
   layout. Dashboard statistics and appointments currently use sample data;
   frontend/backend integration is not verified.
 - **Next.js discovery:** `/doctors` and `/clinics` share server name/city/specialty
-  search, alphabetical sorting, centered pagination, name suggestions and shareable
+  search, alphabetical sorting, removable filter chips, centered pagination, name suggestions and shareable
   URLs. Clinic cards open public clinic-specific doctor previews with View times
   links. The homepage retains local clinic discovery from the first100 public
-  doctors. Ratings remain labeled placeholders; combined browser acceptance is pending.
+  doctors. Ratings remain labeled placeholders; combined local browser acceptance passed.
 - **Next.js authentication:** `/auth` offers email/password login, patient signup,
   and optional Google popup sign-in. A same-origin session bridge keeps rotating
   refresh tokens in HttpOnly cookies; access tokens stay in memory. Reload restores

@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Alert,
   Autocomplete,
   Button,
+  Chip,
   MenuItem,
   Pagination,
   Skeleton,
@@ -13,7 +14,9 @@ import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import SearchRounded from '@mui/icons-material/SearchRounded';
 import {
   directoryCities,
+  directoryChips,
   directoryLabel,
+  directorySpecialtyLabel,
   directorySpecialties,
   type DirectoryKind,
 } from '../../libs/directory';
@@ -51,6 +54,22 @@ export function DirectoryPage({
   );
   const [open, setOpen] = useState(false);
   const [highlighted, setHighlighted] = useState<string | null>(null);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const resultSummary = useRef<HTMLParagraphElement>(null);
+  const focusResults = useRef(false);
+  useEffect(() => {
+    if (!loading && focusResults.current) {
+      focusResults.current = false;
+      resultSummary.current?.focus({ preventScroll: true });
+      resultSummary.current?.scrollIntoView({ block: 'start' });
+    }
+  }, [loading, data, error]);
+  const clearFilters = () => {
+    setOpen(false);
+    setHighlighted(null);
+    void navigation.clear();
+    nameInput.current?.focus();
+  };
   const suggestions = useDirectorySuggestions(
     kind,
     filters,
@@ -141,6 +160,7 @@ export function DirectoryPage({
               renderInput={(params) => (
                 <TextField
                   {...params}
+                  inputRef={nameInput}
                   label={
                     kind === 'doctors' ? 'Doctor full name' : 'Clinic name'
                   }
@@ -162,7 +182,20 @@ export function DirectoryPage({
             />
             <TextField
               select
-              label="Clinic city"
+              label={kind === 'doctors' ? 'Clinic city' : 'City'}
+              helperText={
+                kind === 'doctors'
+                  ? 'City of the doctor’s clinic.'
+                  : 'City where the clinic is located.'
+              }
+              slotProps={{
+                inputLabel: { shrink: true },
+                select: {
+                  displayEmpty: true,
+                  renderValue: (value) =>
+                    value ? directoryLabel(String(value)) : 'All cities',
+                },
+              }}
               value={filters?.city || ''}
               disabled={disabled}
               onChange={(event) => {
@@ -179,7 +212,24 @@ export function DirectoryPage({
             </TextField>
             <TextField
               select
-              label="Specialty"
+              label={
+                kind === 'doctors' ? 'Doctor specialty' : 'Specialty offered'
+              }
+              helperText={
+                kind === 'doctors'
+                  ? 'Care provided by the doctor.'
+                  : 'Care available at the clinic.'
+              }
+              slotProps={{
+                inputLabel: { shrink: true },
+                select: {
+                  displayEmpty: true,
+                  renderValue: (value) =>
+                    value
+                      ? directorySpecialtyLabel(String(value))
+                      : 'All specialties',
+                },
+              }}
               value={filters?.specialty || ''}
               disabled={disabled}
               onChange={(event) => {
@@ -190,7 +240,7 @@ export function DirectoryPage({
               <MenuItem value="">All specialties</MenuItem>
               {directorySpecialties.map((value) => (
                 <MenuItem key={value} value={value}>
-                  {directoryLabel(value)}
+                  {directorySpecialtyLabel(value)}
                 </MenuItem>
               ))}
             </TextField>
@@ -215,21 +265,42 @@ export function DirectoryPage({
               </Button>
               <Button
                 type="button"
+                aria-label="Clear all filters"
                 disabled={disabled}
-                onClick={() => {
-                  setOpen(false);
-                  void navigation.clear();
-                }}
+                onClick={clearFilters}
               >
                 Clear filters
               </Button>
             </div>
           </form>
+          {filters && directoryChips(filters).length > 0 && (
+            <div
+              className="directory-page__chips"
+              role="group"
+              aria-label="Active search filters"
+            >
+              {directoryChips(filters).map((chip) => (
+                <Chip
+                  key={chip.key}
+                  label={chip.label}
+                  aria-label={`Remove ${chip.label}`}
+                  onDelete={() => {
+                    setOpen(false);
+                    setHighlighted(null);
+                    void navigation.filter(chip.remove);
+                    nameInput.current?.focus();
+                  }}
+                />
+              ))}
+            </div>
+          )}
           {navigationError && (
             <Alert severity="warning">{navigationError}</Alert>
           )}
           <p
             className="directory-page__count"
+            ref={resultSummary}
+            tabIndex={-1}
             role="status"
             aria-live="polite"
             aria-atomic="true"
@@ -240,7 +311,7 @@ export function DirectoryPage({
                 ? 'Directory unavailable'
                 : `${data?.total || 0} ${data?.total === 1 ? singular : kind} found${data?.entries.length ? ` · Page ${data.page} of ${pages}` : ''}`}
           </p>
-          <div aria-busy={loading}>
+          <div className="directory-page__results" aria-busy={loading}>
             {loading && (
               <div
                 className="directory-page__grid"
@@ -278,11 +349,14 @@ export function DirectoryPage({
                         ? 'This page is outside the matching results. Choose another page or clear your filters.'
                         : 'Try another name, city or specialty, or clear your filters.'}
                     </p>
-                    <Button onClick={() => void navigation.clear()}>
-                      Clear filters
-                    </Button>
+                    <Button onClick={clearFilters}>Clear filters</Button>
                     {data.total > 0 && (
-                      <Button onClick={() => void navigation.page(1)}>
+                      <Button
+                        onClick={() => {
+                          focusResults.current = true;
+                          void navigation.page(1);
+                        }}
+                      >
                         Go to first page
                       </Button>
                     )}
@@ -293,7 +367,10 @@ export function DirectoryPage({
                     className="directory-page__pagination"
                     count={pages}
                     page={data.page}
-                    onChange={(_event, page) => void navigation.page(page)}
+                    onChange={(_event, page) => {
+                      focusResults.current = true;
+                      void navigation.page(page);
+                    }}
                     showFirstButton
                     showLastButton
                     aria-label={`${title} result pages`}
