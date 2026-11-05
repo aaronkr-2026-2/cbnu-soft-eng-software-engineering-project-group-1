@@ -968,3 +968,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this backend fix. Real browser acceptance caught the pre-existing defect missed by the earlier test setup; Codex diagnosed it from the normal-process crash.
 
 **One decision I can explain without AI:** A custom upload scalar should reach its resolver intact; production DTO validation must not instantiate the Promise representing its multipart stream.
+
+## Sprint 05 final review and closure — 2026-11-05
+
+**Tool(s) used:** Codex,Git history/ancestry/source inspection,Python document edits and path/whitespace checks.
+
+**What I asked for:** Finish the backend and Next sprint files.
+
+**Pre-planning:** Read both Sprint05 records,instructions,session/AI logs,READMEs and current delivery source. Both worktrees were clean; interim open-sprint wording and uncompleted review checkboxes remained after the feature commits.
+
+**Planning:** Close the matching recorded period,retain dated history and distinguish local delivery from outstanding integration/storage/staging work. Preserve IDs and do not invent Sprint06 dates,hours or peer review.
+
+**Implementation process:** Closed backend SPRINT_05 for October30–November5 with final S05-08/S05-09 commit/source evidence,dated acceptance limits,carry-forward backlog and closure checklist. Updated rootREADME sprint status and ignored AGENTS/session context. Confirmed backend16f1db6 and Next8005084 are not yet combined in either branch; candidate integration/review remains S05-F01. F01/F02 and intended-storage/provider/load work remain open. Preserved Sprint01–04 and delivery checkpoints. Verified matching dates/closed statuses,36 valid sprint links,commit references and unchanged earlier sprint files; git diff --check passes. Existing97 Next tests/build and222 backend API/build evidence was inspected and recorded,not rerun for this documentation task.
+
+**What I kept as-is:** Application source/tests,existing sprint dates/stable IDs,historical delivery evidence,application data/configuration and manual Git workflow.
+
+**What I changed or rejected, and why:** Replaced stale progress/capacity/check-in wording with final outcomes and explicit carry-forward. Distinguished documentary self-review from unrecorded independent peer/release review; overlapping planning estimates are not summed as confirmed capacity.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this documentation task.
+
+**One decision I can explain without AI:** Closing the sprint records its actual outcome; release gates can remain open with stable carry-forward IDs rather than being marked passed.

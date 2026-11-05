@@ -2,13 +2,40 @@
 
 **Period:** October 30–November 5, 2026 (Asia/Seoul)
 **Review through:** November 5, 2026
-**Status:** In progress; final review due November 5
+**Status:** Closed — November 5, 2026; release-readiness work carried forward
 **Owner:** Me
 **Sprint goal:** Let patients safely join waitlists and manage unique usernames while giving operators a verifiable booking rollout path.
 
-This is an in-progress review prepared November 2, not a claim that the whole sprint
-or a production rollout is complete. Actual hours and remaining capacity were not
-recorded. [Sprint 04](SPRINT_04.md) supplies the prior delivery context.
+This final review closes the October 30–November 5 sprint. The goal was met for
+locally verified waitlist, booking and username flows; target-environment operational
+readiness remains incomplete and is carried forward. Directory search and upload
+compatibility were additional selected deliveries. Actual hours, velocity and
+confirmed future capacity were not recorded. [Sprint 04](SPRINT_04.md) remains unchanged.
+
+## Final outcome and source review — November 5
+
+| ID | Final disposition | Source / commit evidence |
+| --- | --- | --- |
+| S05-01–S05-07 | Delivered locally; earlier acceptance and limitations retained below | Existing delivery table; eligibility maintenance `c1ae9c3`, [shared lookup](src/components/appointment/appointment-doctor.ts) |
+| S05-08 / FI-01 | Completed locally: doctor/clinic name, city, specialty, sort, paging and suggestions; Next combined acceptance completed | `39549ea`, `8071ba5`, `0cfb541`; [search plan](DIRECTORY_SEARCH_PLAN.md), [member resolver](src/components/member/member.resolver.ts) |
+| S05-09 / FI-07 dependency | Completed locally: multipart Upload scalar survives production validation | `16f1db6`; [upload resolver](src/components/upload/upload.resolver.ts), [HTTP regression suite](test/upload.e2e-spec.ts) |
+
+The closure self-review compared current source, test setup, branch history and
+recorded acceptance. Latest backend build/full TypeScript and 222 API tests passed,
+including the 12 upload cases; directory acceptance separately passed 118 disposable
+MongoDB checks. Earlier 77-unit/193-booking and username counts below are separate,
+overlapping checkpoints, not one summed test total. Lint retains the existing empty
+config.ts warning. This documentation task does not rerun application tests.
+
+**Integration boundary:** backend is at `16f1db6`; Next cropper delivery is `8005084`
+on branch `next`. Neither latest commit is an ancestor of the other branch at this
+review. Cross-worktree Next/Nest/disposable-MongoDB acceptance passed, but a combined
+release candidate and its review remain S05-F01 work. No merge, deployment or
+production activation is claimed. Independent peer review is not recorded.
+
+**Historical checkpoints:** the dated delivery notes below preserve what was known
+at each step. Their pending UI/cropper statements are superseded by the later
+completion entries and this final review.
 
 ## Delivered through November 2
 
@@ -121,7 +148,7 @@ isolated production build,real adapters against Nest/disposable MongoDB and Chro
 desktop/390px checks pass,including125 matches per directory and centered wrapped
 pagination. Detailed frontend evidence is on branch `next` in architecture-next and
 NEXT-B11. Updated DIRECTORY_SEARCH_PLAN/FUTURE_IMPROVEMENTS FI-01 to completed at the
-owner's request. Step6 awaits manual commit; no deployment or whole-sprint closure.
+owner's request. Next Step6 is committed as `38fd308`; no deployment was performed.
 Square photos/cropping remain deferred. No backend code or database changes.
 
 ## November 5 — S05-09 upload scalar validation fix / FI-07
@@ -136,53 +163,63 @@ existing config.ts warning. Actual browser clinic/doctor saves produce owned
 JPEG1024×1024 files in the disposable stack. FI-07/NEXT-B13 is completed locally on
 Next; details in its IMAGE_CROPPER_PLAN. No app DB/config/deployment/Git actions.
 
-## Prioritized remaining backlog
+## Carry-forward backlog and following-period recommendation
 
-Labels indicate current planning: 🔴 Thinking = candidate; 🔵 Planning = refined.
-No future work is authorized merely by listing it.
+The following stable IDs remain open after sprint closure. Labels describe refinement,
+not work underway: 🔴 Thinking = candidate; 🔵 Planning = refined. No implementation,
+target-data access or activation is authorized by this review.
 
-| ID | Priority / type | Item and rationale | Label |
+| ID | Priority / type | Remaining outcome and reason | Disposition |
 | --- | --- | --- | --- |
-| S05-F01 | P1 / Engineering/test | Review a concrete staging rollout checklist and recovery evidence before activation | 🔵 Planning |
-| S05-F02 | P1 / Data-readiness review | Prepare operator decisions for the actual target's username migration; never silently rename accounts | 🔵 Planning |
-| S05-F03 | P2 / Test | Multi-instance rate limits, proxy/TLS and load acceptance beyond a local process | 🔴 Thinking |
-| S03-F01 | P2 / Test | Live profile upload/password acceptance against intended storage | 🔴 Thinking |
-| S05-F04 | P2 / Feature/operations | Decide whether external delivery providers are needed and configure only after selection | 🔴 Thinking |
-| S02-07 | P3 / Optional verification | Fresh live Google-provider acceptance, only if the owner reopens that scope | 🔴 Thinking; real-MongoDB portion is now verified |
+| S05-F01 | P1 / Engineering/test | Combine delivered branches through the requested Git workflow, then review the actual staging topology and rollout/recovery evidence | Carried forward — 🔵 Planning |
+| S05-F02 | P1 / Data-readiness review | Prepare target-specific username migration decisions, backup and stopped-writer requirements | Carried forward — 🔵 Planning |
+| S05-F03 | P2 / Test | Multi-instance rate limits, proxy/TLS and load acceptance beyond a local process | Carried forward — 🔴 Thinking |
+| S03-F01 | P2 / Test | Intended-storage profile replacement/removal and password acceptance; disposable crop uploads alone do not close this | Carried forward — 🔴 Thinking |
+| S05-F04 | P2 / Feature/operations | Decide whether external delivery providers are needed before configuring them | Carried forward — 🔴 Thinking |
+| S02-07 | P3 / Optional verification | Fresh live Google-provider acceptance only if the owner reopens it | Optional carry-forward — 🔴 Thinking; automated scope accepted |
 
-**Remaining-work planning assumption:**8 h of review capacity, not confirmed owner
-availability. Select F01/F02 for3 h each, leaving2 h buffer; no claim of20 h remaining
-or a whole-sprint implementation estimate is made.
+**Planning scenario:** the earlier 8-hour assumption was unconfirmed, not measured
+or remaining sprint capacity. For a future period, F01 and F02 are recommended at
+3 hours each with 2 hours buffer, subject to owner selection and availability.
+Next NEXT-B10 overlaps F01; these estimates must not be added as independent work.
+Intended-storage work is an alternative/dependent selection, not an additional
+commitment. No Sprint 06 dates or record are created here.
 
-**Top item S05-F01 —3 h:** Review the intended staging topology and existing runbook.
-Accept when all prerequisites have named evidence/owners, rollback/pause decisions
-are explicit, and production activation is excluded without its own authorization.
-Dependencies: target environment and operator availability; deliverable is a review,
-not a deployment.
+**S05-F01 — 3 hours, Me:** Review a concrete combined candidate and target topology.
+Accept when (1) candidate revisions include both latest deliveries and integration
+checks/review are recorded, (2) staging prerequisites have named evidence and owners,
+and (3) pause/rollback decisions and unverified production gates are explicit.
+Dependencies: branch integration authorization, target topology and operator access.
+The deliverable is review evidence, not production activation.
 
-**Top item S05-F02 —3 h:** Prepare a reviewed target-data migration decision process.
-Accept when invalid/colliding/legacy Google names have explicit decisions, backup
-and stopped-writer requirements are checked, and unresolved records block apply.
-Dependencies: an explicitly selected target and owner decisions. No target-data read
-or migration is performed by this sprint documentation task.
+**S05-F02 — 3 hours, Me:** Prepare the target-data migration decision process.
+Accept when (1) invalid/colliding/legacy names have explicit decisions, (2) backup
+and stopped-writer requirements are documented, and (3) unresolved records block
+apply. Dependencies: selected target and owner decisions. No target-data read or
+migration was performed for this sprint closure.
 
-| Order | Proposed task | Owner | Blocker |
+| Order | Proposed task | Owner | Dependency / blocker |
 | --- | --- | --- | --- |
-|1 | Inventory staging gates/evidence and review recovery procedure | Me | Target topology and operator access |
-|2 | Review migration decision/backup checklist | Me | Real-account decisions and writer shutdown window |
-|3 | Record readiness gaps and retain default-off production flags | Me | Missing evidence or review |
+| 1 | Record combined candidate revisions and review rollout/recovery gates | Me | Requested integration, target topology and operator access |
+| 2 | Review migration decisions and backup/writer-shutdown checklist | Me | Real-account decisions and an approved target |
+| 3 | Record remaining readiness gaps and choose subsequent work | Me | Missing evidence or owner selection |
 
-**Proposed check-ins:** Nov 3 — completed / next / blockers; Nov 5 final review —
-completed / next / blockers. These are future proposals, not recorded meetings.
+**Check-in record:** the earlier Nov 3 and Nov 5 check-ins were proposals; no meetings
+or check-in attendance are claimed. This document is the Nov 5 final review. If
+carry-forward work is selected, propose a start check-in and a pre-acceptance check-in
+using completed / next / blockers; dates depend on the next confirmed period.
 
-## Definition of done and continuation
+## Sprint closure checklist
 
-- [x] Delivered source, commits and local acceptance evidence recorded.
-- [x] Required automated Google scope completed with its live-provider limit explicit.
-- [ ] Peer review or documented self-review of the current release candidate.
-- [ ] F01/F02 readiness reviews completed, or explicitly carried forward.
-- [ ] November 5 review records final outcomes and selects a following-week backlog.
+- [x] Final outcomes, stable IDs, commits and source evidence reviewed and recorded.
+- [x] Automated, disposable-data and browser evidence separated from deployment claims.
+- [x] Documentation/source-evidence self-review completed; independent peer-review gap recorded.
+- [x] F01/F02 and all other unfinished readiness work explicitly carried forward.
+- [x] Branch integration state recorded without claiming a combined release candidate.
+- [x] Nov 5 final review completed and following-period recommendations recorded.
 
-Manual provider/operator checks cover credentials, browser consent and deployment
-state that test substitutes cannot establish. No Sprint 06 dates, issue creation,
-activation or Git actions are implied by this record. Existing Sprint 01–02 remain unchanged.
+The sprint record is closed. Combined-candidate peer/release review, staging and
+production gates remain open under the carry-forward IDs. Provider/operator checks
+require the actual environment, credentials and decisions. Sprint 01–04 history,
+application data and production flags remain unchanged; no issues, merge, staging,
+commit, push or deployment actions were performed by this review.

@@ -1526,7 +1526,7 @@ checkout-to-deployment procedure for the current layout.
 - [Sprint 02](backend/SPRINT_02.md): October 9–15 Google sign-in backend delivery and remaining integration work.
 - [Sprint 03](backend/SPRINT_03.md): October 16–22 discovery and private profile APIs.
 - [Sprint 04](backend/SPRINT_04.md): October 23–29 transactional booking foundations.
-- [Sprint 05](backend/SPRINT_05.md): October 30–November 5 waitlists, rollout readiness and usernames; reviewed through November 2.
+- [Sprint 05](backend/SPRINT_05.md): October 30–November 5 waitlists, rollout readiness, usernames and directory delivery; closed November 5 with readiness work carried forward.
 - [AI usage log](backend/AI_LOG.md): prompts, retained behavior, changes, corrections, and decisions.
 - [Software engineering project guide](resources/software-engineering-project-guide.md).
 
