@@ -1,4 +1,5 @@
 import { isUsernameTaken } from '../username';
+import { memberImageUrl } from './image-url';
 import { print, type DocumentNode } from 'graphql';
 import {
   IMAGE_UPLOADER,
@@ -176,13 +177,5 @@ export async function uploadProfileImage(
   return data.imageUploader;
 }
 export function profileImageUrl(path?: string | null) {
-  if (!path) return '/images/users/defaultUser.svg';
-  try {
-    const url = new URL(path, endpoint());
-    return ['http:', 'https:'].includes(url.protocol)
-      ? url.href
-      : '/images/users/defaultUser.svg';
-  } catch {
-    return '/images/users/defaultUser.svg';
-  }
+  return memberImageUrl(path, '/images/users/defaultUser.svg');
 }

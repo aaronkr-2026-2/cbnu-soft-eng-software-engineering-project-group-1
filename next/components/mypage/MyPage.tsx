@@ -36,6 +36,8 @@ import { SiteFooter } from '../layout/SiteFooter';
 import { PasswordField } from '../auth/PasswordField';
 import { UsernameField } from '../auth/UsernameField';
 import { displayUsername } from '../../libs/username';
+import { ImageCropper } from '../common/ImageCropper';
+import { validImageFile } from '../../libs/image-crop';
 
 const locations = [
   'SEOUL',
@@ -110,6 +112,7 @@ function PersonalInfo({
     Partial<Record<keyof ProfileDraft, string>>
   >({});
   const [file, setFile] = useState<File | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [preview, setPreview] = useState('');
   const [removeImage, setRemoveImage] = useState(false);
   const [imageError, setImageError] = useState('');
@@ -123,7 +126,9 @@ function PersonalInfo({
   const wasEditing = useRef(false);
   useEffect(() => {
     if (!busy && username.state.status === 'taken')
-      form.current?.querySelector<HTMLInputElement>('[name="memberNick"]')?.focus();
+      form.current
+        ?.querySelector<HTMLInputElement>('[name="memberNick"]')
+        ?.focus();
   }, [busy, username.state.status]);
 
   useEffect(() => {
@@ -178,6 +183,7 @@ function PersonalInfo({
     username.check.reset();
     if (profile) setDraft(profileDraft(profile));
     setFile(null);
+    setCropFile(null);
     uploadedImage.current = '';
     setRemoveImage(false);
     setImageError('');
@@ -194,7 +200,7 @@ function PersonalInfo({
   }
   async function save(event: FormEvent) {
     event.preventDefault();
-    if (!profile || !draft || request.current) return;
+    if (!profile || !draft || request.current || cropFile) return;
     const { input, errors: validation } = prepareProfileUpdate(profile, draft);
     if (
       input.memberNick !== undefined &&
@@ -515,8 +521,8 @@ function PersonalInfo({
             <div className="mypage__image-edit">
               <h3>Profile image</h3>
               <p>
-                JPEG, PNG, or WebP, up to 10 MB. Your image is uploaded when you
-                save.
+                Choose a JPEG, PNG, or WebP up to 10 MB, then crop it square.
+                Your image is uploaded when you save.
               </p>
               <div className="mypage__actions">
                 <Button
@@ -536,21 +542,13 @@ function PersonalInfo({
                       const chosen = event.target.files?.[0];
                       event.target.value = '';
                       if (!chosen) return;
-                      if (
-                        !['image/jpeg', 'image/png', 'image/webp'].includes(
-                          chosen.type,
-                        ) ||
-                        chosen.size > 10 * 1024 * 1024 ||
-                        !chosen.size
-                      ) {
+                      if (!validImageFile(chosen)) {
                         setImageError(
                           'Choose a JPEG, PNG, or WebP image up to 10 MB.',
                         );
                         return;
                       }
-                      setFile(chosen);
-                      uploadedImage.current = '';
-                      setRemoveImage(false);
+                      setCropFile(chosen);
                       setImageError('');
                     }}
                   />
@@ -592,6 +590,7 @@ function PersonalInfo({
                 type="submit"
                 disabled={
                   busy ||
+                  !!cropFile ||
                   !dirty ||
                   (draft.memberNick.trim() !== profile.memberNick &&
                     !username.check.available(draft.memberNick))
@@ -603,6 +602,19 @@ function PersonalInfo({
           </>
         )}
       </form>
+      {cropFile && (
+        <ImageCropper
+          file={cropFile}
+          onCancel={() => setCropFile(null)}
+          onConfirm={(cropped) => {
+            setFile(cropped);
+            uploadedImage.current = '';
+            setRemoveImage(false);
+            setImageError('');
+            setCropFile(null);
+          }}
+        />
+      )}
       {!editing && (
         <Button
           className="mypage__reload"

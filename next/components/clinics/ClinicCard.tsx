@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { memberImageUrl } from '../../libs/api/image-url';
 import {
   Button,
   Card,
@@ -21,12 +22,17 @@ const DEFAULT_CLINIC_IMAGE = '/images/clinics/defaultClinic.png';
 
 export function ClinicCard({ clinic, onViewDoctors }: ClinicCardProps) {
   const name = memberName(clinic);
-  const image = clinic.memberImage?.trim();
+  const image = memberImageUrl(clinic.memberImage, DEFAULT_CLINIC_IMAGE);
   const [failedImage, setFailedImage] = useState<string>();
-  const hasClinicImage = Boolean(image && image !== failedImage);
+  const hasClinicImage =
+    image !== DEFAULT_CLINIC_IMAGE && image !== failedImage;
 
   return (
-    <Card component="article" variant="outlined" className="clinic-summary-card">
+    <Card
+      component="article"
+      variant="outlined"
+      className="clinic-summary-card"
+    >
       <CardMedia
         component="img"
         className="clinic-summary-card__image"
