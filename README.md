@@ -1501,10 +1501,13 @@ install dependencies with `npm ci`, configure the production environment, then r
 `npm run build` and `npm run start:prod`. Configure the process manager, browser
 origins, reverse proxy, and TLS for the actual hosting environment.
 
-Local `deploy.sh` and `docker-compose.yml` are Git-ignored. Their current contents
-need reconciliation before reuse: the script selects `master`, and Compose runs
-npm from the repository root instead of `backend/`. They are not a verified
-checkout-to-deployment procedure for the current layout.
+Local `deploy.sh` and `docker-compose.yml` are Git-ignored. Compose mounts and runs
+the API from `backend/`, with a separate volume for container dependencies. Set
+`PORT_API` and the required backend configuration in `backend/.env`, ensure the
+external `medconnect-shared` Docker network exists, then run
+`docker compose --env-file backend/.env up -d` from the repository root.
+The script still selects `master` and needs reconciliation before reuse.
+Container startup and production deployment remain unverified.
 
 ## Known limitations
 
