@@ -1,5 +1,10 @@
 import { Query, Resolver, GraphQLModule } from '@nestjs/graphql';
-import { UnauthorizedException, type INestApplication } from '@nestjs/common';
+import {
+  BadRequestException,
+  UnauthorizedException,
+  ValidationPipe,
+  type INestApplication,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { configureUploads } from '../src/components/upload/upload.http.js';
 import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
@@ -53,6 +58,15 @@ describe('GraphQL image uploads', () => {
       ],
     }).compile();
     app = fixture.createNestApplication();
+    // Match main.ts so multipart scalars also exercise production validation.
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        exceptionFactory: () => new BadRequestException('Invalid request data'),
+      }),
+    );
     configureUploads(app);
     await app.listen(0, '127.0.0.1');
   });
@@ -101,18 +115,23 @@ describe('GraphQL image uploads', () => {
     return req;
   }
 
-  it('saves an image with a generated name', async () => {
+  it('saves an image with a generated name through the production validation pipe', async () => {
     const response = await upload().expect(200);
     expect(response.body.errors).toBeUndefined();
     expect(response.body.data.imageUploader).toMatch(
       /^\/uploads\/member\/507f1f77bcf86cd799439011\/[a-f0-9-]+\.png$/,
     );
-    expect(await readdir(join(directory, 'member', '507f1f77bcf86cd799439011'))).toHaveLength(1);
+    expect(
+      await readdir(join(directory, 'member', '507f1f77bcf86cd799439011')),
+    ).toHaveLength(1);
     const fetched = await request(app.getHttpServer())
       .get(response.body.data.imageUploader)
       .expect(200);
     expect(fetched.body).toEqual(png);
-    await writeFile(join(directory, 'member', '507f1f77bcf86cd799439011', '.pending.tmp'), png);
+    await writeFile(
+      join(directory, 'member', '507f1f77bcf86cd799439011', '.pending.tmp'),
+      png,
+    );
     await request(app.getHttpServer())
       .get('/uploads/member/507f1f77bcf86cd799439011/.pending.tmp')
       .expect(404);
@@ -135,7 +154,9 @@ describe('GraphQL image uploads', () => {
       true,
     ).expect(200);
     expect(bad.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
-    expect(await readdir(join(directory, 'member', '507f1f77bcf86cd799439011'))).toEqual([]);
+    expect(
+      await readdir(join(directory, 'member', '507f1f77bcf86cd799439011')),
+    ).toEqual([]);
   });
   it.each(['', 'invalid'])('rejects unauthorized token %j', async (token) => {
     const response = await upload([png], 'member', token).expect(200);
@@ -160,7 +181,9 @@ describe('GraphQL image uploads', () => {
   it('rejects oversized uploads and removes partial files', async () => {
     const response = await upload([Buffer.alloc(MAX_UPLOAD_SIZE + 1)]);
     expect(response.body.errors[0].extensions.code).toBe('BAD_USER_INPUT');
-    expect(await readdir(join(directory, 'member', '507f1f77bcf86cd799439011'))).toEqual([]);
+    expect(
+      await readdir(join(directory, 'member', '507f1f77bcf86cd799439011')),
+    ).toEqual([]);
   });
   it('rejects more than five files', async () => {
     await upload(

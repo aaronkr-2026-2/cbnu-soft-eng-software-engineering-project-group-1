@@ -124,6 +124,18 @@ NEXT-B11. Updated DIRECTORY_SEARCH_PLAN/FUTURE_IMPROVEMENTS FI-01 to completed a
 owner's request. Step6 awaits manual commit; no deployment or whole-sprint closure.
 Square photos/cropping remain deferred. No backend code or database changes.
 
+## November 5 — S05-09 upload scalar validation fix / FI-07
+
+Real cropper acceptance exposed a pre-existing normal-main API crash: the global
+transforming ValidationPipe tried to instantiate a GraphQL Upload Promise. At the
+owner's explicit authorization,UploadResolver now reflects a FileUpload/Promise
+union and normalizes it before calling UploadService. The upload HTTP suite now
+uses the same validation options as main.ts; schema/guard/ownership rules are unchanged.
+Build/full TypeScript,all12 upload tests and all222 API tests pass; lint has only the
+existing config.ts warning. Actual browser clinic/doctor saves produce owned
+JPEG1024×1024 files in the disposable stack. FI-07/NEXT-B13 is completed locally on
+Next; details in its IMAGE_CROPPER_PLAN. No app DB/config/deployment/Git actions.
+
 ## Prioritized remaining backlog
 
 Labels indicate current planning: 🔴 Thinking = candidate; 🔵 Planning = refined.

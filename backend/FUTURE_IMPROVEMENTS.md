@@ -35,7 +35,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-04 | Add to personal calendar | Add a one-time appointment event through a checkbox before booking or a button after booking | Small | **Backlog** | Not created | — |
 | FI-05 | Clinic dashboard statistics | View upcoming visits, cancellations, completed appointments and no-shows for a selected period | Medium | **Backlog** | Not created | — |
 | FI-06 | Doctor change requests | Let doctors request appointment cancellation or schedule changes for clinic approval | Larger | **Backlog** | Not created | — |
-| FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading | Medium | **Backlog** | Not created | — |
+| FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading | Medium | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next` | November 5, 2026 |
 
 ## Scope notes for future plans
 
@@ -108,23 +108,23 @@ transaction rules when an approved request is applied.
 
 ### FI-07 — Square directory photos and upload cropper
 
-Use a 1:1 display ratio for both doctor and clinic card photos. Add a square crop
-preview before uploading or replacing those photos, using the reviewed MediBridge
-`react-easy-crop` flow as a reference. Reuse this project's upload and profile
-patterns; the reference does not authorize copying its configuration or unrelated
-features. This corresponds to Next backlog item NEXT-B13.
+Completed locally November5,2026. Next doctor/clinic cards use1:1 images,including
+existing/default photos without rewriting storage. My Page uses the reviewed
+MediBridge-style square crop/zoom dialog before the existing Save changes upload.
+Crop confirmation remains local; cancel and upload failure preserve the draft.
+Output is JPEG,maximum1024×1024,without upscaling; transparent pixels become white.
+Uploaded image paths resolve against the API origin. Next backlog NEXT-B13 and the
+implementation/acceptance plan `next/IMAGE_CROPPER_PLAN.md` are on branch `next`.
 
-Prepare a separate implementation plan before coding. Define the shared cropper's
-crop/zoom, confirm and cancel behavior, output dimensions/format/quality, file
-validation and upload integration. Preserve the saved image when cropping is
-cancelled or an upload fails. Keep server-side ownership and upload validation.
-Decide how existing nonsquare images and default images should appear without
-silently rewriting stored images.
-
-Acceptance should cover square doctor/clinic cards, crop preview versus saved image,
-replacement/cancellation/failure behavior, keyboard controls and mobile layout.
-No cropper dependency, image processing, upload changes or migration is implemented
-by this roadmap entry.
+Next typecheck,97 tests and production build pass. Chrome verifies desktop keyboard,
+cancel/draft behavior,upload-error preservation,actual clinic/doctor saves and375px
+mobile dialog. Stored fixture files are JPEG1024×1024 in the correct owned targets;
+the public clinic card displays the saved crop after the origin fix. A separately
+authorized backend UploadResolver fix prevents ValidationPipe from instantiating
+GraphQL upload promises; build/full TypeScript,12 upload and all222 API checks pass.
+Lint has the pre-existing config.ts warning. Disposable data only; production
+storage/deployment,legacy rewriting and additional image-editing features remain out
+of scope. Commits remain manual and separate for backend/Next.
 
 ## Modular delivery workflow
 
@@ -144,3 +144,6 @@ by this roadmap entry.
 
 - FI-01 — Completed locally November 5, 2026; evidence and deployment limits are
   recorded in its scope note and the linked directory search plan.
+
+- FI-07 — Completed locally November 5, 2026; cropper,API upload and card evidence
+  are recorded above and in the Next branch plan.

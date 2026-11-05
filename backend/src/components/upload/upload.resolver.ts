@@ -14,11 +14,17 @@ export class UploadResolver {
 
   @Mutation(() => String)
   imageUploader(
-    @Args('file', { type: () => GraphQLUpload }) file: Promise<FileUpload>,
+    // Reflect this scalar as Object: ValidationPipe must not instantiate Promise.
+    @Args('file', { type: () => GraphQLUpload })
+    file: FileUpload | Promise<FileUpload>,
     @Args('target') target: string,
     @Context('req') request: AuthenticatedRequest,
   ) {
-    return this.uploads.imageUploader(file, target, String(request.member._id));
+    return this.uploads.imageUploader(
+      Promise.resolve(file),
+      target,
+      String(request.member._id),
+    );
   }
 
   @Mutation(() => [String])

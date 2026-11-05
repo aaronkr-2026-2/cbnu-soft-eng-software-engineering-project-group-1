@@ -832,6 +832,15 @@ and `imagesUploader(files: [Upload!]!, target: String!): [String!]!` mutations.
 `upload.http.ts` registers graphql-upload-ts multipart middleware at `/graphql`
 and Express static serving at `/uploads`; `main.ts` calls it before listening.
 
+November5 upload compatibility fix: the single Upload argument uses a
+`FileUpload | Promise<FileUpload>` union so runtime validation metadata is Object,
+then Promise.resolve normalizes it for UploadService. This avoids class-transformer
+trying to instantiate Promise under main.ts's transforming ValidationPipe. The
+GraphQL Upload schema,access guard and storage rules remain unchanged. All12 upload
+HTTP tests now use the production pipe; all222 API tests pass. Normal compiled Nest
+with disposable MongoDB accepts browser-cropped doctor and clinic JPEGs. This is
+local acceptance,not a deployment or production-storage claim.
+
 Targets are restricted to member/clinic images, stored below authenticated owner IDs.
 UploadService generates UUID names,
 checks MIME types and PNG/JPEG/WebP signatures, streams to hidden temporary files,

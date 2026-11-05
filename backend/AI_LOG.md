@@ -948,3 +948,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **One decision I can explain without AI:** Local acceptance closes the agreed search scope while production deployment and a new image workflow remain separate decisions.
 
 **November5 roadmap follow-up:** At my request,added FI-07 square doctor/clinic photos and an upload cropper as Backlog in FUTURE_IMPROVEMENTS,linked conceptually to NEXT-B13. Recorded MediBridge as the reference and the decisions/acceptance a future dedicated plan must cover. No feature implementation or dependency change. Corrected the stale completion-record footer to match FI-01's existing completed status. Checked roadmap IDs/status consistency and whitespace; application tests were unnecessary for this documentation-only update.
+
+## GraphQL upload validation compatibility — 2026-11-05
+
+**Tool(s) used:** Codex,source/Git inspection,apply_patch,Prettier,Nest build,TypeScript,oxlint,Jest/Supertest and normal Nest/disposable MongoDB browser acceptance.
+
+**What I asked for:** Explicitly fix and verify the backend upload crash discovered during the cropper job.
+
+**Pre-planning:** Verified clean backendb39bd3f. Normal multipart upload crashed main.ts with Promise resolver undefined; existing upload tests omitted the global transforming validation pipe.
+
+**Planning:** Preserve GraphQL schema and ownership rules,change only reflected scalar metadata and normalize the upload promise. Exercise existing HTTP cases under production validation.
+
+**Implementation process:** UploadResolver accepts FileUpload|Promise<FileUpload>,reflecting Object,then uses Promise.resolve for UploadService. Added main.ts validation options to the upload E2E app. Build/full TypeScript,all12 upload cases and all222 API tests pass; lint only existing config.ts warning. Actual browser clinic and doctor crops save as owned JPEG1024×1024 in a disposable normal-main stack. Updated architecture,S05-09,FI-07 and local B-021/session records. Next implementation remains in its worktree. Fixture stopped/Mongo removed; no app DB/deployment/Git actions.
+
+**What I kept as-is:** Upload scalar schema,access guard,current-account checks,owned paths,stream/signature/size limits,profile claim/delete behavior,dependencies and configuration.
+
+**What I changed or rejected, and why:** Avoided treating a Promise constructor as a DTO; kept validation enabled and corrected the test fixture to match production.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this backend fix. Real browser acceptance caught the pre-existing defect missed by the earlier test setup; Codex diagnosed it from the normal-process crash.
+
+**One decision I can explain without AI:** A custom upload scalar should reach its resolver intact; production DTO validation must not instantiate the Promise representing its multipart stream.
