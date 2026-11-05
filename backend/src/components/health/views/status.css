@@ -1,0 +1,27 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; color: #16312e; background: #f3f6f5; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 1080px; margin: 0 auto; padding: 56px 24px; }
+.brand { font-weight: 750; letter-spacing: -.6px; font-size: 23px; }
+.brand span { color: #168373; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.label { text-transform: uppercase; letter-spacing: 2px; font-size: 12px; color: #576e68; }
+h1 { font-size: clamp(32px, 5vw, 48px); letter-spacing: -2px; margin: 44px 0 10px; }
+.intro, footer { color: #576e68; line-height: 1.6; }
+.overview { margin: 30px 0 24px; padding: 24px; border: 1px solid #d7e4df; border-radius: 16px; background: white; }
+#summary { margin: 0 0 6px; font-size: 20px; }
+#updated { margin: 0; color: #576e68; font-size: 14px; }
+.cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+article { background: white; border: 1px solid #d7e4df; border-radius: 16px; padding: 26px; }
+h2 { font-size: 18px; margin: 22px 0 12px; }
+.badge { display: inline-block; padding: 6px 10px; border-radius: 20px; background: #edf1f0; color: #52645f; font-size: 13px; font-weight: 650; }
+[data-state="ok"] .badge { background: #dcf6e9; color: #166445; }
+[data-state="error"] .badge { background: #fee9e5; color: #a33526; }
+.detail { min-height: 48px; line-height: 1.5; color: #576e68; overflow-wrap: anywhere; }
+.meta { font-size: 13px; color: #576e68; margin: 22px 0 14px; }
+a { color: #146e61; text-underline-offset: 4px; font-size: 14px; }
+button { border: 0; border-radius: 9px; padding: 12px 18px; background: #176e60; color: white; font: inherit; font-size: 14px; cursor: pointer; }
+button:disabled { opacity: .6; cursor: wait; }
+:focus-visible { outline: 3px solid #168373; outline-offset: 4px; }
+footer { margin-top: 28px; font-size: 13px; }
+@media (max-width: 720px) { .cards { grid-template-columns: 1fr; } main { padding: 30px 18px; } .detail { min-height: auto; } }
