@@ -1,5 +1,9 @@
 import { print } from 'graphql';
-import { GET_MEMBER, GET_DOCTORS } from '../../apollo/user/query';
+import {
+  GET_MEMBER,
+  GET_DOCTORS,
+  GET_CLINIC_DOCTORS,
+} from '../../apollo/user/query';
 import { displayUsername } from '../username';
 
 export interface PublicMember {
@@ -10,6 +14,7 @@ export interface PublicMember {
   memberStatus?: string;
   memberNick: string;
   memberFullName?: string | null;
+  location?: string | null;
   memberImage?: string | null;
   memberAddress?: string | null;
   memberDesc?: string | null;
@@ -23,7 +28,8 @@ export function memberName(member: PublicMember) {
   );
 }
 // Public discovery only. The API lists at most 100 approved doctors. Clinics
-// are resolved from that list; no private clinic-affiliation endpoint is used.
+// are resolved from that list. Explicit clinic doctor reads use the public
+// clinic-specific endpoint, capped at 100 doctors in that clinic.
 export async function fetchMembers(
   clinicId: string | undefined,
   signal: AbortSignal,
@@ -54,9 +60,12 @@ export async function fetchMembers(
     return result.data;
   }
   try {
-    const result = await read(print(GET_DOCTORS), {});
-    if (!Array.isArray(result.getDoctors)) throw new Error('Invalid directory');
-    const doctors: PublicMember[] = result.getDoctors.filter(
+    const result = clinicId
+      ? await read(print(GET_CLINIC_DOCTORS), { clinicId })
+      : await read(print(GET_DOCTORS), {});
+    const rows = clinicId ? result.getClinicDoctors : result.getDoctors;
+    if (!Array.isArray(rows)) throw new Error('Invalid directory');
+    const doctors: PublicMember[] = rows.filter(
       (row: PublicMember) =>
         row &&
         typeof row._id === 'string' &&

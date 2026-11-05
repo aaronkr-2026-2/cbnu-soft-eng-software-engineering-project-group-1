@@ -407,12 +407,17 @@ test('clinic discovery uses the approved-doctor list and public member lookup on
   assert.equal(clinics.length, 1);
   assert.equal(count, 2);
 });
-test('clinic doctor discovery filters public doctors without a private affiliation query', async () => {
+test('clinic doctor discovery reads the public clinic-specific endpoint without global doctor discovery', async () => {
   global.fetch = async (url, options) => {
-    assert.match(JSON.parse(options.body).query, /getDoctors/);
+    const body = JSON.parse(options.body);
+    assert.match(body.query, /getClinicDoctors/);
+    assert.doesNotMatch(body.query, /getDoctors\s*\{/);
+    assert.deepEqual(body.variables, { clinicId: 'clinic1' });
+    assert.equal(options.credentials, 'omit');
+    assert.equal(options.cache, 'no-store');
     return Response.json({
       data: {
-        getDoctors: [
+        getClinicDoctors: [
           { _id: '1', memberNick: 'a', clinicId: 'clinic1' },
           { _id: '2', memberNick: 'b', clinicId: 'clinic2' },
         ],

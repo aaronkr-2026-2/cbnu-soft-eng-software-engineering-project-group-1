@@ -89,6 +89,9 @@ export function DoctorsDialog({
         <p className="availability-note">
           Choose View times to check current appointment availability.
         </p>
+        {!loading && !error && members.length >= 100 && (
+          <p>Showing up to 100 doctors at this clinic.</p>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>

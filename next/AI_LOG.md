@@ -559,3 +559,71 @@
 **Something the AI got wrong that I had to catch:** No substantive AI error identified during this task. Initial read-only path lookups were corrected before writing the records.
 
 **One decision I can explain without AI:** Record an evidence gap for a quiet week rather than backdate the later booking screens into it.
+
+## URL-driven doctor search and autocomplete — 2026-11-05
+
+**Tool(s) used:** Codex, Git/source inspection, installed Next documentation, MediBridge reference inspection, apply_patch, Prettier, Yarn/TypeScript/Node tests/Next build, temporary Node fixtures, normal compiled Nest, disposable MongoDB and native Chrome/Safari control.
+
+**What I asked for:** Implement directory search Step4 in the Next worktree; commits remain manual.
+
+**Pre-planning:** Verified clean next8527abb and delivered backend search/suggestion contracts. Doctor screen locally filtered capped public results; other discovery flows still rely on that transport. Read worktree rules/current logs/lessons, installed Pages Router guides and MediBridge DoctorsList before implementation. Backend/Vite folders are protected from writes.
+
+**Planning:** Add public GraphQL documents/adapters, shared URL parsing/navigation and result/suggestion hooks, then replace only the doctor screen's discovery path. Use URL state for committed filters/page and local draft typing; keep independent request/error states and preserve existing card booking links.
+
+**Implementation process:** Added city/specialty/sort controls,12-result pagination/totals,loading/error/retry/empty/clear states and MUI9 free-text autocomplete. Drafts debounce300ms with replace history; deliberate actions push; filter/name/sort changes reset page. Router transitions cancel pending typing, preserve new own-route drafts and restore URL state. Shared abort guards ignore late success/failure and displayed data is request-keyed. Typecheck,81 tests (16 new) and final isolated production build with fixture URLs empty passed. Real frontend adapters→normal Nest→owned disposable MongoDB verified125 matching records,12/page,both sorts/page2,combined filters,clinic city,Unicode literals,username exclusion,empty pages/totals,eight names and independent503 recovery. Native Chrome confirmed combined deep-link controls/count/cards and pagination URL/request. Remaining keyboard/Escape/Back/Forward/error UI/mobile browser acceptance is unverified after Chrome active-user-change rejections and Safari timeout (NEXT-007). Updated architecture,both READMEs,NEXT-B11 and session records. Verified owned runner18695 stopped and its Mongo files removed; production/app data untouched.
+
+**What I kept as-is:** Existing DoctorCard booking links,homepage/clinic/booking discovery,authentication,backend/Vite source,dependencies/source configuration,application databases and manual staging/commit/push workflow. Step5 clinic migration and Step6 combined acceptance remain separate.
+
+**What I changed or rejected, and why:** Replaced local full-name/username/specialty matching with the server's full-name contract. Shared URL/history behavior has a current doctor-screen caller; city/specialty enums match backend source. Used established fetch/MUI/SCSS and Pages Router rather than adding another router,request library or cache.
+
+**Something the AI got wrong that I had to catch:** The first whole-file replacement attempted same-path delete/add in one apply_patch call; the tool rejected it. Codex split the operations before typecheck/tests (NEXT-006). No human correction is claimed. Browser-control failures are recorded as tooling limitations, not application defects or passed acceptance.
+
+**One decision I can explain without AI:** Cancel pending typing when navigation begins and key results to the committed request, so an old timer or response cannot overwrite a newer city, page or Back/Forward destination.
+
+**November5 follow-up:** At my request, centered the doctor pagination with flex
+layout in `_doctors.scss`. Sass compilation and whitespace checks passed. No new
+browser verification; existing Step4 acceptance limits remain. No staging/commit/push.
+
+## URL-driven clinic search and shared directory — 2026-11-05
+
+**Tool(s) used:** Codex,source/Git inspection,apply_patch,Prettier,Yarn/TypeScript/Node/Next build,normal compiled Nest,owned disposable MongoDB,temporary Node fixtures and native Chrome control.
+
+**What I asked for:** Implement the next agreed directory step (Step5),preserving manual Git workflow and centered pagination.
+
+**Pre-planning:** Verified clean nextf6dc891 after Step4 commit. Read current records/lessons and inspected the clinic page,cards/dialog,shared doctor URL/API hooks and backend contracts. Clinic discovery and previews still depended on the global first100 doctors; new clinic search can discover clinics outside that set.
+
+**Planning:** Extract the actual doctor filter/results view and styles into a shared DirectoryPage for both callers. Add clinic documents/adapters and kind-keyed reads. Preserve clinic selected-dialog ownership and use the existing public clinic-specific doctor endpoint where a global capped list would break previews.
+
+**Implementation process:** Added searchClinics/suggestClinicNames transport,shared result/suggestion hooks,DirectoryPage and `_directory.scss`. Existing wrappers supply doctor/clinic cards; clinic dialog closes on route-start and leaves URLs unchanged on ordinary close. fetchMembers(clinicId) now reads public getClinicDoctors,with a visible per-clinic100 bound. Removed stale global-cap clinic messaging. TypeScript,89 tests (eight new) and final isolated production build with fixture URLs empty passed. Real frontend adapters→normal compiled Nest→owned disposable MongoDB verified125 matching clinics,two doctors each without duplicate totals,both sorts/page2,filters,literal Unicode,username exclusion,empty pages,no-doctor clinics,eight suggestions and independent503 recovery. Care112 preview returns its own team despite absence from legacy homepage discovery; doctor/homepage adapter regressions pass. Chrome displayed combined deep-link state/count/cards. Further native input failed or produced no observable change,so dialog/booking-return,keyboard/history,error UI/mobile acceptance remains unverified. Updated docs/READMEs/NEXT-B11/session. Owned runner48069 stopped and Mongo files removed; no production data/config/deployment changes.
+
+**What I kept as-is:** Existing cards/booking links,homepage clinic discovery,booking's linked-target fallback,authentication,backend/Vite files,dependencies/source configuration and manual staging/commit/push workflow. Step6 combined acceptance remains pending.
+
+**What I changed or rejected, and why:** Shared the current directory UI rather than duplicating it. Replaced only explicit clinic-doctor reads with the existing public endpoint so newly discovered clinics have working previews; no private affiliation API or new backend contract was needed.
+
+**Something the AI got wrong that I had to catch:** Source review caught the inherited doctor-only loading text in the shared view; parameterized it before final checks and added doctor/clinic shell tests. The first regression run also exposed the obsolete getDoctors expectation for an intentionally changed clinic-specific read; updated that fixture to assert getClinicDoctors and its public request settings. No human correction is claimed.
+
+**One decision I can explain without AI:** Clinic discovery can exceed the global doctor cap only if View doctors also queries the selected clinic directly; otherwise a valid newly found clinic could falsely show no doctors.
+
+## Directory filter polish and combined acceptance checkpoint — 2026-11-05
+
+**Tool(s) used:** Codex,Git/source inspection,installed Next documentation,apply_patch,Prettier,Python,Yarn/TypeScript/Node/Next build,normal compiled Nest,owned disposable MongoDB,temporary Node fixtures and native Chrome control.
+
+**What I asked for:** Finish directory Step6 before square photos/cropping,and mark the search roadmap complete only after acceptance. I confirmed Chrome was idle for the browser checks.
+
+**Pre-planning:** Verified clean next1cb6378 after Step5,read worktree rules/current records/lessons and the original search plan. Inspected shared DirectoryPage,navigation,hooks and styles. Protected backend/Vite folders remain read-only.
+
+**Planning:** Add removable chips and clearer labels to the shared view,improve focus/loading/responsive behavior,then verify both directories against actual Nest/disposable data and Chrome. Defer square cards and a MediBridge-style cropper to a separate plan.
+
+**Implementation process:** Added name/city/specialty/reverse-sort chips,clinical specialty names,explicit All cities/All specialties text and explanatory labels. Chip/clear actions return focus to name; pagination focuses/scrolls to the live summary. Chips wrap and skeletons respect reduced motion. Explicit name-removal patches override pending draft text and reset page. Typecheck,92 tests and final isolated production build with fixture URLs empty pass. Actual frontend adapters against normal Nest/owned disposable MongoDB pass for both directories:125 matches,12/page,both sorts/page2,filters,Unicode literals,username exclusion,empty/out-of-range totals,eight suggestions,independent503 recovery,distinct clinic totals and selected-clinic team/homepage regressions. Delayed real HTTP reads confirm obsolete search/suggestions abort and only latest results publish. Chrome desktop passes doctor keyboard suggestion selection,refresh/history,chip removal/page reset/pagination focus,and clinic dialog/focus,booking IDs/Back restoration,suggestion-only failure,main-error/retry and clear/focus. Clinic390px top/control layout inspected. Remaining mobile and Escape checks are unverified: later Chrome controls repeatedly rejected active-app changes despite the earlier idle confirmation; browser host unavailable. A new async idle question remains unanswered. Updated Next architecture,README,SPRINT_05,NEXT-B11/NEXT-B13 and local lessons/session records. Owned runner61450 stopped and Mongo files removed; evidence /private/tmp/medconnect-directory6-sVJXaM and release snapshot /private/tmp/medconnect-directory6-release-Msp39T.
+
+**What I kept as-is:** Card image ratios/uploads,existing booking links and authentication,backend/Vite source,dependencies/configuration,application databases,production flags and manual staging/commit/push workflow. Full search-plan/roadmap completion is pending the outstanding browser checks; it has not been falsely marked complete.
+
+**What I changed or rejected, and why:** Kept filter labels readable while preserving enum values in API/URLs. Recorded square doctor/clinic photos and upload cropping as future NEXT-B13 rather than expanding Step6. Preserved passed checks separately from unavailable browser checks.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. Source review identified that explicit name removal needed precedence over the pending draft; regression tests and Chrome chip deletion confirm the implemented behavior. Browser-control interruptions are tooling limitations,not application defects.
+
+**One decision I can explain without AI:** A successful build and API tests cannot prove mobile layout or keyboard popup behavior,so the shared roadmap must remain unfinished until the remaining browser checks pass.
+
+**November5 resumed browser follow-up:** After a new idle confirmation, inspected390px clinic cards and wrapped pagination. Browser inspection caught the second pagination row aligning left; added justify-content:center to the shared MuiPagination-ul so both directories center wrapped rows. Updated isolated production build passes (/private/tmp/medconnect-directory6-release-fxYtE8). Clinic Escape closes the open suggestions without changing filters. Doctor mobile layout and visual recheck of the updated pagination remain unverified: the browser surface became blank and native scrolling reported noWindowsAvailable; resetting the CUA connection did not restore it. Asked to bring the preview to the front and leave the Mac unlocked; no reply at checkpoint. This is a browser-surface limitation,not an established application blank-screen defect. Temporary updated fixture remains online for that handoff: runner77767,/private/tmp/directory6-stack.cjs,ports3001/4333/4334,evidence /private/tmp/medconnect-directory6-ZJbP6L. Earlier resumed runner was stopped and its disposable Mongo files removed before rebuilding. No protected files,Git actions or production settings changed. Full search-plan closure remains pending.
+
+**November5 final acceptance:** After I brought the preview forward and left the Mac unlocked,Chrome390px doctor controls/cards and centered wrapped pagination on both pages passed visual checks. Combined local Step6 acceptance is complete; prior pending notes above are historical. Updated architecture,both READMEs,NEXT-B11 and required logs. At my explicit request to mark the future roadmap finished,updated only shared backend plan/roadmap status and required delivery records; no backend application code changed. Corrected NEXT-009 was caught by Codex's mobile screenshot inspection,not a human correction. Final isolated production build passes; existing92 tests/typecheck and actual API checks remain valid. Device mode disabled,DevTools/dedicated preview tab closed,verified runner77767 stopped and disposable Mongo files removed. No deployment or Git actions. Square photos/cropping remain deferred to a separate plan.

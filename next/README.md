@@ -49,8 +49,11 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 
 - `/`: responsive landing page, searchable clinic directory, doctor previews,
   care guide, My Care links, and illustrative appointment art. The hero art is sample content.
-- `/clinics`: clinic cards, name/address search, and doctor previews.
-- `/doctors`: approved doctor cards, name/specialty search, and **View times** links.
+- `/clinics`: server-paged clinic cards, clinic-name/city/specialty search, sorting,
+  name suggestions and doctor previews, with filters/page preserved in the URL.
+- `/doctors`: server-paged approved doctor cards, full-name search, clinic-city/
+  specialty filters, A–Z/Z–A sorting, name suggestions and **View times** links.
+  Committed filters/page live in shareable URLs; typing commits after300ms or Enter.
 - `/auth`: email/password sign-in, patient signup, password visibility controls,
   validation, and optional Google Identity Services popup sign-in.
 - `/mypage`: authenticated private profile, inline Save/Cancel editing, optional
@@ -67,10 +70,19 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
   clinic doctor-application reviews, schedule replacement drafts, phone/walk-in
   booking for existing patients, cancellation and completion/no-show controls.
 
-Discovery uses public `getDoctors` (at most 100 active approved doctors), resolves
-unique clinics through public `getMember`, and filters those doctors for clinic
-previews. Clinics without a doctor in that returned list are absent. Search is
-local to returned records; full directory pagination is not implemented. Directory
+The two directories use public `searchDoctors`/`searchClinics` and their name
+suggestion queries, with12 results per page and actual matching totals. They share
+URL controls, removable filter chips, result states and centered pagination. Refresh and Back/Forward restore
+committed controls; explicit choices add history and debounced typing replaces it.
+Loading/error/retry/empty states and clear filters are included. Suggestions require
+two trimmed characters and fail independently of ordinary search.
+
+Homepage and ordinary booking clinic choices still use public `getDoctors`
+(at most100 active approved doctors) and resolve unique clinics via `getMember`.
+Those choices remain capped; explicit booking links can resolve their target through
+public lookup. Clinic doctor previews/selection use public `getClinicDoctors`
+(at most100 per clinic), so a clinic outside the global doctor cap has a working
+team preview. `/clinics` itself has no first100-doctors discovery restriction. Directory
 requests omit credentials, disable caching, support cancellation, and time out.
 There are no sample clinic/doctor records. Ratings remain labeled placeholders;
 doctor profile pages are pending. Cards reuse established image fallbacks.

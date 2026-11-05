@@ -1,6 +1,7 @@
 # Next.js architecture
 
-Updated November 1, 2026 for patient booking/waitlist Step 9, staff workspace Step 10, and patient notifications Step 11. This document covers
+Updated November 5, 2026 for doctor/clinic directory search Steps4–6. Earlier patient booking,
+staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
 
@@ -36,10 +37,153 @@ preflight, and read reconciliation. Both originals and targets are displayed.
 `PatientGate` restricts the UI to USER accounts and unmounts private state at sign-out
 or identity changes. Nest guards enforce actual access and patient-derived ownership.
 
-Public discovery uses `getDoctors` (maximum 100) and public `getMember` for clinics;
-clinic-specific lists filter those public doctors. Public metadata lookup failures
+The `/doctors` and `/clinics` directories use the public search/suggestion queries
+as detailed below. Homepage and ordinary booking clinic choices retain `getDoctors`
+(maximum100) and public `getMember`. Explicit clinic doctor reads now use public
+`getClinicDoctors` (maximum100 per clinic). Public metadata lookup failures
 fall back to identifiers and labeled UTC time; no private profile endpoint is used.
 `myProfile` and update/image operations remain separate authenticated helpers.
+
+## Doctor directory search — November 5, 2026
+
+`pages/doctors.tsx` composes `components/doctors/DoctorsPage.tsx`, retaining the
+existing DoctorCard and booking links. The directory now reads server-filtered
+results instead of filtering a capped `getDoctors` array. Step5 below extracts the
+shared directory component and adds the clinic screen. Homepage discovery retains
+its existing capped clinic transport.
+
+- `apollo/user/directory.ts` defines executable `SearchDoctors` and
+  `SuggestDoctorNames` documents for the delivered Nest contracts. The public
+  `libs/api/directory.ts` adapter uses fetch with omitted credentials, no-store,
+  abort propagation and a10s client timeout. HTTP failures and HTTP200 GraphQL
+  errors become safe messages. Pages contain12 entries and the actual server total;
+  suggestion responses contain at most eight strings. Backend filters, eligibility,
+  projection, collation and query bounds remain authoritative.
+- `libs/directory.ts` owns the UI enum lists, URL parsing/serialization and
+  DirectoryNavigation. Supported URL keys are `name`, `city`, `specialty`, `sort`
+  and `page`. Name is trimmed/bounded to100 characters; invalid/repeated values use
+  safe defaults, cities/specialties are allowlisted and page is1–1000. Sort defaults
+  to NAME_ASC. URLSearchParams encodes names; new URLs omit empty/default values.
+- `useDirectoryLocation` in `libs/hooks/useDirectory.ts` connects the store to the
+  installed Pages Router. Restoration waits for router readiness and follows asPath,
+  including refresh/shared links and Back/Forward. Draft text commits after300ms
+  using router.replace; Enter, suggestions and deliberate filter/sort/page actions
+  use router.push. Filter/name/sort changes reset page1; pagination changes only page.
+  Clearing resets everything. Route-start cancels pending typing, and rapid choices
+  compose against the pending route. New typing during an own route transition is
+  preserved when that transition completes.
+- Result and suggestion effects abort obsolete reads and key displayed state to the
+  matching URL/draft. Shared directoryRead also ignores late successes/failures from
+  transports that finish after cancellation. Main search has independent loading,
+  retry, error and empty/out-of-range states; old cards are hidden while navigating.
+- MUI9 Autocomplete renders a free-text combobox with server-provided options and
+  no extra client filtering. Requests wait for two trimmed characters and a300ms
+  debounce, using current city/specialty. Selecting a name submits page1. Enter can
+  submit arbitrary text, Escape closes suggestions, and suggestion failure leaves
+  ordinary search available. Labels, live result counts and responsive controls are
+  included. No IDs, highlighted option or popup state are stored in URLs.
+
+Example: `/doctors?name=Kim&city=SEOUL&specialty=DENTIST&sort=NAME_DESC&page=2`.
+
+Verification:81 Node tests cover existing flows and16 new URL/navigation/transport/
+stale-response cases; TypeScript and an isolated production build pass. Actual
+frontend adapters/documents were checked against compiled Nest and owned disposable
+MongoDB:125 matching doctors,12/page, both sorts/page2, authoritative city, combined
+filters, literal Unicode, username exclusion, empty pages/totals, suggestions and
+independent503 recovery passed. Native Chrome confirmed the combined deep link's
+controls/count/cards and a pagination URL/request change. Further native control
+was interrupted by active Chrome use; Safari control timed out. Keyboard suggestion
+selection/Escape, real Back/Forward, error/retry UI and mobile acceptance remain
+unverified in a browser. Automated history-command/timer tests do not establish those
+browser interactions. No deployment or production-data claims are made.
+
+## Clinic search and shared directory — November 5, 2026
+
+`components/directory/DirectoryPage.tsx` now owns the filter form, accessible MUI
+name combobox, URL/navigation hooks, result announcements, loading/error/retry/empty
+states and centered pagination for both directories. Doctor/clinic pages compose
+that shared view with their existing cards. `_directory.scss` replaces duplicate
+doctor/clinic page styles and retains the requested centered pagination. No second
+router, request cache or dependency was introduced.
+
+- `apollo/user/directory.ts` adds executable `SearchClinics` and `SuggestClinicNames`
+  documents. `libs/api/directory.ts` shares bounded public transport/validation and
+  exports doctor/clinic adapters. `useDirectoryResults` and `useDirectorySuggestions`
+  take an explicit directory kind, included in response keys so clinic data cannot
+  appear as doctor results. Both reuse the existing URL state machine, debounces,
+  history semantics, filters, page resets and cancellation guards described above.
+- `/clinics` sends clinic-name/city/specialty filters to Nest and displays server
+  totals/pages. It no longer derives clinics from a global doctor list or searches
+  addresses/usernames locally. Clinics without doctors can appear without specialty;
+  specialty eligibility and distinct clinic counts remain server responsibilities.
+- ClinicsPage retains ClinicCard/DoctorsDialog and owns selected-clinic state. Opening
+  or closing the dialog leaves the directory URL unchanged; route-start closes it.
+  Existing View times links carry clinicId/doctorId to booking. Returning through the
+  browser history restores the clinic directory URL using the same shared hook.
+- The dialog and other explicit clinic-doctor reads use public `getClinicDoctors`
+  through `fetchMembers(clinicId)`, rather than filtering the first100 global doctors.
+  This is necessary for clinics newly discoverable beyond that cap. Existing
+  homepage clinic discovery remains unchanged, and booking already resolves explicit
+  linked clinics/doctors with public lookups. The per-clinic doctor endpoint still
+  caps at100; the dialog labels that bound when reached. No private affiliation API
+  or authentication bypass is used.
+
+Verification:TypeScript,89 Node tests and isolated production build pass. Eight
+new tests cover clinic adapters/URL return behavior and doctor/clinic static-shell
+labels, with the existing doctor/homepage tests retained. Actual adapters against
+normal compiled Nest and owned disposable MongoDB verified125 matching clinics,
+two eligible doctors each without duplicate totals, both sorts/page2, combined
+filters, Unicode literals, username exclusion, empty/out-of-range pages, no-doctor
+clinics, eight suggestions, independent503 recovery and a Care112 team absent from
+legacy homepage discovery. Doctor search/suggestions and homepage adapter checks
+also pass. Chrome displayed the combined page2 clinic deep link with125 results and
+correct controls/cards. Further native input returned active-app/no-window errors
+or no observable state change. Dialog/booking-return, keyboard autocomplete/history,
+error/retry UI and mobile browser acceptance remain unverified; Step6 must distinguish
+these outstanding interaction checks from the completed API/automated checks.
+
+## Directory filter polish and combined acceptance — November 5, 2026
+
+Step6 adds removable name/city/specialty/reverse-sort chips to the shared
+DirectoryPage. Removing a chip preserves other filters and resets page1; explicit
+name removal takes precedence over the pending text draft. Clear filters restores
+defaults. Both actions return focus to the name input. City labels explain that
+doctor city belongs to the clinic; specialty options use clinical labels while
+URLs/API requests retain the existing enums. Empty selectors explicitly show All
+cities and All specialties.
+
+Pagination focuses and scrolls to the live result summary after the new read
+finishes. Long chips wrap, results reserve loading space, and skeleton motion
+respects reduced-motion preferences. Both pages retain centered pagination.
+
+TypeScript,92 tests and an isolated production build with fixture URLs empty pass.
+Actual frontend adapters against normal compiled Nest and owned disposable MongoDB
+pass for both directories:125 matching records,12/page,both sorts/page2,combined
+filters,Unicode literal names,username exclusion,out-of-range totals,eight filtered
+suggestions and independent search/suggestion503 recovery. Clinic counts remain
+distinct with two matching doctors each; public Care112 team lookup and homepage
+regressions pass. Additional delayed real HTTP checks verify obsolete search and
+suggestion requests are aborted and only the latest result publishes for both kinds.
+
+Chrome desktop checks pass for doctor autocomplete keyboard selection,refresh,
+Back/Forward,name-chip deletion,preserved filters,page reset and pagination-summary
+focus. Clinic combined links,page2,doctor-dialog close/focus,booking target IDs and
+Back restoration pass. Injected suggestion failure leaves ordinary search usable;
+main-search failure hides stale cards and Try again recovers. Clear filters removes
+URL parameters and restores name-input focus. The390px clinic top/control layout
+has been visually inspected. A follow-up confirms Escape closes clinic suggestions
+without changing filters, and mobile clinic cards fit the viewport. Mobile inspection
+caught left-aligned wrapped pagination rows; the shared `.MuiPagination-ul` now
+centers each row, and the updated isolated production build passes. Final390px
+browser rechecks pass for centered wrapped pagination on both pages, doctor controls,
+single-column cards and booking links without visible horizontal overflow. The
+browser surface recovered after the owner brought the preview forward; earlier
+control failures are historical tooling limits. Combined local Step6 acceptance is
+complete. These results supersede the corresponding historical Step4/5 gaps above.
+Deployment and production-scale performance remain unverified.
+
+Square doctor/clinic card photos and a MediBridge-style square upload cropper are
+deferred for a separate plan; Step6 does not change image rendering or uploads.
 
 ## Sessions and deployment
 
@@ -88,8 +232,9 @@ Typecheck, production build, 26 focused Node tests, and 18 real-schema operation
 validations passed. The final build excludes fixture API URLs. This is not evidence
 of production deployment or real Google sign-in.
 
-- Discovery is limited to the first 100 approved doctors and their clinics.
-  Complete clinic/doctor pagination needs a future backend public directory contract.
+- Homepage/ordinary booking clinic choices still use the first100 approved doctors
+  and their clinics. Both standalone directories have server pagination; explicit
+  clinic-doctor lists use their own public endpoint, capped at100 per clinic.
 - Refresh coalescing is process-local; Web Locks coordinate supporting browsers.
   Multi-instance deployments and browsers without those locks need separate
   concurrency verification before claiming equivalent session reliability.

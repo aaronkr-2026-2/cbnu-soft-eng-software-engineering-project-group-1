@@ -1,7 +1,7 @@
 # Sprint 05 — Booking journeys, notifications and usernames
 
 **Period:** October 30–November 5, 2026 (Asia/Seoul)
-**Review through:** November 2, 2026
+**Review through:** November 5, 2026
 **Status:** In progress; final review due November 5
 **Owner:** Me
 **Sprint goal:** Let patients and clinic staff manage real booking/waitlist journeys and let members choose unique usernames confidently.
@@ -47,10 +47,81 @@ No authentication/booking/provider configuration is enabled by the UI itself.
   [AI_LOG.md](AI_LOG.md), [architecture](../docs/architecture/architecture-next.md)
   and [README](README.md). No application tests were rerun merely to write this file.
 
+## November 5 — NEXT-B11 doctor directory implementation
+
+Follow-up: horizontally centered doctor pagination as requested. Sass compilation
+and whitespace checks passed; no additional browser acceptance claimed.
+
+Directory Step4 implemented: `/doctors` uses searchDoctors/suggestDoctorNames,
+full-name/city/specialty filters, A–Z/Z–A ordering,12-result server pagination,
+matching totals and independent loading/error/retry/empty/suggestion states. Shared
+URL/navigation logic supports deep links, debounced replacement, deliberate history
+entries, page resets, restoration and cancellation of obsolete work. Existing
+clinic/homepage/booking discovery and doctor-card booking actions remain intact.
+
+TypeScript,81 Node tests (16 new) and isolated production build passed. Frontend
+adapters against normal compiled Nest/owned disposable MongoDB verified125 matching
+doctors, both sorts/page2, combined filters, clinic-derived city, Unicode literals,
+username exclusion, empty pages/totals, eight suggestions and independent503 recovery.
+Chrome confirmed a combined deep link's controls/count/cards and a pagination URL/
+request change. Browser control then encountered active Chrome changes and Safari
+timeout. Keyboard autocomplete/Escape, real Back/Forward, error/retry UI and mobile
+checks remain pending; this is implementation/automated verification with partial
+browser acceptance, not full Step4 or combined Step6 acceptance. No backend/Vite,
+application DB, dependencies/configuration, deployment or Git write actions.
+
+## November 5 — NEXT-B11 clinic directory implementation
+
+Directory Step5 implemented from clean next `f6dc891`. `/clinics` now uses
+searchClinics/suggestClinicNames with name/city/specialty,sort,page/count and shared
+URL/draft navigation. Both pages compose the same DirectoryPage and stylesheet,
+preserving existing cards and centered pagination. Removed global-first100-doctor
+messaging on the clinic screen. Public clinic-specific doctor reads keep newly
+discoverable clinics' previews usable; the per-clinic100-doctor bound is labeled.
+Homepage clinic discovery and booking's existing linked-target fallback remain.
+
+TypeScript,89 Node tests (eight new plus the updated public-team fixture) and final
+isolated production build passed. Real adapters against Nest/owned disposable MongoDB
+verified125 matching clinics with two doctors each,accurate totals,both sorts/page2,
+city/specialty,Unicode literals,username exclusion,empty pages,no-doctor clinics,
+eight suggestions,separate503 recovery and a Care112 team outside legacy homepage
+discovery. Doctor search/suggestions/homepage regressions also passed. Chrome showed
+the combined page2 clinic deep link with correct controls/cards/count; subsequent
+input encountered active-app/no-window errors or no observable change. Dialog/booking
+return,keyboard/history,error UI and mobile browser acceptance remain unverified.
+Step6 still owns polish and combined acceptance, including Step4's remaining checks.
+Owned fixture stopped and database removed. No protected source/app DB/configuration/
+dependency/deployment/staging/commit/push changes. This does not close the whole sprint.
+
+## November 5 — NEXT-B11 filter polish and combined acceptance
+
+Step6 implements removable filter chips, clinical specialty labels, explicit default
+selector text, name-input focus after removal/clear, pagination result-summary focus,
+wrapping chips and reduced-motion loading polish. Both directories keep centered
+pagination. The name-removal patch now overrides pending typing and resets page1.
+
+TypeScript,92 tests,isolated production build and real frontend-adapter checks
+against normal Nest/disposable MongoDB pass. Both directories return125 matching
+records with correct filters,sorts,page2,totals and suggestions; separate503 recovery,
+Unicode literals,username exclusion,clinic distinct counts and selected-clinic team
+lookup pass. Chrome verifies doctor keyboard suggestion selection,refresh/history,
+chip removal and pagination focus; clinic dialog/focus,booking link/Back restoration,
+independent suggestion failure,main-error/retry and clear/focus pass. Clinic390px
+top/control layout and cards inspected; Escape closes clinic suggestions without
+changing filters. Inspection caught left-aligned wrapped pagination rows; the shared
+list now centers each row and the updated production build passes. Final390px visual rechecks pass for centered wrapped pagination on both pages,
+doctor controls and single-column cards. Combined local directory acceptance is complete.
+See [architecture acceptance details](../docs/architecture/architecture-next.md).
+No production deployment or whole-sprint closure is implied.
+
+Square doctor/clinic photos and square upload cropping are deferred to NEXT-B13.
+Review found MediBridge's react-easy-crop flow; a separate plan must define reuse,
+upload behavior and treatment of existing images before implementation.
+
 ## Remaining work and lessons
 
 Production TLS/proxy/multiple-instance/load behavior, intended profile image storage
-and password submission, full OS-offline behavior and directory pagination remain
+and password submission, full OS-offline behavior remain
 unverified or undelivered. Ratings are placeholders; doctor/clinic registration UI
 is pending. Test servers were stopped after Step7; no production deployment or
 application-database migration is claimed.
@@ -69,8 +140,9 @@ require separate implementation requests.
 | --- | --- | --- | --- |
 | NEXT-B10 | P1 / Engineering/test | Review staging session/proxy/TLS/private-cache acceptance and backend activation dependencies | 🔵 Planning |
 | NEXT-B06 | P2 / Test | Verify real profile upload/replacement/password flows against intended storage | 🔵 Planning |
-| NEXT-B11 | P2 / Feature | Paginated discovery so clinics outside the first 100 doctors can be found | 🔴 Thinking; backend pagination contract needed |
+| NEXT-B11 | P2 / Feature | Paginated discovery using delivered public backend contracts | Completed locally November5; Step6 polish and automated/API/desktop/mobile acceptance passed |
 | NEXT-B12 | P3 / Feature | Doctor/clinic registration UI with role-specific validation and pending affiliation | 🔴 Thinking; confirm desired onboarding scope |
+| NEXT-B13 | P3 / Feature | Square doctor/clinic card photos and upload cropper informed by MediBridge | 🔴 Thinking; deferred by owner until directory search is finished; separate plan required |
 | NEXT-B05 | P3 / Optional verification | Fresh live Google-provider acceptance only if the owner reopens that scope | 🔴 Thinking; automated acceptance already satisfied |
 
 **Remaining-work capacity assumption:**8 h of review/test work, not confirmed owner
