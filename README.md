@@ -16,8 +16,6 @@ The backend lives in `backend/` and uses NestJS, TypeScript, MongoDB/Mongoose, a
 GraphQL, with REST for member authentication and existing appointment routes.
 See this README's [backend setup](#requirements-and-quick-start) and
 [API documentation](#api-documentation-and-status) for backend instructions.
-A React/Vite frontend lives in `frontend/`; see its [README](frontend/README.md)
-for frontend instructions.
 The Next.js frontend in `next/` provides discovery, authentication, profile editing,
 and patient booking/waitlist journeys. See its [setup and verification limits](next/README.md)
 and [architecture](docs/architecture/architecture-next.md). Booking and refresh flows
@@ -125,9 +123,6 @@ this does not establish deployed integration or enable automatic waitlist bookin
   failures, without logging GraphQL arguments or response data.
 - **Service monitoring:** API information, liveness and database readiness checks,
   and a public status page with manual refresh and automatic polling.
-- **Frontend starter screens:** Login, registration, and a protected dashboard
-  layout. Dashboard statistics and appointments currently use sample data;
-  frontend/backend integration is not verified.
 - **Next.js discovery:** `/doctors` and `/clinics` share server name/city/specialty
   search, alphabetical sorting, removable filter chips, centered pagination, name suggestions and shareable
   URLs. Clinic cards open public clinic-specific doctor previews with View times

@@ -5,8 +5,8 @@
 </p>
 
 Patient discovery, authentication, profile editing, booking, and waitlist journeys
-use the Pages Router, MUI, and the shared blue/green SCSS palette. The separate
-React/Vite application remains in `../frontend/`.
+use the Pages Router, MUI, and the shared blue/green SCSS palette. This is the
+project’s frontend application; the legacy React/Vite setup has been removed.
 
 ## Setup
 

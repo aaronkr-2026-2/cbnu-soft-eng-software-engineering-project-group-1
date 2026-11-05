@@ -687,3 +687,23 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. Initial local preview startup was blocked by sandbox port permissions; the approved retry succeeded.
 
 **One decision I can explain without AI:** Internal navigation should use the existing router so the in-memory session can remain available between routes.
+
+## Remove legacy Vite application — 2026-11-06
+
+**Tool(s) used:** Codex, Git, ripgrep and Python filesystem edits.
+
+**What I asked for:** Delete the root Vite setup folder.
+
+**Pre-planning:** I clarified which frontend directory to remove and checked the clean main checkout, tracked files and current documentation references.
+
+**Planning:** I limited removal to root frontend/ and corrected current documentation; I retained next/, backend/ and the detached frontend worktree.
+
+**Implementation process:** Removed 32 legacy Vite files and corrected both READMEs and current backend architecture references. Verified folder removal, retained application manifests, absence of runtime Next frontend/ references, scoped diff and git diff --check. No application tests were run for this independent app removal.
+
+**What I kept as-is:** Next.js/backend application source, historical records, detached worktree, live deployment and manual Git workflow.
+
+**What I changed or rejected, and why:** I removed obsolete app references so documentation does not direct users to deleted files.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Removing a legacy application does not require changing the active Next.js application or deploying it.

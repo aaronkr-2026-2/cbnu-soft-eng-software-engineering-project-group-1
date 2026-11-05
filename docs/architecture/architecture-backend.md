@@ -33,7 +33,7 @@ Versions below are declared dependency ranges in [backend/package.json](../../ba
 | Abuse controls | `express-rate-limit` `^8.7.0` | In-memory auth request limits per process |
 | Async execution and logs | RxJS `^7.8.1`, custom `FileLogger`, Node filesystem APIs | HTTP/GraphQL timing/error interception, JSON-line file logs and terminal output |
 | Verification/tooling | Jest 30, ts-jest 29, Supertest 7, Nest CLI, Oxlint, Prettier | Unit/HTTP tests, compilation, linting, formatting; exact ranges are in package.json |
-| Browser client context | React 18, Vite 5, TypeScript 5, React Router 6, Zustand 4, Axios 1, React Hook Form 7, Zod 3, Tailwind CSS 3 | Separate `frontend/` application; declarations are in `frontend/package.json`. Backend integration is incomplete. |
+| Browser client context | Next.js Pages Router, React, TypeScript and MUI | Frontend lives in `next/`; see [Next.js architecture](architecture-next.md). The legacy React/Vite `frontend/` application was removed on November 6, 2026. |
 
 ## Logical layers
 
@@ -918,7 +918,7 @@ These scoped source observations are not a full runtime/security audit. Database
 | Finding and evidence | Impact | Proposed fix |
 | --- | --- | --- |
 | Corrected October 25: startup, DatabaseModule, MemberModule, AppointmentModule and BookingModule use `backend/src/database/database.config.ts`. | Prevents connection/registration disagreement and development fallback in production. | Selection tests cover explicit overrides, production precedence and invalid/missing settings. Production connectivity remains unverified. |
-| Frontend authentication crosses incompatible contracts: `frontend/src/pages/Login.tsx` always calls mockLogin; `frontend/src/lib/api.ts` uses `/login/` and `/auth/register`, while the backend controller uses `/member/login` and `/member/signup`. `frontend/src/api.ts` defines a second client; frontend email/password and user shapes also differ from backend memberEmail/memberPassword and member responses. | A local UI session can appear authenticated without a valid server token; real registration/login calls do not match the implemented API. | Trace callers, consolidate the active API boundary, map backend DTO/response fields explicitly, and gate mocks deliberately. Verify signup/login/protected requests against server contracts; keep backend guards authoritative. |
+| Historical Vite authentication mismatch (legacy `frontend/` application removed November 6, 2026). | The removed prototype used mock login and incompatible REST contracts. | This finding is retired with the Vite application; use the Next.js authentication flow and its documented verification limits. |
 | Local deployment workflow does not match source layout: ignored root `docker-compose.yml` runs npm in `/usr/src/medconnect`, while package.json is under backend/. `deploy.sh` hard-resets and selects master. | The recorded script cannot be assumed to build this checkout and can discard local changes when run. | Review the intended branch/release workflow, point container commands at backend/, and replace destructive checkout handling with an explicit release procedure. Validate configuration/build before attempting deployment. |
 
 Scheduling write ownership was established in Step 4: MemberService owns affiliation review and AppointmentScheduleService owns weekly/date schedule changes. AppointmentService retains explicit read dependencies and shares pure slot/override rules. No repository-wide service split was introduced.
