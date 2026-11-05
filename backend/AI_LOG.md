@@ -926,3 +926,25 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Shared feature-local eligibility pipeline builders prevent search/suggestion drift. Dedicated suggestion input rejects blank/short requests, pagination and client-chosen limits; database grouping runs after all filters and before the cap.
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 **One decision I can explain without AI:** Deduplicate eligible names before applying the eight-name limit so repeated doctor/clinic names do not consume multiple suggestions; deterministic display casing keeps repeated requests stable.
+
+## Directory search plan and roadmap completion — 2026-11-05
+
+**Tool(s) used:** Codex,Git/source/document inspection and Python text edits; frontend acceptance used Yarn/TypeScript/Node/Next build,normal Nest,disposable MongoDB and native Chrome.
+
+**What I asked for:** Finish directory Step6 first and mark search finished in the future roadmap.
+
+**Pre-planning:** Verified backend clean at7f712a0 and reviewed the original plan/roadmap and Next final acceptance evidence.
+
+**Planning:** Close only the shared directory documentation and required delivery records after combined acceptance; keep photo/cropper work deferred.
+
+**Implementation process:** Marked DIRECTORY_SEARCH_PLAN Steps4–6 and FUTURE_IMPROVEMENTS FI-01 complete locally November5; recorded S05-08 continuation. Next typecheck,92 tests,final isolated production build,real adapter/Nest/disposable-MongoDB checks and Chrome desktop/390px mobile checks pass. This documentation task does not rerun or claim new backend suites. Fixture stopped and Mongo removed; frontend implementation awaits manual commit.
+
+**What I kept as-is:** Backend application code,API contracts,application databases,dependencies/configuration,production flags and manual Git workflow.
+
+**What I changed or rejected, and why:** Replaced stale planned/unimplemented statuses with actual local completion evidence. Deployment remains unverified; square images/cropping remain separate future work.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this documentation task.
+
+**One decision I can explain without AI:** Local acceptance closes the agreed search scope while production deployment and a new image workflow remain separate decisions.
+
+**November5 roadmap follow-up:** At my request,added FI-07 square doctor/clinic photos and an upload cropper as Backlog in FUTURE_IMPROVEMENTS,linked conceptually to NEXT-B13. Recorded MediBridge as the reference and the decisions/acceptance a future dedicated plan must cover. No feature implementation or dependency change. Corrected the stale completion-record footer to match FI-01's existing completed status. Checked roadmap IDs/status consistency and whitespace; application tests were unnecessary for this documentation-only update.

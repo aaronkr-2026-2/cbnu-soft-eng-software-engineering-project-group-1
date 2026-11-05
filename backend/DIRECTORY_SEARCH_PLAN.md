@@ -2,9 +2,12 @@
 
 Date: November 4, 2026 (Asia/Seoul)
 
-Status: Steps 1–2 committed (`39549ea`, `8071ba5`); Step 3 implemented and locally
-verified November 5, awaiting owner manual commit. Steps 4–6 remain unimplemented
-by this plan. No deployment activation.
+Status: **Completed locally November 5, 2026.** Steps1–3 are delivered on the
+backend branch (`39549ea`, `8071ba5`, `7f712a0`); Steps4–5 are delivered on the
+next branch (`f6dc891`, `1cb6378`). Step6 implementation and combined local
+acceptance are complete; its changes await the owner's manual commit. No deployment
+or production activation is claimed. Final frontend acceptance is recorded in
+`docs/architecture/architecture-next.md` and `next/SPRINT_05.md` on branch `next`.
 
 ## Goal
 
@@ -182,6 +185,9 @@ frontend or deployment changes. Stop for manual commit before Step4.
 
 ### Step 4 — Doctor search screen and shared URL behavior
 
+**Completed locally:** Doctor search, URL state and autocomplete are delivered on next `f6dc891`;
+remaining interaction checks passed during combined Step6 acceptance.
+
 **Place:** next branch, `.worktrees/next/next/`.
 
 - Add GraphQL documents/API adapters for the new contracts.
@@ -197,6 +203,9 @@ frontend or deployment changes. Stop for manual commit before Step4.
 
 ### Step 5 — Clinic search screen
 
+**Completed locally:** Clinic search and the shared directory are delivered on next `1cb6378`;
+public clinic-specific previews and booking-return behavior passed Step6 acceptance.
+
 **Place:** next branch, `.worktrees/next/next/`.
 
 - Reuse the doctor screen's shared filter/URL/API patterns for clinic search and
@@ -211,6 +220,17 @@ frontend or deployment changes. Stop for manual commit before Step4.
 **Commit:** `feat(next): add URL-driven clinic search and autocomplete`
 
 ### Step 6 — Filter polish and combined acceptance
+
+**Completed locally:** Filter polish and combined local acceptance completed November5. Typecheck,92
+frontend tests and final isolated production build pass. Actual Next adapters→normal
+Nest→owned disposable MongoDB verify125 matching doctors and125 matching clinics,
+combined filters,both sorts,page2,accurate totals,literal Unicode,username exclusion,
+eight suggestions,separate503 recovery and obsolete-read cancellation. Chrome checks
+pass for deep links,doctor keyboard suggestion selection,refresh/Back/Forward,chip
+removal/clear/page reset/focus,clinic doctor dialog/booking return,error/retry and
+Escape.390px controls/cards and centered wrapped pagination pass on both pages.
+Owned fixture stopped and Mongo files removed; application databases/flags unchanged.
+Square card images and upload cropping remain deferred to a separate future plan.
 
 **Place:** next branch for UI changes; backend branch only for a verified API
 defect or necessary API documentation correction, committed separately.

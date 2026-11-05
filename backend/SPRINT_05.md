@@ -112,6 +112,18 @@ indexes, frontend/deployment, staging, commit or push changes. Frontend autocomp
 URL behavior and browser acceptance remain Steps4–6; this is backend completion
 only and does not close the whole sprint.
 
+## November 5 directory completion — S05-08
+
+The agreed six-step directory search plan is complete locally. Backend contracts
+remain unchanged from `7f712a0`; Next Steps4–6 deliver both directory screens,
+URL/autocomplete/filter polish and combined acceptance. Next typecheck,92 tests,
+isolated production build,real adapters against Nest/disposable MongoDB and Chrome
+desktop/390px checks pass,including125 matches per directory and centered wrapped
+pagination. Detailed frontend evidence is on branch `next` in architecture-next and
+NEXT-B11. Updated DIRECTORY_SEARCH_PLAN/FUTURE_IMPROVEMENTS FI-01 to completed at the
+owner's request. Step6 awaits manual commit; no deployment or whole-sprint closure.
+Square photos/cropping remain deferred. No backend code or database changes.
+
 ## Prioritized remaining backlog
 
 Labels indicate current planning: 🔴 Thinking = candidate; 🔵 Planning = refined.
