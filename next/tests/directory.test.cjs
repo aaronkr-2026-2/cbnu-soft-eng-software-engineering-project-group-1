@@ -24,7 +24,9 @@ const {
 } = require('../libs/directory.ts');
 const {
   searchDoctors,
+  searchClinics,
   suggestDoctorNames,
+  suggestClinicNames,
 } = require('../libs/api/directory.ts');
 const originalFetch = global.fetch;
 afterEach(() => {
@@ -315,4 +317,148 @@ test('late results and suggestions cannot replace a newer result even when trans
     assert.deepEqual(received, ['new results']);
     assert.deepEqual(failed, []);
   }
+});
+
+test('clinic search sends the shared filters, sort and pagination to the clinic query', async () => {
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.match(body.query, /searchClinics/);
+    assert.doesNotMatch(body.query, /searchDoctors/);
+    assert.deepEqual(body.variables.input, {
+      name: 'Care',
+      city: 'BUSAN',
+      specialty: 'DENTIST',
+      sort: 'NAME_DESC',
+      page: 2,
+      limit: 12,
+    });
+    assert.equal(options.credentials, 'omit');
+    assert.equal(options.cache, 'no-store');
+    return Response.json({
+      data: {
+        searchClinics: {
+          entries: [
+            { _id: 'clinic2', memberNick: 'clinic_2', clinicName: 'Care' },
+          ],
+          total: 25,
+          page: 2,
+          limit: 12,
+        },
+      },
+    });
+  };
+  const result = await searchClinics(
+    {
+      ...defaultDirectory,
+      name: ' Care ',
+      city: 'BUSAN',
+      specialty: 'DENTIST',
+      sort: 'NAME_DESC',
+      page: 2,
+    },
+    signal(),
+  );
+  assert.equal(result.entries[0].clinicName, 'Care');
+  assert.equal(result.total, 25);
+});
+
+test('clinic suggestions use only the clinic query and active name/city/specialty', async () => {
+  global.fetch = () => assert.fail('No initial/short-name suggestion request');
+  assert.deepEqual(
+    await suggestClinicNames(
+      { name: ' C ', city: '', specialty: '' },
+      signal(),
+    ),
+    [],
+  );
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.match(body.query, /suggestClinicNames/);
+    assert.deepEqual(body.variables.input, {
+      name: 'Ca',
+      city: 'SEOUL',
+      specialty: 'DENTIST',
+    });
+    return Response.json({ data: { suggestClinicNames: ['Care'] } });
+  };
+  assert.deepEqual(
+    await suggestClinicNames(
+      { name: ' Ca ', city: 'SEOUL', specialty: 'DENTIST' },
+      signal(),
+    ),
+    ['Care'],
+  );
+});
+
+test('clinic empty and out-of-range pages keep their actual totals', async () => {
+  for (const total of [0, 25]) {
+    global.fetch = async () =>
+      Response.json({
+        data: { searchClinics: { entries: [], total, page: 1000, limit: 12 } },
+      });
+    const result = await searchClinics(
+      { ...defaultDirectory, page: 1000 },
+      signal(),
+    );
+    assert.equal(result.total, total);
+    assert.deepEqual(result.entries, []);
+  }
+});
+
+test('clinic errors and malformed pages fail safely and a subsequent read can recover', async () => {
+  for (const body of [
+    { errors: [{ message: 'private details' }] },
+    { data: { searchClinics: { entries: [], total: 2, page: 2, limit: 12 } } },
+    {
+      data: {
+        searchClinics: { entries: [{ _id: 4 }], total: 1, page: 1, limit: 12 },
+      },
+    },
+  ]) {
+    global.fetch = async () => Response.json(body);
+    await assert.rejects(
+      searchClinics(defaultDirectory, signal()),
+      (error) => !error.message.includes('private'),
+    );
+  }
+  global.fetch = async () =>
+    Response.json({
+      data: { searchClinics: { entries: [], total: 0, page: 1, limit: 12 } },
+    });
+  assert.equal((await searchClinics(defaultDirectory, signal())).total, 0);
+});
+
+test('clinic suggestion failure does not prevent ordinary clinic search', async () => {
+  global.fetch = async (_url, options) =>
+    JSON.parse(options.body).query.includes('suggestClinicNames')
+      ? Response.json({ errors: [{ message: 'fixture outage' }] })
+      : Response.json({
+          data: {
+            searchClinics: { entries: [], total: 0, page: 1, limit: 12 },
+          },
+        });
+  await assert.rejects(
+    suggestClinicNames({ name: 'Care', city: '', specialty: '' }, signal()),
+  );
+  assert.equal((await searchClinics(defaultDirectory, signal())).total, 0);
+});
+
+test('clinic navigation preserves URL filters through pagination, suggestion selection and returning from booking', async (context) => {
+  const url =
+    '/clinics?name=Care&city=BUSAN&specialty=DENTIST&sort=NAME_DESC&page=2';
+  const { navigation, calls } = fixture(context, url);
+  await navigation.page(3);
+  const target = directoryUrl('/clinics', calls[0].filters);
+  assert.equal(
+    target,
+    '/clinics?name=Care&city=BUSAN&specialty=DENTIST&sort=NAME_DESC&page=3',
+  );
+  navigation.restore(target);
+  navigation.leaving('/book?clinicId=clinic1&doctorId=doctor1');
+  navigation.restore(target);
+  assert.deepEqual(navigation.snapshot().filters, calls[0].filters);
+  await navigation.submit('Care Selected');
+  assert.equal(calls[1].filters.page, 1);
+  assert.equal(calls[1].filters.city, 'BUSAN');
+  assert.equal(calls[1].filters.name, 'Care Selected');
 });

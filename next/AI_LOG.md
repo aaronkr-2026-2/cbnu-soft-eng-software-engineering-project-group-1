@@ -583,3 +583,23 @@
 **November5 follow-up:** At my request, centered the doctor pagination with flex
 layout in `_doctors.scss`. Sass compilation and whitespace checks passed. No new
 browser verification; existing Step4 acceptance limits remain. No staging/commit/push.
+
+## URL-driven clinic search and shared directory — 2026-11-05
+
+**Tool(s) used:** Codex,source/Git inspection,apply_patch,Prettier,Yarn/TypeScript/Node/Next build,normal compiled Nest,owned disposable MongoDB,temporary Node fixtures and native Chrome control.
+
+**What I asked for:** Implement the next agreed directory step (Step5),preserving manual Git workflow and centered pagination.
+
+**Pre-planning:** Verified clean nextf6dc891 after Step4 commit. Read current records/lessons and inspected the clinic page,cards/dialog,shared doctor URL/API hooks and backend contracts. Clinic discovery and previews still depended on the global first100 doctors; new clinic search can discover clinics outside that set.
+
+**Planning:** Extract the actual doctor filter/results view and styles into a shared DirectoryPage for both callers. Add clinic documents/adapters and kind-keyed reads. Preserve clinic selected-dialog ownership and use the existing public clinic-specific doctor endpoint where a global capped list would break previews.
+
+**Implementation process:** Added searchClinics/suggestClinicNames transport,shared result/suggestion hooks,DirectoryPage and `_directory.scss`. Existing wrappers supply doctor/clinic cards; clinic dialog closes on route-start and leaves URLs unchanged on ordinary close. fetchMembers(clinicId) now reads public getClinicDoctors,with a visible per-clinic100 bound. Removed stale global-cap clinic messaging. TypeScript,89 tests (eight new) and final isolated production build with fixture URLs empty passed. Real frontend adapters→normal compiled Nest→owned disposable MongoDB verified125 matching clinics,two doctors each without duplicate totals,both sorts/page2,filters,literal Unicode,username exclusion,empty pages,no-doctor clinics,eight suggestions and independent503 recovery. Care112 preview returns its own team despite absence from legacy homepage discovery; doctor/homepage adapter regressions pass. Chrome displayed combined deep-link state/count/cards. Further native input failed or produced no observable change,so dialog/booking-return,keyboard/history,error UI/mobile acceptance remains unverified. Updated docs/READMEs/NEXT-B11/session. Owned runner48069 stopped and Mongo files removed; no production data/config/deployment changes.
+
+**What I kept as-is:** Existing cards/booking links,homepage clinic discovery,booking's linked-target fallback,authentication,backend/Vite files,dependencies/source configuration and manual staging/commit/push workflow. Step6 combined acceptance remains pending.
+
+**What I changed or rejected, and why:** Shared the current directory UI rather than duplicating it. Replaced only explicit clinic-doctor reads with the existing public endpoint so newly discovered clinics have working previews; no private affiliation API or new backend contract was needed.
+
+**Something the AI got wrong that I had to catch:** Source review caught the inherited doctor-only loading text in the shared view; parameterized it before final checks and added doctor/clinic shell tests. The first regression run also exposed the obsolete getDoctors expectation for an intentionally changed clinic-specific read; updated that fixture to assert getClinicDoctors and its public request settings. No human correction is claimed.
+
+**One decision I can explain without AI:** Clinic discovery can exceed the global doctor cap only if View doctors also queries the selected clinic directly; otherwise a valid newly found clinic could falsely show no doctors.

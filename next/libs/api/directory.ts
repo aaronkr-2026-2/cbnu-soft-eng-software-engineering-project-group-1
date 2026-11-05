@@ -1,10 +1,12 @@
 import { print, type DocumentNode } from 'graphql';
 import {
   SEARCH_DOCTORS,
+  SEARCH_CLINICS,
   SUGGEST_DOCTOR_NAMES,
+  SUGGEST_CLINIC_NAMES,
 } from '../../apollo/user/directory';
 import type { PublicMember } from './public-members';
-import type { DirectoryFilters } from '../directory';
+import type { DirectoryFilters, DirectoryKind } from '../directory';
 
 export type DirectoryPage = {
   entries: PublicMember[];
@@ -49,13 +51,14 @@ function filterInput(
     ...(filters.specialty ? { specialty: filters.specialty } : {}),
   };
 }
-export async function searchDoctors(
+async function searchDirectory(
+  kind: DirectoryKind,
   filters: DirectoryFilters,
   signal: AbortSignal,
 ): Promise<DirectoryPage> {
   const result = (
     await read(
-      SEARCH_DOCTORS,
+      kind === 'doctors' ? SEARCH_DOCTORS : SEARCH_CLINICS,
       {
         ...filterInput(filters),
         sort: filters.sort,
@@ -64,7 +67,7 @@ export async function searchDoctors(
       },
       signal,
     )
-  ).searchDoctors;
+  )[kind === 'doctors' ? 'searchDoctors' : 'searchClinics'];
   if (
     !result ||
     !Array.isArray(result.entries) ||
@@ -83,14 +86,19 @@ export async function searchDoctors(
     throw new Error('Invalid directory response. Please try again.');
   return result;
 }
-export async function suggestDoctorNames(
+async function suggestNames(
+  kind: DirectoryKind,
   filters: Pick<DirectoryFilters, 'name' | 'city' | 'specialty'>,
   signal: AbortSignal,
 ): Promise<string[]> {
   if (Array.from(filters.name.trim()).length < 2) return [];
   const result = (
-    await read(SUGGEST_DOCTOR_NAMES, filterInput(filters), signal)
-  ).suggestDoctorNames;
+    await read(
+      kind === 'doctors' ? SUGGEST_DOCTOR_NAMES : SUGGEST_CLINIC_NAMES,
+      filterInput(filters),
+      signal,
+    )
+  )[kind === 'doctors' ? 'suggestDoctorNames' : 'suggestClinicNames'];
   if (
     !Array.isArray(result) ||
     result.length > 8 ||
@@ -99,3 +107,13 @@ export async function suggestDoctorNames(
     throw new Error('Invalid suggestions');
   return result;
 }
+
+export const searchDoctors = (filters: DirectoryFilters, signal: AbortSignal) =>
+  searchDirectory('doctors', filters, signal);
+export const searchClinics = (filters: DirectoryFilters, signal: AbortSignal) =>
+  searchDirectory('clinics', filters, signal);
+type NameFilters = Pick<DirectoryFilters, 'name' | 'city' | 'specialty'>;
+export const suggestDoctorNames = (filters: NameFilters, signal: AbortSignal) =>
+  suggestNames('doctors', filters, signal);
+export const suggestClinicNames = (filters: NameFilters, signal: AbortSignal) =>
+  suggestNames('clinics', filters, signal);

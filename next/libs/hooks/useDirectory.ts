@@ -5,10 +5,13 @@ import {
   directoryRead,
   directoryUrl,
   type DirectoryFilters,
+  type DirectoryKind,
 } from '../directory';
 import {
   searchDoctors,
+  searchClinics,
   suggestDoctorNames,
+  suggestClinicNames,
   type DirectoryPage,
 } from '../api/directory';
 
@@ -54,13 +57,16 @@ export function useDirectoryLocation() {
 
 // Key each response to its request. Even the render before an effect cleans up
 // cannot display a previous page as if it matched the new URL or new draft.
-export function useDoctorDirectory(
+export function useDirectoryResults(
+  kind: DirectoryKind,
   filters: DirectoryFilters | null,
   navigating: boolean,
 ) {
   const [attempt, setAttempt] = useState(0);
   const key =
-    filters && !navigating ? JSON.stringify(filters) + ':' + attempt : '';
+    filters && !navigating
+      ? kind + ':' + JSON.stringify(filters) + ':' + attempt
+      : '';
   const [result, setResult] = useState<{
     key: string;
     data?: DirectoryPage;
@@ -71,7 +77,11 @@ export function useDoctorDirectory(
     const controller = new AbortController();
     void directoryRead(
       controller.signal,
-      () => searchDoctors(filters, controller.signal),
+      () =>
+        (kind === 'doctors' ? searchDoctors : searchClinics)(
+          filters,
+          controller.signal,
+        ),
       (data) => setResult({ key, data }),
       (reason) => setResult({ key, error: reason.message }),
     );
@@ -87,7 +97,8 @@ export function useDoctorDirectory(
   };
 }
 
-export function useDoctorSuggestions(
+export function useDirectorySuggestions(
+  kind: DirectoryKind,
   filters: DirectoryFilters | null,
   draft: string,
   enabled: boolean,
@@ -99,7 +110,7 @@ export function useDoctorSuggestions(
   };
   const key =
     enabled && filters && Array.from(input.name).length >= 2
-      ? JSON.stringify(input)
+      ? JSON.stringify({ kind, input })
       : '';
   const [result, setResult] = useState<{
     key: string;
@@ -112,7 +123,11 @@ export function useDoctorSuggestions(
     const timer = setTimeout(() => {
       void directoryRead(
         controller.signal,
-        () => suggestDoctorNames(JSON.parse(key), controller.signal),
+        () =>
+          (kind === 'doctors' ? suggestDoctorNames : suggestClinicNames)(
+            JSON.parse(key).input,
+            controller.signal,
+          ),
         (names) => setResult({ key, names }),
         () => setResult({ key, failed: true }),
       );

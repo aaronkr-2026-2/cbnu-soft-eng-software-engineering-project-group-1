@@ -20,3 +20,24 @@ export const SUGGEST_DOCTOR_NAMES = gql`
     suggestDoctorNames(input: $input)
   }
 `;
+
+export const SEARCH_CLINICS = gql`
+  query SearchClinics($input: DirectorySearchInput!) {
+    searchClinics(input: $input) {
+      entries {
+        ...MemberFields
+        location
+      }
+      total
+      page
+      limit
+    }
+  }
+  ${MEMBER_FIELDS}
+`;
+
+export const SUGGEST_CLINIC_NAMES = gql`
+  query SuggestClinicNames($input: DirectoryNameSuggestionsInput!) {
+    suggestClinicNames(input: $input)
+  }
+`;

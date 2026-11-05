@@ -25,6 +25,7 @@ export const directorySpecialties = [
   'OTOLARYNGOLOGIST',
   'SURGEON',
 ] as const;
+export type DirectoryKind = 'doctors' | 'clinics';
 export type DirectoryFilters = {
   name: string;
   city: string;

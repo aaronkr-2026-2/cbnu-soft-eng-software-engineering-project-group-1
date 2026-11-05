@@ -1,7 +1,7 @@
 @use '../../variables' as v;
 
-.doctors-page {
-  .doctors-page__intro {
+.directory-page {
+  .directory-page__intro {
     padding-block: 2rem 3.5rem;
     background: v.$backgroundColor;
 
@@ -28,7 +28,7 @@
     }
   }
 
-  .doctors-page__directory {
+  .directory-page__directory {
     padding-block: 3rem 5rem;
 
     h2 {
@@ -37,7 +37,7 @@
     }
   }
 
-  .doctors-page__toolbar {
+  .directory-page__toolbar {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: start;
@@ -48,34 +48,34 @@
     }
   }
 
-  .doctors-page__count {
+  .directory-page__count {
     margin-block: 1.25rem;
     color: v.$mutedTextColor;
     font-size: 0.9rem;
   }
 
-  .doctors-page__name {
+  .directory-page__name {
     grid-column: 1 / -1;
   }
-  .doctors-page__buttons {
+  .directory-page__buttons {
     grid-column: 1 / -1;
     display: flex;
     gap: 1rem;
     flex-wrap: wrap;
   }
-  .doctors-page__pagination {
+  .directory-page__pagination {
     display: flex;
     justify-content: center;
     margin-top: 2rem;
   }
 
-  .doctors-page__grid {
+  .directory-page__grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1.5rem;
   }
 
-  .doctors-page__empty {
+  .directory-page__empty {
     padding: 3rem 1rem;
     border: 1px solid v.$borderColor;
     border-radius: v.$radius;
@@ -96,24 +96,18 @@
     }
   }
 
-  .doctors-page__note {
-    margin-top: 1.5rem;
-    color: v.$mutedTextColor;
-    font-size: 0.85rem;
-  }
-
   @media (max-width: 64rem) {
-    .doctors-page__grid {
+    .directory-page__grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
   @media (max-width: 40rem) {
-    .doctors-page__grid {
+    .directory-page__grid {
       grid-template-columns: minmax(0, 1fr);
     }
 
-    .doctors-page__toolbar {
+    .directory-page__toolbar {
       grid-template-columns: minmax(0, 1fr);
     }
   }

@@ -70,10 +70,33 @@ checks remain pending; this is implementation/automated verification with partia
 browser acceptance, not full Step4 or combined Step6 acceptance. No backend/Vite,
 application DB, dependencies/configuration, deployment or Git write actions.
 
+## November 5 — NEXT-B11 clinic directory implementation
+
+Directory Step5 implemented from clean next `f6dc891`. `/clinics` now uses
+searchClinics/suggestClinicNames with name/city/specialty,sort,page/count and shared
+URL/draft navigation. Both pages compose the same DirectoryPage and stylesheet,
+preserving existing cards and centered pagination. Removed global-first100-doctor
+messaging on the clinic screen. Public clinic-specific doctor reads keep newly
+discoverable clinics' previews usable; the per-clinic100-doctor bound is labeled.
+Homepage clinic discovery and booking's existing linked-target fallback remain.
+
+TypeScript,89 Node tests (eight new plus the updated public-team fixture) and final
+isolated production build passed. Real adapters against Nest/owned disposable MongoDB
+verified125 matching clinics with two doctors each,accurate totals,both sorts/page2,
+city/specialty,Unicode literals,username exclusion,empty pages,no-doctor clinics,
+eight suggestions,separate503 recovery and a Care112 team outside legacy homepage
+discovery. Doctor search/suggestions/homepage regressions also passed. Chrome showed
+the combined page2 clinic deep link with correct controls/cards/count; subsequent
+input encountered active-app/no-window errors or no observable change. Dialog/booking
+return,keyboard/history,error UI and mobile browser acceptance remain unverified.
+Step6 still owns polish and combined acceptance, including Step4's remaining checks.
+Owned fixture stopped and database removed. No protected source/app DB/configuration/
+dependency/deployment/staging/commit/push changes. This does not close the whole sprint.
+
 ## Remaining work and lessons
 
 Production TLS/proxy/multiple-instance/load behavior, intended profile image storage
-and password submission, full OS-offline behavior and clinic-directory pagination remain
+and password submission, full OS-offline behavior and combined directory browser acceptance remain
 unverified or undelivered. Ratings are placeholders; doctor/clinic registration UI
 is pending. Test servers were stopped after Step7; no production deployment or
 application-database migration is claimed.
@@ -92,7 +115,7 @@ require separate implementation requests.
 | --- | --- | --- | --- |
 | NEXT-B10 | P1 / Engineering/test | Review staging session/proxy/TLS/private-cache acceptance and backend activation dependencies | 🔵 Planning |
 | NEXT-B06 | P2 / Test | Verify real profile upload/replacement/password flows against intended storage | 🔵 Planning |
-| NEXT-B11 | P2 / Feature | Paginated discovery using delivered public backend contracts | 🟢 Doing; doctor screen implemented, remaining browser checks and clinic screen pending |
+| NEXT-B11 | P2 / Feature | Paginated discovery using delivered public backend contracts | 🟢 Doing; both directory screens implemented, Step6 polish/combined browser acceptance pending |
 | NEXT-B12 | P3 / Feature | Doctor/clinic registration UI with role-specific validation and pending affiliation | 🔴 Thinking; confirm desired onboarding scope |
 | NEXT-B05 | P3 / Optional verification | Fresh live Google-provider acceptance only if the owner reopens that scope | 🔴 Thinking; automated acceptance already satisfied |
 
