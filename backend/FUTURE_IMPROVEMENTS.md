@@ -27,19 +27,19 @@ production deployment.
 Sizes are preliminary relative estimates, not commitments. Ordering reflects the
 initial recommendation; choose the next item explicitly before creating its plan.
 
-| ID | Improvement | Outcome | Estimated size | Status | Detailed plan | Completed on |
-| --- | --- | --- | --- | --- | --- | --- |
-| FI-01 | Better doctor/clinic search | Find doctors and clinics by name, city and specialty, with pagination, sorting, shareable URLs and autocomplete | Medium | **Completed** | [Directory search plan](DIRECTORY_SEARCH_PLAN.md) | November 5, 2026 |
-| FI-02 | Appointment reminders | Notify patients before upcoming visits, starting with in-app reminders and considering email later | Medium | **Backlog** | Not created | — |
-| FI-03 | Forgot-password recovery | Recover email/password account access through an expiring, single-use reset link | Medium | **Backlog** | Not created | — |
-| FI-04 | Add to personal calendar | Add a one-time appointment event through a checkbox before booking or a button after booking | Small | **Backlog** | Not created | — |
-| FI-05 | Clinic dashboard statistics | View upcoming visits, cancellations, completed appointments and no-shows for a selected period | Medium | **Backlog** | Not created | — |
-| FI-06 | Doctor change requests | Let doctors request appointment cancellation or schedule changes for clinic approval | Larger | **Backlog** | Not created | — |
-| FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading | Medium | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next` | November 5, 2026 |
+| ID    | Improvement                                | Outcome                                                                                                         | Estimated size | Status        | Detailed plan                                     | Completed on     |
+| ----- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------- | ------------- | ------------------------------------------------- | ---------------- |
+| FI-01 | Better doctor/clinic search                | Find doctors and clinics by name, city and specialty, with pagination, sorting, shareable URLs and autocomplete | Medium         | **Completed** | [Directory search plan](DIRECTORY_SEARCH_PLAN.md) | November 5, 2026 |
+| FI-02 | Appointment reminders                      | Notify patients before upcoming visits, starting with in-app reminders and considering email later              | Medium         | **Planned**   | [Appointment reminders plan](APPOINTMENT_REMINDERS_PLAN.md) | —                |
+| FI-03 | Forgot-password recovery                   | Recover email/password account access through an expiring, single-use reset link                                | Medium         | **Backlog**   | Not created                                       | —                |
+| FI-04 | Add to personal calendar                   | Add a one-time appointment event through a checkbox before booking or a button after booking                    | Small          | **Backlog**   | Not created                                       | —                |
+| FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                       | —                |
+| FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                       | —                |
+| FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`     | November 5, 2026 |
 
 ## Scope notes for future plans
 
-### FI-01 — Better doctor/clinic search
+### FI-01 — Better doctor/clinic search - COMPLETED
 
 The linked plan defines the agreed scope: doctor full names and clinic names rather
 than usernames; city/specialty filters; MongoDB aggregation and server pagination;
@@ -56,12 +56,15 @@ is in the linked plan and the Next branch's architecture/SPRINT_05 records. Step
 awaits the owner's manual commit; completion does not imply deployment. Square card
 photos and upload cropping are separate deferred work.
 
-### FI-02 — Appointment reminders
+### FI-02 — Appointment reminders — Planned
 
-Start with in-app reminders for upcoming appointments. Existing waitlist notices
-are not appointment reminders. Define reminder timing, cancellation/rescheduling
-handling, retry behavior and duplicate prevention in the future plan. Email delivery
-is a possible later extension, not part of an agreed initial implementation.
+The [dedicated plan](APPOINTMENT_REMINDERS_PLAN.md) defines six implementation
+steps across the backend and Next worktrees, with acceptance checks and manual
+commit boundaries. Proposed timing is 24 hours and 1 hour before confirmed visits;
+policy agreement and implementation remain pending. Reuse the durable in-app
+outbox/inbox with independent enablement, stale-reminder suppression, retries and
+deduplication. Existing waitlist notices are not appointment reminders. Email and
+the FI-06 rescheduling workflow remain deferred. No implementation is complete.
 
 ### FI-03 — Forgot-password recovery
 
@@ -106,7 +109,7 @@ Define request states, approval/rejection, participant notifications and handlin
 of stale requests or unavailable destination slots. Preserve booking, waitlist and
 transaction rules when an approved request is applied.
 
-### FI-07 — Square directory photos and upload cropper
+### FI-07 — Square directory photos and upload cropper - COMPLETED
 
 Completed locally November5,2026. Next doctor/clinic cards use1:1 images,including
 existing/default photos without rewriting storage. My Page uses the reviewed
