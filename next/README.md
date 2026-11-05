@@ -348,5 +348,5 @@ pending Step 12 statements. No new sprint, commit or push was created.
 
 - [Sprint 03](SPRINT_03.md): October 16–22 discovery, sign-in and profiles.
 - [Sprint 04](SPRINT_04.md): October 23–29 integration preparation and recorded evidence gap.
-- [Sprint 05](SPRINT_05.md): October 30–November 5 booking, notifications and usernames; reviewed through November 2.
+- [Sprint 05](SPRINT_05.md): October 30–November 5 booking, notifications, usernames, directories and square photos; closed November 5 with release checks carried forward.
 - [AI collaboration log](AI_LOG.md): implementation decisions and recorded verification.

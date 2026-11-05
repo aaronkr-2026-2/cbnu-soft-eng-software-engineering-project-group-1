@@ -2,13 +2,40 @@
 
 **Period:** October 30–November 5, 2026 (Asia/Seoul)
 **Review through:** November 5, 2026
-**Status:** In progress; final review due November 5
+**Status:** Closed — November 5, 2026; release-readiness work carried forward
 **Owner:** Me
 **Sprint goal:** Let patients and clinic staff manage real booking/waitlist journeys and let members choose unique usernames confidently.
 
-Dates match backend Sprint 05 on branch `backend`. This review separates frontend
-implementation, fixture checks and successful local backend/browser integration.
-Actual hours/capacity were not recorded; November 3–5 outcomes are not assumed.
+Dates match backend Sprint 05 on branch `backend`. This final review closes the
+frontend sprint with locally verified booking, notification and username journeys,
+plus the subsequently selected directory and cropper work. Staging, intended storage
+and release integration remain carried forward. Actual hours, velocity and confirmed
+future capacity were not recorded.
+
+## Final outcome and source review — November 5
+
+| ID | Final disposition | Source / commit evidence |
+| --- | --- | --- |
+| NEXT-B01–B04, B07–B09 | Delivered locally; original scope and evidence retained below | Existing delivery table and acceptance notes |
+| NEXT-B11 / FI-01 | Completed locally: both URL-driven directories, autocomplete, filter polish and centered pagination | `f6dc891`, `1cb6378`, `38fd308`; [shared directory](components/directory/DirectoryPage.tsx), [navigation](libs/directory.ts) |
+| NEXT-B13 / FI-07 | Completed locally: square crop/zoom, profile draft/save integration and 1:1 card images with API-origin URLs | `8005084`; [cropper](components/common/ImageCropper.tsx), [image helpers](libs/image-crop.ts), [plan](IMAGE_CROPPER_PLAN.md) |
+
+The closure self-review compared source, branch history, automated test evidence and
+recorded browser/API acceptance. Latest Next typecheck, 97 tests and isolated
+production build passed. Earlier 65/81/89/92 counts below are overlapping delivery
+checkpoints, not additional tests to sum. Directory browser acceptance and actual
+clinic/doctor crop uploads passed against normal Nest and disposable MongoDB.
+This documentation task does not rerun application tests.
+
+**Integration boundary:** Next is at `8005084`; the separately authorized backend
+upload fix is `16f1db6` on branch `backend`. Neither latest commit is an ancestor of
+the other branch at review. The cropper requires that backend fix for normal-main
+uploads. A combined candidate, its independent review and target-environment checks
+remain NEXT-B10 work. No merge or deployment is claimed.
+
+**Historical checkpoints:** dated notes below preserve their original verification
+scope. Pending directory/cropper statements are superseded by their final acceptance
+entries and this closure review.
 
 ## Delivered through November 2
 
@@ -139,7 +166,7 @@ checks pass. Production storage/deployment are separate; no app DB or Git action
 Production TLS/proxy/multiple-instance/load behavior, intended profile image storage
 and password submission, full OS-offline behavior remain
 unverified or undelivered. Ratings are placeholders; doctor/clinic registration UI
-is pending. Test servers were stopped after Step7; no production deployment or
+is pending. Owned acceptance stacks were stopped after their checks; no production deployment or
 application-database migration is claimed.
 
 Corrected lessons: validate documents against the actual backend before integration;
@@ -147,54 +174,62 @@ reset loading state on mode exit; seed complete versioned ledgers in worker fixt
 isolate production build output from live dev; check post-busy focus and success
 colors inside every consuming feature. These do not represent open failures today.
 
-## Prioritized remaining backlog
+## Final backlog disposition and carry-forward
 
-Labels: 🔴 Thinking = candidate; 🔵 Planning = refined. Items are proposals and
-require separate implementation requests.
+Labels describe refinement: 🔴 Thinking = candidate; 🔵 Planning = refined. Open
+items need separate selection; closing this sprint does not authorize implementation.
 
-| ID | Priority / type | Item and rationale | Label |
+| ID | Priority / type | Outcome or remaining need | Final disposition |
 | --- | --- | --- | --- |
-| NEXT-B10 | P1 / Engineering/test | Review staging session/proxy/TLS/private-cache acceptance and backend activation dependencies | 🔵 Planning |
-| NEXT-B06 | P2 / Test | Verify real profile upload/replacement/password flows against intended storage | 🔵 Planning |
-| NEXT-B11 | P2 / Feature | Paginated discovery using delivered public backend contracts | Completed locally November5; Step6 polish and automated/API/desktop/mobile acceptance passed |
-| NEXT-B12 | P3 / Feature | Doctor/clinic registration UI with role-specific validation and pending affiliation | 🔴 Thinking; confirm desired onboarding scope |
-| NEXT-B13 | P3 / Feature | Square doctor/clinic card photos and upload cropper informed by MediBridge | Completed locally November5; square crops/cards,real clinic/doctor saves and mobile dialog verified |
-| NEXT-B05 | P3 / Optional verification | Fresh live Google-provider acceptance only if the owner reopens that scope | 🔴 Thinking; automated acceptance already satisfied |
+| NEXT-B10 | P1 / Engineering/test | Combined-candidate review, staging session/proxy/TLS/private-cache acceptance and backend release dependencies | Carried forward — 🔵 Planning |
+| NEXT-B06 | P2 / Test | Intended-storage upload/replacement/removal and password acceptance; disposable square-photo saves are verified but do not satisfy this whole scope | Carried forward — 🔵 Planning |
+| NEXT-B11 | P2 / Feature | Paginated doctor/clinic discovery using public backend contracts | Completed locally — Nov 5, `38fd308` final polish |
+| NEXT-B12 | P3 / Feature | Doctor/clinic registration UI with role-specific validation and pending affiliation | Carried forward — 🔴 Thinking; scope confirmation needed |
+| NEXT-B13 | P3 / Feature | Square card photos and upload cropper informed by MediBridge | Completed locally — Nov 5, `8005084` |
+| NEXT-B05 | P3 / Optional verification | Fresh live Google-provider acceptance only if the owner reopens it | Optional carry-forward — 🔴 Thinking; automated acceptance satisfied |
 
-**Remaining-work capacity assumption:**8 h of review/test work, not confirmed owner
-availability. Select B10 for 3 h and B06 for 3 h, leaving2 h buffer. Estimates include
-verification and are not measured implementation hours or a claim of production readiness.
+**Planning scenario:** the previous 8-hour review/test assumption was unconfirmed,
+not measured or remaining sprint capacity. B10 and B06 retain provisional estimates
+of 3 hours each with 2 hours buffer if selected for a future period. B10 overlaps
+backend S05-F01; do not count it as separate capacity. Backend migration review and
+B06 storage work are alternative/dependent selections until availability is confirmed.
+No Sprint 06 dates or record are created here.
 
-**Top item NEXT-B10 —3 h:** Review a concrete staging topology and session checklist.
-Accept when browser/server URL and cookie/origin assumptions are explicit, private
-responses cannot be shared-cache hits, and failed refresh/sign-out behavior has
-repeatable evidence. Dependencies: staging topology and backend release prerequisites;
-no deployment is performed by this documentation task.
+**NEXT-B10 — 3 hours, Me:** Review a concrete combined candidate and staging topology.
+Accept when (1) both latest commits and repeatable candidate checks/review are
+recorded, (2) browser/server URL, cookie, origin and TLS assumptions are explicit,
+and (3) private-cache isolation plus failed-refresh/sign-out behavior have evidence.
+Dependencies: requested branch integration, target topology and backend release gates.
+The deliverable is review evidence; no deployment is performed by this closure.
 
-**Top item NEXT-B06 —3 h:** Exercise profile writes against disposable users and intended
-storage. Accept when upload/replacement/removal preserve ownership, password changes
-require the expected fields and end sessions, and failures preserve unsaved input.
-Dependencies: backend upload/storage and password rules, a suitable fixture and any
-necessary human credential interaction. Never use real patient records as test data.
+**NEXT-B06 — 3 hours, Me:** Exercise profile writes against intended storage using
+disposable accounts. Accept when (1) upload/replacement/removal preserve ownership,
+(2) password changes enforce required fields and end sessions, and (3) recoverable
+failures preserve drafts. Dependencies: selected storage, current backend rules and
+any necessary human credential interaction. No real patient data is required.
 
-| Order | Proposed task | Owner | Likely blocker |
+| Order | Proposed task | Owner | Dependency / blocker |
 | --- | --- | --- | --- |
-| 1 | Review deployment/session assumptions with the backend checklist | Me | Target topology and operator decisions |
-| 2 | Prepare disposable profile/storage acceptance fixtures | Me | Storage setup and provider-managed passwords |
-| 3 | Record repeatable results and carry unresolved gaps forward | Me | Missing environment/access or review |
+| 1 | Record combined candidate revisions and review deployment/session assumptions | Me | Requested integration and actual target topology |
+| 2 | Prepare intended-storage profile/password acceptance | Me | Storage setup and account/provider rules |
+| 3 | Record remaining gaps and select subsequent work | Me | Evidence, availability and owner selection |
 
-**Proposed check-ins:** Nov 3 — completed / next / blockers; Nov 5 final review —
-completed / next / blockers. These are proposed checkpoints, not meetings claimed to have occurred.
+**Check-in record:** earlier Nov 3 / Nov 5 checkpoints were proposals, not meetings
+claimed to have occurred. This document is the Nov 5 final review. If carry-forward
+work is selected, propose a start check-in and a pre-acceptance check-in using
+completed / next / blockers; dates depend on the next confirmed period.
 
-## Definition of done and next review
+## Sprint closure checklist
 
-- [x] Branch delivery and local integration evidence recorded with limitations.
-- [x] Username Step7 accepted using the owner's automated-Google scope.
-- [ ] Peer review or a recorded self-review of the current candidate.
-- [ ] B10/B06 checks completed or explicitly carried forward.
-- [ ] Nov 5 final review confirms outcomes and selects the next-week backlog.
+- [x] Final delivered behavior, stable IDs, commits and source evidence recorded.
+- [x] Automated, fixture and real browser/API evidence distinguished from deployment.
+- [x] Documentation/source-evidence self-review completed; independent peer-review gap recorded.
+- [x] B10/B06 and other unfinished work explicitly carried forward.
+- [x] Combined-branch integration remains an explicit release gate.
+- [x] Nov 5 final review completed and following-period recommendations recorded.
 
-Manual provider/storage/proxy checks cover boundaries a fixture cannot establish.
-No Sprint 06 dates, historical capacity, issue publication, merge, deployment or
-production activation is asserted. Preserve [Sprint 03](SPRINT_03.md) and
-[Sprint 04](SPRINT_04.md) as historical evidence; this sprint remains open.
+The sprint record is closed. Combined-candidate peer/release review, intended-storage
+and staging/production gates remain open under the carry-forward IDs. Manual checks
+need the actual environment and account/provider behavior. Sprint 03–04 history,
+application data and configuration remain unchanged. No issue publication, merge,
+staging, commit, push or deployment actions were performed by this review.

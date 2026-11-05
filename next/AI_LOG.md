@@ -647,3 +647,23 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** Codex's temporary fixture initially omitted the doctor's required license,then embedded excess profile fields in a typed session literal; API validation and temporary-build typecheck caught these fixture errors. Corrected both before successful runtime checks. Browser acceptance caught pre-existing upload/URL defects; no human discovery is claimed. Native control interruptions were tooling limits,not passed checks.
 
 **One decision I can explain without AI:** Crop confirmation should only change a draft. Uploading when Save changes is pressed lets cancellation preserve the saved photo and keeps image writes in the existing authenticated profile flow.
+
+## Sprint 05 final review and closure — 2026-11-05
+
+**Tool(s) used:** Codex,Git history/ancestry/source inspection,Python document edits and path/whitespace checks.
+
+**What I asked for:** Finish the backend and Next sprint files.
+
+**Pre-planning:** Read both Sprint05 records,instructions,session/AI logs,READMEs and current delivery source. Both worktrees were clean; interim open-sprint wording and uncompleted review checkboxes remained after the feature commits.
+
+**Planning:** Close the matching recorded period,retain dated history and distinguish local delivery from outstanding integration/storage/staging work. Preserve IDs and do not invent Sprint06 dates,hours or peer review.
+
+**Implementation process:** Closed next/SPRINT_05 for October30–November5 with final NEXT-B11/NEXT-B13 commit/source evidence,dated test/browser limits,backlog disposition and closure checklist. Updated NextREADME sprint status and ignored AGENTS/session context. Next8005084 does not contain backend16f1db6; combined-candidate review remains NEXT-B10. B06 intended-storage/password checks and other unfinished work remain carried forward. Preserved Sprint03–04 and prior delivery checkpoints. Verified matching dates/closed statuses,36 valid sprint links,commit references and unchanged earlier sprint files; git diff --check passes. Existing97 Next tests/build and222 backend API/build evidence was inspected and recorded,not rerun for this documentation task.
+
+**What I kept as-is:** Application source/tests,existing sprint dates/stable IDs,historical delivery evidence,application data/configuration and manual Git workflow.
+
+**What I changed or rejected, and why:** Replaced stale progress/capacity/check-in wording with final outcomes and explicit carry-forward. Distinguished documentary self-review from unrecorded independent peer/release review; overlapping planning estimates are not summed as confirmed capacity.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this documentation task.
+
+**One decision I can explain without AI:** A verified disposable cropper upload does not prove intended-storage or combined-release readiness,so those checks remain in the backlog after sprint closure.
