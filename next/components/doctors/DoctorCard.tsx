@@ -1,4 +1,5 @@
 import { displayUsername } from '../../libs/username';
+import { memberImageUrl } from '../../libs/api/image-url';
 import Link from 'next/link';
 import { useState } from 'react';
 import {
@@ -30,9 +31,10 @@ export function DoctorCard({
   const name =
     doctor.memberFullName?.trim() ||
     (doctor.memberNick.trim() ? displayUsername(doctor.memberNick) : 'Doctor');
-  const image = doctor.memberImage?.trim();
+  const image = memberImageUrl(doctor.memberImage, DEFAULT_DOCTOR_IMAGE);
   const [failedImage, setFailedImage] = useState<string>();
-  const hasDoctorImage = Boolean(image && image !== failedImage);
+  const hasDoctorImage =
+    image !== DEFAULT_DOCTOR_IMAGE && image !== failedImage;
   const clinic = clinicName?.trim();
   const description = doctor.memberDesc?.trim();
   const specializations = doctor.doctorSpecializations

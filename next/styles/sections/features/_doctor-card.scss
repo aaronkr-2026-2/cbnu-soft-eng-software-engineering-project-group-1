@@ -12,9 +12,10 @@
 
   .doctor-summary-card__image {
     width: 100%;
-    aspect-ratio: 4 / 3;
+    height: auto;
+    aspect-ratio: 1;
     object-fit: cover;
-    object-position: top;
+    object-position: center;
     background: v.$backgroundColor;
   }
 

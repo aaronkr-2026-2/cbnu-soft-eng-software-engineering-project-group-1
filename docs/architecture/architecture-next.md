@@ -182,8 +182,45 @@ control failures are historical tooling limits. Combined local Step6 acceptance 
 complete. These results supersede the corresponding historical Step4/5 gaps above.
 Deployment and production-scale performance remain unverified.
 
-Square doctor/clinic card photos and a MediBridge-style square upload cropper are
-deferred for a separate plan; Step6 does not change image rendering or uploads.
+## Square photos and upload cropping — November 5, 2026
+
+FI-07/NEXT-B13 is implemented. `components/common/ImageCropper.tsx` uses the reviewed
+MediBridge crop/zoom pattern with react-easy-crop6.2.4 and an accessible MUI Dialog.
+The fixed square supports pointer/keyboard positioning and labeled zoom. Opening the
+cropper creates a temporary object URL; cancelling/unmounting revokes it and keeps
+the previous draft. Confirm prepares a local File and preview; My Page's existing
+Save changes performs authenticated upload then profile update. No upload happens
+on selection or crop confirmation. Pending crop blocks profile submission; errors
+keep the confirmed draft available. The shared My Page flow serves all account roles.
+
+`libs/image-crop.ts` validates existing JPEG/PNG/WebP inputs up to10MB, checks crop
+bounds, and draws only the selected square into a canvas capped at1024×1024,without
+upscaling. JPEG quality0.9 and a white transparency background standardize output.
+Decode/canvas/encoding errors remain visible; the original file is never uploaded
+as a fallback. Source/cropped preview URLs are cleaned up independently.
+
+Both card styles use1:1,centered cover,including existing/default photos; stored
+legacy images are not rewritten. `libs/api/image-url.ts` resolves member images
+against the public API origin for both cards and My Page. Browser acceptance found
+that previously root-relative uploads incorrectly went to Next and returned404.
+Defaults remain local; existing absolute HTTP(S) images remain supported.
+
+The owner explicitly authorized a necessary backend fix discovered by real uploads:
+UploadResolver now reflects the Upload scalar as Object via a FileUpload/Promise
+union and normalizes it with Promise.resolve. This prevents production ValidationPipe
+from trying to instantiate Promise. Schema,authentication,ownership and file rules
+remain unchanged; backend and Next changes need separate manual commits.
+
+Verification: Next typecheck,97 tests and final isolated production build pass.
+Backend build/full TypeScript,12 upload HTTP tests with production validation and
+all222 API tests pass; lint retains the pre-existing config.ts warning. Chrome
+verified desktop crop/keyboard zoom and position,cancel/focus/draft preservation,
+upload503 preservation,actual clinic and doctor saves and a375px mobile crop dialog.
+Read-only inspection of both stored fixture uploads confirms JPEG1024×1024 and the
+correct clinic/member targets. The rebuilt public clinic card displays the saved
+crop from the API. All data is disposable; deployment/intended production storage
+and rewriting legacy images are outside this acceptance.
+
 
 ## Sessions and deployment
 

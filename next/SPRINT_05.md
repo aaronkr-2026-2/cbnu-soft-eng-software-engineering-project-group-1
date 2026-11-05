@@ -114,9 +114,25 @@ doctor controls and single-column cards. Combined local directory acceptance is 
 See [architecture acceptance details](../docs/architecture/architecture-next.md).
 No production deployment or whole-sprint closure is implied.
 
-Square doctor/clinic photos and square upload cropping are deferred to NEXT-B13.
+At directory closure,square doctor/clinic photos and cropping were deferred to NEXT-B13;
+the later delivery below supersedes that deferral.
 Review found MediBridge's react-easy-crop flow; a separate plan must define reuse,
 upload behavior and treatment of existing images before implementation.
+
+## November 5 — NEXT-B13 square photos and cropper
+
+Implemented the selected FI-07 job after directory completion. Added the shared
+MediBridge-style square crop/zoom dialog,local draft confirmation and existing
+Save changes integration. Both doctor/clinic card image regions are1:1; legacy
+images use centered cover without migration. Shared image URL resolution fixes
+API-hosted uploads incorrectly loading from Next. [Plan and scope](IMAGE_CROPPER_PLAN.md).
+
+Next typecheck,97 tests and isolated production build pass. Chrome verified desktop
+keyboard/cancel/draft behavior,upload-error preservation,clinic/doctor real saves and
+375px cropper layout. Both stored files are JPEG1024×1024 in the correct owned target;
+public clinic card loads the saved crop. The owner authorized a backend upload
+Promise/ValidationPipe fix; backend build/full TypeScript,12 upload and all222 API
+checks pass. Production storage/deployment are separate; no app DB or Git actions.
 
 ## Remaining work and lessons
 
@@ -142,7 +158,7 @@ require separate implementation requests.
 | NEXT-B06 | P2 / Test | Verify real profile upload/replacement/password flows against intended storage | 🔵 Planning |
 | NEXT-B11 | P2 / Feature | Paginated discovery using delivered public backend contracts | Completed locally November5; Step6 polish and automated/API/desktop/mobile acceptance passed |
 | NEXT-B12 | P3 / Feature | Doctor/clinic registration UI with role-specific validation and pending affiliation | 🔴 Thinking; confirm desired onboarding scope |
-| NEXT-B13 | P3 / Feature | Square doctor/clinic card photos and upload cropper informed by MediBridge | 🔴 Thinking; deferred by owner until directory search is finished; separate plan required |
+| NEXT-B13 | P3 / Feature | Square doctor/clinic card photos and upload cropper informed by MediBridge | Completed locally November5; square crops/cards,real clinic/doctor saves and mobile dialog verified |
 | NEXT-B05 | P3 / Optional verification | Fresh live Google-provider acceptance only if the owner reopens that scope | 🔴 Thinking; automated acceptance already satisfied |
 
 **Remaining-work capacity assumption:**8 h of review/test work, not confirmed owner

@@ -57,7 +57,7 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 - `/auth`: email/password sign-in, patient signup, password visibility controls,
   validation, and optional Google Identity Services popup sign-in.
 - `/mypage`: authenticated private profile, inline Save/Cancel editing, optional
-  current/new/confirm password fields, and image selection/upload/removal.
+  current/new/confirm password fields, and square photo cropping/upload/removal.
 - `/book`: clinic, doctor, specialty, visual month calendar and real 30-minute slot
   selection; review and immediate appointment confirmation or waitlist enrollment.
 - `/appointments`: patient-scoped paginated visits/history, status filters,
@@ -85,7 +85,9 @@ public lookup. Clinic doctor previews/selection use public `getClinicDoctors`
 team preview. `/clinics` itself has no first100-doctors discovery restriction. Directory
 requests omit credentials, disable caching, support cancellation, and time out.
 There are no sample clinic/doctor records. Ratings remain labeled placeholders;
-doctor profile pages are pending. Cards reuse established image fallbacks.
+doctor profile pages are pending. Cards reuse established image fallbacks. Doctor and clinic card
+photos use a1:1 region; uploaded paths resolve against the API origin. My Page
+lets members position/zoom a square crop before Save changes uploads it.
 
 Booking and waitlist screens require a patient account. Client guards provide UI
 behavior; Nest enforces identity, roles, ownership, availability and conflicts.
