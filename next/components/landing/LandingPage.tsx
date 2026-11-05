@@ -143,9 +143,9 @@ export function LandingPage() {
                 >
                   Explore clinics
                 </Button>
-                <a className="text-link" href="#how-it-works">
+                <Link className="text-link" href="#how-it-works">
                   How it works <ArrowOutwardRounded />
-                </a>
+                </Link>
               </div>
               <div className="hero-footnote">
                 <span className="footnote-icon">

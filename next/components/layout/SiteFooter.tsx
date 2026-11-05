@@ -12,8 +12,8 @@ export function SiteFooter() {
         <nav aria-label="Footer navigation">
           <Link href="/clinics">Clinics</Link>
           <Link href="/doctors">Doctors</Link>
-          <a href="/#how-it-works">How it works</a>
-          <a href="/#your-care">Your care</a>
+          <Link href="/#how-it-works">How it works</Link>
+          <Link href="/#your-care">Your care</Link>
         </nav>
       </div>
       <div className="container footer-bottom">
