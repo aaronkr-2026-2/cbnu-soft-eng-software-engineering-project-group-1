@@ -39,8 +39,6 @@ export function SiteHeader() {
           {session?.member.memberType === 'USER' && (
             <Link href="/notifications">Notifications</Link>
           )}
-          <a href="/#how-it-works">How it works</a>
-          <a href="/#your-care">Your care</a>
         </nav>
         <div className="header-actions">
           {session && (
@@ -88,12 +86,6 @@ export function SiteHeader() {
           <Link href="/doctors" onClick={() => setMenuOpen(false)}>
             Find a doctor
           </Link>
-          <a href="/#how-it-works" onClick={() => setMenuOpen(false)}>
-            How it works
-          </a>
-          <a href="/#your-care" onClick={() => setMenuOpen(false)}>
-            Your care
-          </a>
           {session && (
             <Link href="/mypage" onClick={() => setMenuOpen(false)}>
               My Page

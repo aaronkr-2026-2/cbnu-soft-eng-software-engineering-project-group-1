@@ -667,3 +667,23 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this documentation task.
 
 **One decision I can explain without AI:** A verified disposable cropper upload does not prove intended-storage or combined-release readiness,so those checks remain in the backlog after sprint closure.
+
+## Header navigation cleanup — 2026-11-06
+
+**Tool(s) used:** Codex, shell, installed Next.js documentation, TypeScript and Chrome CUA.
+
+**What I asked for:** Remove How it works/Your care from the header and use Link for other navigation to preserve session state.
+
+**Pre-planning:** I checked the clean next worktree, local instructions and continuity notes, shared header/footer, homepage and app session initialization.
+
+**Planning:** I kept the change limited to navigation: remove both header entries on desktop/mobile, preserve the content sections, and convert remaining guide/footer navigation to Next Link.
+
+**Implementation process:** Updated SiteHeader.tsx, SiteFooter.tsx and LandingPage.tsx. Existing other header links already used Next Link. Yarn typecheck and whitespace checks passed. Local Chrome rendered the simplified header; signed-in navigation and mobile interactions were not verified because a click reported an intervening UI state change. Local preview was stopped. No frontend sprint covers November 6, so evidence remains in normal logs.
+
+**What I kept as-is:** Session/authentication logic, accessibility skip anchors, content sections, dependencies and live deployment. No commit, push or deployment.
+
+**What I changed or rejected, and why:** I replaced document-navigation anchors at internal navigation points to avoid remounting the app when moving between pages and sections.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. Initial local preview startup was blocked by sandbox port permissions; the approved retry succeeded.
+
+**One decision I can explain without AI:** Internal navigation should use the existing router so the in-memory session can remain available between routes.
