@@ -133,6 +133,7 @@ export function updateSessionMember(
       memberType: member.memberType,
       memberNick: member.memberNick,
       memberFullName: member.memberFullName,
+      memberImage: member.memberImage,
     },
   };
   emit();

@@ -687,3 +687,45 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. Initial local preview startup was blocked by sandbox port permissions; the approved retry succeeded.
 
 **One decision I can explain without AI:** Internal navigation should use the existing router so the in-memory session can remain available between routes.
+
+
+## Header account icon — 2026-11-11
+
+**Tool(s) used:** Codex, shell source checks, apply_patch, Python log updates, Yarn TypeScript check, and Git diff checks.
+
+**What I asked for:** Replace the My Page button with a user-circle icon that displays My Page on hover, using MediBridge as a reference.
+
+**Pre-planning:** I checked the clean next worktree, header/session/theme styles, installed packages, local Next Link guide, and MediBridge Navbar. The inspected reference currently uses text links.
+
+**Planning:** I chose existing MUI IconButton, AccountCircleOutlined, and Tooltip components, with an accessible name and the existing Next Link destination.
+
+**Implementation process:** I updated SiteHeader.tsx. yarn typecheck and git diff --check passed. Browser interaction and visual checks were not run.
+
+**What I kept as-is:** I preserved signed-in visibility, /mypage navigation, mobile menu text, and authentication behavior.
+
+**What I changed or rejected, and why:** I used the existing MUI icon and tooltip to avoid adding an image asset or dependency. Mobile text remains directly readable on touch screens.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. An empty documentation patch hunk was rejected by the patch tool; the logs were then updated successfully with Python.
+
+**One decision I can explain without AI:** The icon keeps the header compact, while the tooltip and accessible name identify its destination.
+
+
+## Saved profile avatar — 2026-11-11
+
+**Tool(s) used:** Codex, shell source checks, apply_patch, Python log updates, Yarn typecheck/tests, and Git diff checks.
+
+**What I asked for:** Show the real profile photo in the header and update it after saving, accounting for image caching.
+
+**Pre-planning:** I traced profile saving through updateSessionMember, the session proxy, and SiteHeader; inspected the existing upload URL helper and installed MUI Avatar loading behavior. Existing upload URLs have unique filenames.
+
+**Planning:** I kept the existing session subscription and upload flow, preserved memberImage through the allowlisted session data, and used a circular Avatar with the existing user-circle fallback.
+
+**Implementation process:** I updated SiteHeader, AuthMember, session-proxy, and auth-session. I added regression checks for login/refresh photo preservation, malformed-value exclusion, immediate subscriber notification, photo removal, and stale-token rejection. yarn typecheck, all 99 tests, and git diff --check passed. Browser/live upload verification and production build were not run.
+
+**What I kept as-is:** I preserved backend behavior, unique upload URLs, no-store session responses, successful-save timing, mobile menu text, and My Page navigation/tooltip.
+
+**What I changed or rejected, and why:** I retained the saved image URL in session state so the header can update without a page reload. I used the existing URL resolver and MUI Avatar's normal img loading; no timestamp per render or cache disabling is needed for unique upload URLs. This does not add immediate cross-tab/device synchronization.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** The header should show the saved photo, while unsaved crop selections stay in the profile editor.

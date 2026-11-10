@@ -8,6 +8,7 @@ type TokenResult = {
     memberNick: string;
     memberType: string;
     memberFullName?: string;
+    memberImage?: string | null;
   };
   accessToken: string;
   refreshToken: string;
@@ -93,6 +94,10 @@ async function tokenResult(response: Response): Promise<TokenResult> {
       memberType: value.member.memberType,
       ...(typeof value.member.memberFullName === 'string'
         ? { memberFullName: value.member.memberFullName }
+        : {}),
+      ...(typeof value.member.memberImage === 'string' ||
+      value.member.memberImage === null
+        ? { memberImage: value.member.memberImage }
         : {}),
     },
   };

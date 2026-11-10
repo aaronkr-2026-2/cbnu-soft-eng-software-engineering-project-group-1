@@ -123,6 +123,26 @@ test('signup always requests a patient account', async () => {
     200,
   );
 });
+test('session proxy preserves profile photos on login and refresh without exposing private fields', async () => {
+  for (const [index, memberImage] of ['/uploads/member/user/new.jpg', '', null, { invalid: true }].entries()) {
+    global.fetch = async () => Response.json({
+      ...auth,
+      member: { ...auth.member, memberImage },
+    });
+    for (const action of ['login', 'refresh']) {
+      const res = await call(action, {
+        cookies: { medconnect_refresh: String(index).repeat(43) },
+      });
+      assert.equal(res.statusCode, 200);
+      assert.deepEqual(res.body.member, {
+        ...member,
+        ...(typeof memberImage === 'string' || memberImage === null ? { memberImage } : {}),
+      });
+      assert.equal(res.headers['Cache-Control'], 'no-store');
+      assert.equal(res.body.refreshToken, undefined);
+    }
+  }
+});
 test('parallel refresh requests coalesce rotation and return the same replacement cookie', async () => {
   let calls = 0;
   global.fetch = async (url, options) => {
