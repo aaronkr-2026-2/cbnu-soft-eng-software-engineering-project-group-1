@@ -12,6 +12,7 @@ export interface AuthMember {
   memberNick: string;
   memberType: 'USER' | 'DOCTOR' | 'CLINIC' | 'ADMIN';
   memberFullName?: string | null;
+  memberImage?: string | null;
 }
 
 export interface AuthResult {

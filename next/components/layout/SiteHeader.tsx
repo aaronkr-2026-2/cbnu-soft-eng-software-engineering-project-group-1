@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Button, Collapse, IconButton } from '@mui/material';
+import { Avatar, Button, Collapse, IconButton, Tooltip } from '@mui/material';
+import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
 import ArrowOutwardRounded from '@mui/icons-material/ArrowOutwardRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import MenuRounded from '@mui/icons-material/MenuRounded';
 import { clearSession, useSession } from '../../libs/auth-session';
+import { memberImageUrl } from '../../libs/api/image-url';
 
 export function Brand() {
   return (
@@ -42,9 +44,29 @@ export function SiteHeader() {
         </nav>
         <div className="header-actions">
           {session && (
-            <Button component={Link} href="/mypage">
-              My Page
-            </Button>
+            <Tooltip title="My Page" describeChild arrow>
+              <IconButton
+                component={Link}
+                href="/mypage"
+                aria-label="My Page"
+                color="primary"
+              >
+                <Avatar
+                  src={
+                    memberImageUrl(session.member.memberImage, '') || undefined
+                  }
+                  alt=""
+                  sx={{
+                    width: 35,
+                    height: 35,
+                    bgcolor: 'transparent',
+                    color: 'inherit',
+                  }}
+                >
+                  <AccountCircleOutlined fontSize="large" />
+                </Avatar>
+              </IconButton>
+            </Tooltip>
           )}
           <span className="sign-in-wrap">
             {session ? (
