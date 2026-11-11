@@ -1,0 +1,23 @@
+@use "./variables" as v;
+
+// Runtime CSS tokens derive from the same values used by Sass.
+:root {
+  --color-primary: #{v.$primary};
+  --color-secondary: #{v.$secondaryColor};
+  --color-white: #{v.$whiteColor};
+  --color-text: #{v.$textColor};
+  --color-text-muted: #{v.$mutedTextColor};
+  --color-background: #{v.$backgroundColor};
+  --color-surface: #{v.$whiteColor};
+  --color-border: #{v.$borderColor};
+  --font-body: #{v.$font};
+  --container-width: #{v.$containerWidth};
+  --radius: #{v.$radius};
+  --transition: #{v.$transition};
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition: 0s;
+  }
+}
