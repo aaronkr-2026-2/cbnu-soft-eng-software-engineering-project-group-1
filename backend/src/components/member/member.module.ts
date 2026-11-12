@@ -18,6 +18,7 @@ import { MemberAccessGuard } from '../auth/guards/member-access.guard.js';
 import { MemberService } from './member.service.js';
 import { MemberResolver } from './member.resolver.js';
 import { GoogleAuthService } from '../auth/google-auth.service.js';
+import { EmailDeliveryService } from '../auth/email-delivery.service.js';
 
 import { UploadStorageModule } from '../upload/upload-storage.module.js';
 import { getMongoUri } from '../../database/database.config.js';
@@ -64,6 +65,7 @@ const mongoUri = getMongoUri();
     MemberResolver,
     MemberAccessGuard,
     GoogleAuthService,
+    EmailDeliveryService,
   ],
   exports: [MemberService, MemberAccessGuard],
 })

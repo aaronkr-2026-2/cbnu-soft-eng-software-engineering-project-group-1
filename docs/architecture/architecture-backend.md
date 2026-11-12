@@ -123,7 +123,7 @@ flowchart TD
   GQL -->|Interceptor events: operation field, duration, errors| Logs
 ```
 
-External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. Email delivery is absent.
+External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. The Gmail verification-mail provider is implemented, with signup integration pending in FI-08.
 
 ### Next.js public discovery client
 
@@ -558,14 +558,41 @@ Here, shared services include reusable in-process capabilities and external prov
 | Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. An email address is a login identifier; no email is sent. |
 | Google sign-in | Backend and Next.js callback implemented; live provider completion unverified | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
 | Telegram identity | Schema support only | `telegramId` exists; no implemented Telegram login flow. |
-| Email delivery | Not implemented; provider unselected | No mail adapter/SDK, SMTP transport, verification email, or appointment notification sender found in backend source/dependencies. |
+| Email delivery | Gmail transport implemented, signup integration pending | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
 | External medical, pharmacy, maps, or payment APIs | No implemented integration found | No outbound business HTTP client/service found in backend source. Do not present these as existing capabilities. |
 | Logging | Implemented internally | FileLogger writes JSON lines to `LOG_FILE` or `logs/medconnect.log`; LoggingInterceptor records transport execution metadata. No hosted log service is configured in this code. |
 | Health monitoring | Implemented internally | DatabaseService supplies connection status; `/status` polls this application's JSON endpoints using browser fetch. No external monitoring provider is established. |
 | Cache, queue, scheduler, batch service | Not implemented | No Redis/shared rate-limit store, mail queue, or batch runtime wired into AppModule. |
 
-Google verification is behind GoogleAuthService; account/session writes remain in MemberService. When adding email or another external API, keep provider SDK calls and credentials behind a backend adapter/service. Expose explicit application methods to features, define who owns identity/notification data, and document failure/retry behavior. Email and additional external API adapters are proposed boundaries, not existing components.
+Google verification is behind GoogleAuthService. Account/session writes belong to
+MemberService. `backend/src/components/auth/email-delivery.service.ts` now supplies
+`EmailDeliveryService.sendVerificationCode(email, code)` as a MemberModule provider.
+It normalizes and validates one recipient, uses the configured Gmail account as
+sender and preserves six-digit leading zeros. The approved welcome copy is sent
+as responsive HTML with a plain-text fallback. `verification-email.ts` builds
+the message, and the project logo is packaged through Nest assets and embedded
+as a CID attachment from a Buffer. SMTP is
+outside database transactions. Request/resend, proof storage/enforcement and signup
+UI integration are the later FI-08 steps.
+
+The provider reads `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` when called. Password grouping
+spaces are removed. Nodemailer connects to `smtp.gmail.com:465` with certificate
+validation and TLS 1.2 or later, bounded connection/DNS/socket waits and a 10-second
+AbortSignal deadline that cancels the active send. SMTP diagnostics are disabled.
+The service exposes a sanitized 503 response with `EMAIL_VERIFICATION_UNAVAILABLE`.
+Its server-side `deliveryOutcome` distinguishes NOT_SENT, REJECTED and UNKNOWN for
+future reservation handling. Provider payloads are discarded. Automatic delivery
+retry belongs to the later verification workflow.
+
+November 12 checks passed for backend build, full TypeScript, 96 unit tests
+(19 focused mail cases) and 222 API tests. Lint retains the existing empty-config
+warning. A real Gmail connection using the configured private main-checkout keys
+passed TLS/authentication. On November 13, the compiled provider sent one test
+message to the owner-selected configured sender inbox and Gmail accepted it.
+The owner confirmed inbox receipt on November 13, completing FI-08 Step 2.
+The full signup verification feature is tracked in
+[FI-08](../../backend/EMAIL_VERIFICATION_PLAN.md).
 
 ## Clinic and doctor cities
 

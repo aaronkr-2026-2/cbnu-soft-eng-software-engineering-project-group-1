@@ -988,3 +988,68 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this documentation task.
 
 **One decision I can explain without AI:** Closing the sprint records its actual outcome; release gates can remain open with stable carry-forward IDs rather than being marked passed.
+
+
+## Gmail verification email delivery — 2026-11-12
+
+**Tool(s) used:** Codex, source and Nodemailer documentation inspection, npm, Prettier, Nest build, TypeScript, Jest, oxlint and live SMTP authentication.
+
+**What I asked for:** Implement Step 2 of the email verification plan using GOOGLE_SMTP_USER and GOOGLE_SMTP.
+
+**Pre-planning:** I checked the committed plan, member module, existing auth flow and MediBridge Gmail transport. The two keys are present in the main checkout's private environment file. The backend worktree began clean at 54955e4.
+
+**Planning:** I chose a focused MemberModule mail provider with lazy configuration, one validated recipient, authenticated sender, TLS, a 10-second cancellable send deadline and safe delivery outcomes for Step 3.
+
+**Implementation process:** Added EmailDeliveryService, a delivery-outcome type, 19 focused tests and Nodemailer 10.5.0 with bundled types. Updated setup, architecture and FI-08 progress. Build/full TypeScript, 96 unit tests and all 222 API tests passed. Lint reports the existing empty config warning. Real Gmail TLS/authentication passed using only the two existing SMTP settings. Initial sandbox DNS restrictions were resolved with approved network execution. Document links and whitespace passed. Recipient selection, sending a test message and confirming inbox receipt remain pending. Steps 3–5 remain pending. No sprint record covers November 12.
+
+**What I kept as-is:** Signup/session/Google flows and account storage follow their existing behavior. The owner handles commits and pushes.
+
+**What I changed or rejected, and why:** Added protected backend SMTP configuration, input validation, cancellation and sanitized exceptions. NOT_SENT, REJECTED and UNKNOWN stay server-side so later code can handle uncertain delivery safely. The SMTP library's bundled types made a separate types dependency unnecessary.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A timeout can occur after a mail server accepts a message, so I retain an unknown delivery outcome and let the later verification workflow control retries.
+
+
+## Gmail test email submission — 2026-11-13
+
+**Tool(s) used:** Codex, compiled EmailDeliveryService and Node.js, Git/source inspection and documentation checks.
+
+**What I asked for:** Send the Step 2 test email to the configured GOOGLE_SMTP_USER address.
+
+**Pre-planning:** I verified the existing Step 2 source and compiled provider and preserved the pending implementation changes.
+
+**Planning:** I used the actual compiled provider with only the existing two SMTP settings and one random test code.
+
+**Implementation process:** Gmail accepted one message sent to the configured sender inbox. Inbox receipt confirmation is pending. I updated the plan, roadmap and architecture evidence. Source is unchanged, so I retained the prior build/typecheck, 96 unit and 222 API results without rerunning them.
+
+**What I kept as-is:** Existing application behavior and all pending source changes.
+
+**What I changed or rejected, and why:** Recorded SMTP submission separately from inbox confirmation so the delivery evidence stays accurate.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** SMTP acceptance confirms submission to Gmail. Checking the receiving inbox confirms where the message actually arrived.
+
+**Step 2 acceptance confirmation — 2026-11-13:** I confirmed that the test email arrived in the configured inbox. The earlier pending-receipt checkpoint is closed. Step 2 is complete, while Steps 3–5 remain pending. Codex updated plan/roadmap/architecture status and checked document links/whitespace. Application source and prior test results are unchanged.
+
+
+## Branded verification email — 2026-11-13
+
+**Tool(s) used:** Codex, existing logo inspection, Nest build, TypeScript, Jest, oxlint, SMTP and Git/document checks. Browser preview was attempted but the access host was unavailable.
+
+**What I asked for:** Try a new email with the approved welcome message and proposed branded style.
+
+**Pre-planning:** I checked the delivery service, staged Step 2 changes, existing logo and brand colors.
+
+**Planning:** I chose a responsive table layout with inline email styles, the actual project logo, a prominent code box and a matching plain-text alternative.
+
+**Implementation process:** Added verification-email.ts and the existing logo as a packaged backend asset, extended the mail assertions and updated the delivery service. Build/full TypeScript, changed-file lint and 19 focused tests passed. Gmail accepted one styled email sent through the compiled service to the previously requested recipient. Inbox rendering awaits recipient review. No application data or environment changes. No sprint covers November 13.
+
+**What I kept as-is:** The existing SMTP, recipient validation and timeout behavior. Previously staged work stays staged, while this follow-up is unstaged.
+
+**What I changed or rejected, and why:** Updated the actual reusable template so subsequent verification emails use the approved copy and layout. Embedding the logo supports display without an external image-host dependency.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I include both HTML and plain text so recipients can read the message in different email clients.

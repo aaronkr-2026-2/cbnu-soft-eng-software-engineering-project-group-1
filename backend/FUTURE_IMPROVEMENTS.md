@@ -36,7 +36,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                       | —                |
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                       | —                |
 | FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`     | November 5, 2026 |
-| FI-08 | Email verification                        | Verify email ownership with an expiring code before creating a new email/password account                      | Medium         | **Planned**   | [Email verification plan](EMAIL_VERIFICATION_PLAN.md) | —                |
+| FI-08 | Email verification                        | Verify email ownership with an expiring code before creating a new email/password account                      | Medium         | **In progress** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md) | —                |
 
 ## Scope notes for future plans
 
@@ -130,7 +130,7 @@ Lint has the pre-existing config.ts warning. Disposable data only; production
 storage/deployment,legacy rewriting and additional image-editing features remain out
 of scope. Commits remain manual and separate for backend/Next.
 
-### FI-08 — Email verification — Planned
+### FI-08 — Email verification — In progress
 
 The [dedicated plan](EMAIL_VERIFICATION_PLAN.md) defines five steps covering policy
 and API agreement, Gmail delivery, backend enforcement, Next.js signup and combined
@@ -146,10 +146,12 @@ send attempts count as activity while the existing block deadline stays fixed.
 Signup will consume email-bound proof atomically with account creation. The Step 1
 baseline retains existing-account login and current Google verified-claim behavior.
 
-The owner reports `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` are configured. SMTP
-authentication and inbox delivery remain unverified. Steps 2–5 and their executable
-checks remain pending. FI-08 remains Planned until application implementation
-starts. This item is separate from FI-03 password recovery and FI-02 reminders.
+Step 2's Gmail delivery provider is implemented with `GOOGLE_SMTP_USER` and
+`GOOGLE_SMTP`. Backend build/typecheck, 96 unit tests and 222 API tests passed.
+Real Gmail TLS/authentication passed November 12, 2026. On November 13, Gmail
+accepted one test message sent through the compiled provider to the owner-selected
+configured sender inbox. The owner confirmed receipt on November 13, completing
+Step 2. Steps 3–5 remain pending, so FI-08 continues In progress. This item is separate from FI-03 password recovery and FI-02 reminders.
 
 ## Modular delivery workflow
 

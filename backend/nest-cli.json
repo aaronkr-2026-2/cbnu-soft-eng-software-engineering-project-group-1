@@ -5,7 +5,7 @@
   "compilerOptions": {
     "plugins": ["@nestjs/swagger"],
     "deleteOutDir": true,
-    "assets": ["components/health/views/**/*"],
+    "assets": ["components/health/views/**/*", "components/auth/assets/**/*"],
     "watchAssets": true
   }
 }

@@ -239,6 +239,8 @@ The backend loads `.env` from its working directory before loading application m
 | `BOOKING_POLICY_V2_ENABLED` | Enables confirmed specialty-aware booking | `false`; set exactly `true` only after migration on a replica set |
 | `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Expected Google web client ID for sign-in verification | Required only for Google sign-in; absent configuration returns 503 |
+| `GOOGLE_SMTP_USER` | Gmail sender account for verification mail | Required when invoking the email delivery provider |
+| `GOOGLE_SMTP` | That Gmail account's 16-character app password | Backend-only secret, displayed grouping spaces are removed |
 | `UPLOAD_DIR` | Local public image storage directory | `uploads`, relative to the backend working directory; persist this directory in deployment |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
 
@@ -248,6 +250,11 @@ Startup, database connection, and feature modules share URI selection through
 unexpected database. Production retains the `mongodb+srv://` requirement.
 
 ## API documentation and status
+
+The Gmail verification-mail provider uses TLS on `smtp.gmail.com:465` and a
+10-second send deadline. Configure its two keys in the environment of the backend
+process, or its working-directory `.env`. Signup verification endpoints and UI
+are the remaining steps in the [email verification plan](backend/EMAIL_VERIFICATION_PLAN.md).
 
 REST routes have no global prefix. With the example port:
 

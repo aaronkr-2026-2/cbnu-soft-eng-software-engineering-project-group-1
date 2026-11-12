@@ -2,11 +2,12 @@
 
 Date — November 12, 2026 (Asia/Seoul)
 
-Status — **Planned**. Step 1 policy and contract design completed November 12,
-2026. Steps 2–5 remain pending. The contract below is the implementation baseline.
+Status — **In progress**. Step 1 policy and contract design completed November 12,
+2026. Step 2 completed November 13 after real SMTP delivery and owner-confirmed
+inbox receipt. Steps 3–5 remain pending. The contract below is the implementation baseline.
 Owner-specified rules and selected engineering defaults are identified explicitly.
 
-Roadmap — [Future improvements](FUTURE_IMPROVEMENTS.md#fi-08--email-verification--planned)
+Roadmap — [Future improvements](FUTURE_IMPROVEMENTS.md#fi-08--email-verification--in-progress)
 
 ## Goal and scope
 
@@ -22,7 +23,8 @@ using a temporary code delivered through the project's Gmail account.
 | Must have | Next.js signup controls, recoverable errors and useful form preservation |
 | Nice to have — included | Accessible status messages, keyboard and mobile acceptance |
 | Nice to have — included | Automated failure/race checks and real inbox acceptance |
-| Optional — later | Branded HTML email and configurable provider adapters |
+| Nice to have — included | Branded HTML email with logo and plain-text fallback, requested November 13 |
+| Optional — later | Configurable provider adapters |
 | Deferred | Existing-account verification campaign, email changes, MFA, SMS and password recovery (FI-03) |
 
 ## Current implementation and prerequisites
@@ -384,6 +386,32 @@ Record real delivery evidence separately from simulated checks.
 
 **Proposed commit** — `feat(backend): add Gmail verification email delivery`
 
+**Delivery checkpoint — November 12, 2026**
+
+- Added EmailDeliveryService to MemberModule and Nodemailer `^10.5.0` with bundled
+  TypeScript declarations. Configuration is checked on invocation. Sends use the
+  authenticated sender, a validated single recipient, plain text, TLS/certificate
+  validation, bounded timeouts and an active-send AbortSignal at 10 seconds.
+- Added safe delivery failure outcomes for later reservation handling. SMTP
+  diagnostics and provider exception payloads are excluded from application output.
+- Backend build, full TypeScript, 96 unit tests including 19 focused mail cases,
+  and all 222 API tests passed. Lint reports the existing empty-config warning.
+- Read only the two SMTP settings from the main checkout's private `.env` for a
+  real Gmail connection check. TLS/authentication passed. Initial sandbox DNS
+  restrictions were resolved by approved network execution. Runtime processes must
+  receive the keys through their own environment or working-directory `.env`.
+- November 13, 2026 — the owner selected the configured sender inbox. One test
+  email sent through the compiled EmailDeliveryService was accepted by Gmail.
+  The owner confirmed inbox receipt on November 13. Step 2 acceptance is complete
+  for the mail provider, authentication and real delivery.
+- November 13 presentation follow-up — the owner approved revised welcome copy
+  and requested a styled email. Added a responsive HTML table layout, branded
+  inline logo, blue heading and prominent code box with a matching plain-text
+  fallback. Packaged the existing project logo as a backend asset and extended
+  the mail assertions. Build/full TypeScript, changed-file lint and 19 focused
+  mail tests passed. Gmail accepted one styled email to the requested recipient.
+  Gmail rendering awaits recipient review, and browser preview was unavailable.
+
 ### Step 3 — Enforce verification in the backend
 
 **Location** — backend worktree, member controller/service/module, auth helpers,
@@ -458,5 +486,8 @@ the actual completion date and any deployment limits.
 - Plan and FI-08 roadmap entry prepared November 12, 2026.
 - Step 1 policy/contracts completed November 12, 2026, including the owner's
   24-hour inactivity-reset choice and the reviewed acceptance matrix.
-- Steps 2–5 pending. SMTP credential location/authentication, delivery, application
-  implementation and EV-01–EV-13 execution remain pending.
+- Step 2 mail provider implemented November 12, 2026. Build/typecheck, 96 unit and
+  222 API checks passed, and real Gmail SMTP authentication passed. On November 13,
+  Gmail accepted one test email to the owner-selected configured sender inbox.
+  The owner confirmed inbox receipt on November 13, completing Step 2.
+- Steps 3–5 and EV-01–EV-13 full verification-flow execution remain pending.
