@@ -134,18 +134,22 @@ of scope. Commits remain manual and separate for backend/Next.
 
 The [dedicated plan](EMAIL_VERIFICATION_PLAN.md) defines five steps covering policy
 and API agreement, Gmail delivery, backend enforcement, Next.js signup and combined
-acceptance, with checks and manual commit boundaries. Proposed defaults are a
-six-digit code valid for 10 minutes and five failed guesses per challenge. The owner
+acceptance, with checks and manual commit boundaries. Step 1 policy/contracts were
+finalized November 12, 2026, including API/error/proxy contracts, transactional
+proof consumption and an acceptance matrix. Selected defaults are a six-digit
+code valid for 10 minutes and five failed guesses per challenge. The owner
 requested escalating resend blocks of 1 hour, 3 hours, 5 hours and 24 hours. The plan
 interprets this as a block after each group of three resends, with 60-second spacing
-within groups and the initial email separate from the count. The proposed maximum
-is 24 hours, with inactivity-reset policy pending Step 1 review.
-Signup consumes email-bound proof atomically with account
-creation. Existing-account and Google compatibility are explicit Step 1 decisions.
+within groups and the initial email separate from the count. Maximum cooldown is
+24 hours. The owner selected reset after 24 hours without a send attempt. Blocked
+send attempts count as activity while the existing block deadline stays fixed.
+Signup will consume email-bound proof atomically with account creation. The Step 1
+baseline retains existing-account login and current Google verified-claim behavior.
 
 The owner reports `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` are configured. SMTP
-authentication and inbox delivery remain unverified. All implementation steps are
-pending. This item is separate from FI-03 password recovery and FI-02 reminders.
+authentication and inbox delivery remain unverified. Steps 2–5 and their executable
+checks remain pending. FI-08 remains Planned until application implementation
+starts. This item is separate from FI-03 password recovery and FI-02 reminders.
 
 ## Modular delivery workflow
 
