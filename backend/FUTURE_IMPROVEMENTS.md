@@ -36,6 +36,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                       | —                |
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                       | —                |
 | FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`     | November 5, 2026 |
+| FI-08 | Email verification                        | Verify email ownership with an expiring code before creating a new email/password account                      | Medium         | **Planned**   | [Email verification plan](EMAIL_VERIFICATION_PLAN.md) | —                |
 
 ## Scope notes for future plans
 
@@ -128,6 +129,23 @@ GraphQL upload promises; build/full TypeScript,12 upload and all222 API checks p
 Lint has the pre-existing config.ts warning. Disposable data only; production
 storage/deployment,legacy rewriting and additional image-editing features remain out
 of scope. Commits remain manual and separate for backend/Next.
+
+### FI-08 — Email verification — Planned
+
+The [dedicated plan](EMAIL_VERIFICATION_PLAN.md) defines five steps covering policy
+and API agreement, Gmail delivery, backend enforcement, Next.js signup and combined
+acceptance, with checks and manual commit boundaries. Proposed defaults are a
+six-digit code valid for 10 minutes and five failed guesses per challenge. The owner
+requested escalating resend blocks of 1 hour, 3 hours, 5 hours and 24 hours. The plan
+interprets this as a block after each group of three resends, with 60-second spacing
+within groups and the initial email separate from the count. The proposed maximum
+is 24 hours, with inactivity-reset policy pending Step 1 review.
+Signup consumes email-bound proof atomically with account
+creation. Existing-account and Google compatibility are explicit Step 1 decisions.
+
+The owner reports `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` are configured. SMTP
+authentication and inbox delivery remain unverified. All implementation steps are
+pending. This item is separate from FI-03 password recovery and FI-02 reminders.
 
 ## Modular delivery workflow
 
