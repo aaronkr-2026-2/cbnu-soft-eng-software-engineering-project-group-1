@@ -10,7 +10,30 @@ coverage/
 /backend/SESSION_LOG.md
 /backend/FIXES-and-BUGS.md
 /backend/BOOKING_WAITLIST_PLAN.md
-/backend/uploads/
+# Keep supplied doctor test images in Git for deployment.
+/backend/uploads/*
+!/backend/uploads/doctors/
+/backend/uploads/doctors/*
+!/backend/uploads/doctors/doctor1.png
+!/backend/uploads/doctors/doctor2.png
+!/backend/uploads/doctors/doctor3.png
+!/backend/uploads/doctors/doctor4.png
+!/backend/uploads/doctors/doctor5.jpeg
+!/backend/uploads/doctors/doctor6.jpeg
+!/backend/uploads/doctors/doctor7.png
+!/backend/uploads/doctors/doctor8.jpeg
+!/backend/uploads/doctors/doctor9.jpeg
+!/backend/uploads/doctors/doctor10.png
+!/backend/uploads/doctors/doctor11.png
+!/backend/uploads/doctors/doctor12.png
+!/backend/uploads/doctors/doctor13.jpeg
+!/backend/uploads/doctors/doctor14.png
+!/backend/uploads/doctors/doctor15.jpeg
+!/backend/uploads/doctors/doctor16.jpeg
+!/backend/uploads/doctors/doctor17.jpeg
+!/backend/uploads/doctors/doctor18.jpeg
+!/backend/uploads/doctors/doctor19.jpeg
+!/backend/uploads/doctors/doctor20.jpeg
 
 # Keep Next.js sources visible even when a local Git exclude hides next/.
 !/next/
