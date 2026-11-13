@@ -769,3 +769,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** Chrome showed a new deadline as 10m 1s because the last interval tick preceded the response. Codex corrected rendering to use the current clock and added a server-rendered regression test; final 125 tests/build pass (NEXT-013). This was a browser/agent catch, not an error I reported manually.
 
 **One decision I can explain without AI:** Email proof belongs only to the email that was verified. Clearing it on email edits prevents me from accidentally submitting another address with the old proof.
+
+
+## Email verification final acceptance (FI-08 Step 5) — 2026-11-13
+
+**Tool(s) used:** Codex, Git/source inspection, Nest build/TypeScript/oxlint/Jest, disposable MongoDB, Yarn/Node tests, isolated Webpack builds, real Gmail SMTP, native Chrome and read-only session checks.
+
+**What I asked for:** Complete email verification Step 5. I explicitly approved up to two messages to the configured sender inbox and supplied the received test code.
+
+**Pre-planning:** Verified clean backend f117f1f and Next 0ebc234, final contracts, Step 4 evidence and existing automated Google policy. No sprint covers November 13.
+
+**Planning:** Rerun relevant checks and use the actual Next form, compiled Gmail provider and disposable database for real inbox/signup/login/refresh acceptance. Keep production rollout separate.
+
+**Implementation process:** Backend build/full TypeScript/lint and 96 unit/222 API/46 email integration/18 username integration tests pass; Next typecheck/125 tests and final isolated production build pass (507 tests total). Fifteen actual proxy/API requests pass synthetic retry/resend/expiry/binding/replay/signup/login/refresh and rejected/ambiguous delivery recovery. Real Gmail accepted one approved code; the received code verified in Chrome, signup succeeded, ordinary login worked and reload restored the session. Read-only disposable checks confirm one account/consumed proof, actual email verification time, refresh rotation and fixed expiry. Previous Step 4 keyboard/390px/error/draft evidence is retained separately. Marked FI-08 and owning records Completed locally, documented release prerequisites and preserved closed sprints. Browser signed out, password saving declined, dedicated tab closed; runner42830 stopped and disposable MongoDB files verified removed. No application DB, source, environment, dependency, deployment, merge, staging, commit or push changes. Final release build /private/tmp/medconnect-email5-release-xmrb9sd4; sanitized evidence /private/tmp/medconnect-email5-runtime-Zp640V.
+
+**What I kept as-is:** Existing login/Google/session/role behavior, manual Git workflow and application/production data. Fresh live Google acceptance remains outside my previously selected automated scope.
+
+**What I changed or rejected, and why:** Updated stale shared Step 4 status and recorded completed local acceptance separately from unperformed deployment. The initial automatic approval rejection was resolved by my explicit live-mail approval before any real send; only one of two approved emails was used.
+
+**Something the AI got wrong that I had to catch:** No application-code AI error identified. Codex corrected an incomplete temporary build path and reran the correct build successfully. Native browser cleanup briefly lost its window; reconnect confirmed sign-out and the dedicated tab then closed.
+
+**One decision I can explain without AI:** Disposable MongoDB proves real email ownership and signup behavior without creating an account in the application database. Coordinating frontend/backend release keeps signup clients compatible with required proof.

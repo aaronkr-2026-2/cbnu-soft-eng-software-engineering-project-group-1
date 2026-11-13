@@ -260,9 +260,9 @@ The Gmail verification-mail provider uses TLS on `smtp.gmail.com:465` and a
 10-second send deadline. Configure its two keys in the environment of the backend
 process, or its working-directory `.env`. Backend request/verify endpoints and signup
 proof enforcement and Next.js patient signup controls are implemented. Configure
-verification storage and SMTP before releasing both applications together; the
-real-inbox/browser release acceptance remains in the
-[email verification plan](backend/EMAIL_VERIFICATION_PLAN.md).
+verification storage and SMTP before releasing both applications together. Local
+real-inbox/browser acceptance passed; the [email verification plan](backend/EMAIL_VERIFICATION_PLAN.md)
+records release prerequisites and deployment limits.
 
 REST routes have no global prefix. With the example port:
 
@@ -1528,8 +1528,8 @@ Container startup and production deployment remain unverified.
 
 ## Known limitations
 
-- Email verification passed local proxy/browser acceptance with disposable data and stubbed mail;
-  the full real-Gmail signup journey and coordinated deployment remain pending.
+- Email verification passed local real-Gmail signup/login/refresh acceptance;
+  application-database setup and coordinated deployment remain unverified.
 - Logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;

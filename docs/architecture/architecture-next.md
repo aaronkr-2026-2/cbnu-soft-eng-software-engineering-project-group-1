@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated November 13, 2026 for FI-08 email verification Step 4. Earlier patient booking,
+Updated November 13, 2026 for FI-08 email verification final acceptance. Earlier patient booking,
 staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
@@ -273,8 +273,8 @@ ambiguous-send recovery, expired proof, persisted signup details, login cookies 
 shared upstream IP limits. Native Chrome passed wrong-code correction, email-edit
 invalidation, keyboard code confirmation, username-conflict draft/proof preservation
 and successful signup, plus a 390px layout check. SMTP was stubbed and no application
-database or live provider was used. FI-08 Step 5's real inbox/browser release
-acceptance remains pending. The shared backend plan is preserved under the Next
+database or live provider was used. FI-08 Step 5's real inbox/browser acceptance
+subsequently completed as recorded below. The shared backend plan is preserved under the Next
 worktree's protected-backend rule; this section records Step 4 delivery.
 
 ## Sessions and deployment
@@ -287,6 +287,7 @@ flowchart LR
   Browser -->|GraphQL, bearer access token for private operations| API
   Browser -->|REST username check; Bearer token for own-profile check| API
   API --> DB[(MongoDB replica set)]
+  API -->|SMTP over TLS port 465: verification codes| Gmail[Gmail]
   Browser -->|Optional Identity Services popup| Google[Google Identity]
   API -->|ID token verification| Google
 ```
@@ -470,3 +471,33 @@ remain sanitized. The profile helper recognizes the same allowlisted pair on a
 GraphQL CONFLICT. Both forms show the conflict inline and preserve other drafts.
 Chrome checks against a synthetic API cover the interaction; complete updated
 backend/Google-provider acceptance remains OAuth-fix Step7.
+
+
+## FI-08 Step 5 final acceptance — November 13, 2026
+
+Next `0ebc234` and backend `f117f1f` were clean before verification. Next typecheck,
+125 tests and a final isolated production build without fixture API URLs pass.
+Backend build/full TypeScript/lint and 382 tests (96 unit, 222 API, 46 email
+integration, 18 username integration) pass: 507 tests total. The only lint warning
+is the pre-existing empty backend config file. Existing Google policy remains
+covered automatically; no fresh live Google login was attempted.
+
+After explicit approval for up to two emails, the actual Next signup form requested
+one real Gmail code to the configured sender inbox. The owner supplied the received
+code; keyboard code confirmation, browser signup, sign-out/login and reload-based
+session restoration passed. Read-only disposable MongoDB checks confirmed one
+account, one consumed proof, private email verification time, token rotation and
+unchanged fixed session expiry. No raw code/token/credentials are retained in records.
+
+Fifteen additional actual Next proxy→Nest→disposable MongoDB requests covered
+retry/resend/supersession/binding/replay, signup/login/refresh cookies, expiry and
+definitive/ambiguous delivery failure with stubbed synthetic mail, separately from
+the live sender-inbox flow. Step 4's 390px/error/draft-preservation evidence remains
+applicable. The live run also displayed the corrected countdown without an extra
+second. Password saving was declined, the browser signed out and the dedicated
+tab closed. The owned runner and disposable MongoDB files were removed.
+
+FI-08 is Completed locally. No application-database setup, environment/dependency
+changes, deployment, merge, staging, commit or push occurred. No sprint covers
+November 13. The [shared plan](../../backend/EMAIL_VERIFICATION_PLAN.md#coordinated-release-preparation)
+records coordinated release prerequisites and deployment/proxy/TLS limits.

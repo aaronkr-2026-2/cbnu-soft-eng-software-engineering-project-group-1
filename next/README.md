@@ -166,8 +166,10 @@ requests and 30 confirmations per minute per API process); forwarded-IP attribut
 needs a verified deployment configuration. A reload retains no proof, and the next
 explicit send obtains authoritative cooldown timing.
 
-Local browser/proxy acceptance used real Nest/disposable MongoDB with stubbed mail.
-The full real-inbox/browser journey and deployment remain the separate FI-08 Step 5.
+Local acceptance passed with a real Gmail code, browser signup, subsequent login
+and reload/refresh against disposable MongoDB. Failure/race tests use stubbed mail
+separately. Application-database setup and coordinated deployment remain unverified;
+see [FI-08 release preparation](../backend/EMAIL_VERIFICATION_PLAN.md#coordinated-release-preparation).
 
 Patient signup remains `USER` only. Doctor/clinic registration UI is pending.
 Successful profile password changes clear the browser session and require login;
