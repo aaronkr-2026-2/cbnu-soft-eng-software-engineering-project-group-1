@@ -790,3 +790,23 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No application-code AI error identified. Codex corrected an incomplete temporary build path and reran the correct build successfully. Native browser cleanup briefly lost its window; reconnect confirmed sign-out and the dedicated tab then closed.
 
 **One decision I can explain without AI:** Disposable MongoDB proves real email ownership and signup behavior without creating an account in the application database. Coordinating frontend/backend release keeps signup clients compatible with required proof.
+
+## Patch high severity dependencies — 2026-11-14
+
+**Tool(s) used:** Codex, Git, public npm metadata/advisories, npm/Yarn, TypeScript, Nest/Webpack, oxlint, Jest/Node tests and owned disposable MongoDB.
+
+**What I asked for:** Update the risky dependency versions to patched versions in backend and Next.
+
+**Pre-planning:** Started November 13 from clean backend 89f54b0 and Next 522f158. Inspected dependency paths, package-manager configuration and local lessons. Several Nest packages pin affected dependencies exactly. No sprint covers this work date; closed Sprint 05 is preserved.
+
+**Planning:** Resolve named updates in isolated temporary copies, inspect lockfile changes, use scoped overrides for pinned Nest transitive packages, then install and verify the resulting trees. Keep the existing Nest major/minor versions.
+
+**Implementation process:** Raised Mongoose's declared minimum to ^9.11.4, resolving 9.12.1 with MongoDB 7.8.0. Scoped overrides install Multer 2.5.0, GraphQL Tools utils 12.0.2, backend Undici 6.29.1 and tmp 0.2.7. Updated body-parser to 2.4.0 and brace-expansion copies to 5.0.13/2.1.8. The initial isolated tmp 0.2.6 proposal exposed an additional high advisory, so 0.2.7 was selected before application. Next's single Undici lock entry updates to 8.12.4 with its manifest unchanged. Final audits: backend 0 critical/0 high/19 moderate/4 low, Next recursive audit exit 0 with no findings. Build/full TypeScript, 96 unit, 222 API, 193 booking, 118 directory, 18 username and 46 email integration tests pass; Next typecheck, 125 tests and isolated production build pass (818 tests total). Direct tmp traversal rejection, normal file cleanup and external-editor compatibility checks pass. Lint retains the existing empty config.ts warning; Mongoose emits a new-option deprecation warning in passing integration tests. Test runners own and clean their disposable MongoDB files. Recorded delivery after local midnight November 14. GitHub status follows integration into main; deployment remains unverified.
+
+**What I kept as-is:** Application source, framework versions, API contracts, environment and application data, plus manual staging/commit/push/merge workflow.
+
+**What I changed or rejected, and why:** Used reviewed named dependency updates and scoped overrides instead of broad framework upgrades. The overrides should be revisited when upstream Nest dependency pins adopt patched releases. Updated delivery records in each application's own worktree.
+
+**Something the AI got wrong that I had to catch:** Codex's temporary smoke check compared macOS /var and /private/var paths literally. It corrected the check to compare canonical paths, then the checks passed (B-024). This was an agent catch, not my manual report.
+
+**One decision I can explain without AI:** A patched version must pass a fresh audit as well as our tests: tmp 0.2.6 fixes the original alert but introduces exposure to a separate advisory, so the verified choice is 0.2.7.
