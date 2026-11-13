@@ -1,3 +1,5 @@
+import { EmailDeliveryService } from '../src/components/auth/email-delivery.service.js';
+import { setupEmailVerificationStorage } from '../src/schemas/email-verification.model.js';
 import { AppointmentScheduleService } from '../src/components/appointment/appointment-schedule.service.js';
 import {
   NotificationSchema,
@@ -84,6 +86,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
   let app: INestApplication<Server>;
   let connection: Connection;
   let migration: BookingMigrationService;
+  const delivered = new Map<string, string>();
   let token: string;
   let token2: string;
   const dbName = `booking_policy_test_${randomUUID().replaceAll('-', '')}`;
@@ -119,7 +122,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     const { AppModule } = await import('../src/app.module.js');
     const fixture = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    }).overrideProvider(EmailDeliveryService).useValue({ sendVerificationCode: async (email: string, code: string) => { delivered.set(email, code); } }).compile();
     app = fixture.createNestApplication({ logger: false });
     app.useGlobalPipes(
       new ValidationPipe({
@@ -131,6 +134,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     );
     connection = app.get<Connection>(getConnectionToken());
     await migrateUsernames(connection, [], true);
+    await setupEmailVerificationStorage(connection.db!);
     migration = app.get(BookingMigrationService);
     await migration.apply();
     process.env.BOOKING_POLICY_V2_ENABLED = 'true';
@@ -1143,9 +1147,13 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
   });
 
   it('onboards a doctor and configures 14 split-shift slots entirely through APIs', async () => {
+    const email = 'schedule-doctor@example.test';
+    const challenge = await request(app.getHttpServer()).post('/member/email-verification/request').send({ memberEmail: email, requestId: randomUUID() }).expect(200);
+    const verified = await request(app.getHttpServer()).post('/member/email-verification/verify').send({ memberEmail: email, challengeId: challenge.body.challengeId, code: delivered.get(email) }).expect(200);
     const signup = await request(app.getHttpServer())
       .post('/member/signup')
       .send({
+        emailVerificationToken: verified.body.emailVerificationToken,
         memberEmail: 'schedule-doctor@example.test',
         memberPassword: 'test-password-123',
         memberPhone: '+821011112222',

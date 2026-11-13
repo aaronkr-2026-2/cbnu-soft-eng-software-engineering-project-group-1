@@ -5,13 +5,16 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Optional,
   Req,
   Res,
   UseGuards,
+  UseFilters,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -31,6 +34,13 @@ import {
   SignupDto,
 } from '../../libs/dto/member/member-auth.dto.js';
 import { GoogleAuthService } from '../auth/google-auth.service.js';
+import { EmailVerificationService } from '../auth/email-verification.service.js';
+import { EmailVerificationFilter } from '../auth/email-verification-error.js';
+import {
+  EmailVerificationRequestDto,
+  EmailVerificationVerifyDto,
+  VerificationValidationPipe,
+} from '../../libs/dto/member/email-verification.dto.js';
 import { MemberService } from './member.service.js';
 import type { MemberAuthResponse } from '../../libs/types/member.types.js';
 
@@ -40,6 +50,7 @@ export class MemberController {
   constructor(
     private readonly memberService: MemberService,
     private readonly googleAuth: GoogleAuthService,
+    @Optional() private readonly emailVerification?: EmailVerificationService,
   ) {}
 
   @Post('username/availability')
@@ -129,11 +140,45 @@ export class MemberController {
     return result;
   }
 
+  @Post('email-verification/request')
+  @ApiOperation({ summary: 'Request or resend an email ownership code' })
+  @ApiBody({ type: EmailVerificationRequestDto })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @UseFilters(EmailVerificationFilter)
+  requestEmail(
+    @Body(new VerificationValidationPipe(EmailVerificationRequestDto))
+    input: unknown,
+  ) {
+    return this.emailVerification!.request(
+      input as EmailVerificationRequestDto,
+    );
+  }
+
+  @Post('email-verification/verify')
+  @ApiOperation({
+    summary: 'Confirm an email code and obtain single-use signup proof',
+  })
+  @ApiBody({ type: EmailVerificationVerifyDto })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @UseFilters(EmailVerificationFilter)
+  verifyEmail(
+    @Body(new VerificationValidationPipe(EmailVerificationVerifyDto))
+    input: unknown,
+  ) {
+    return this.emailVerification!.verify(input as EmailVerificationVerifyDto);
+  }
+
   @Post('signup')
+  @ApiBody({ type: SignupDto })
+  @UseFilters(EmailVerificationFilter)
   @ApiOperation({ summary: 'Create a member account' })
   @Header('Cache-Control', 'no-store')
-  signup(@Body() input: SignupDto): Promise<MemberAuthResponse> {
-    return this.memberService.signup(input);
+  signup(
+    @Body(new VerificationValidationPipe(SignupDto, true)) input: unknown,
+  ): Promise<MemberAuthResponse> {
+    return this.memberService.signup(input as SignupDto);
   }
 
   @Post('login')

@@ -143,7 +143,7 @@ interprets this as a block after each group of three resends, with 60-second spa
 within groups and the initial email separate from the count. Maximum cooldown is
 24 hours. The owner selected reset after 24 hours without a send attempt. Blocked
 send attempts count as activity while the existing block deadline stays fixed.
-Signup will consume email-bound proof atomically with account creation. The Step 1
+Signup consumes email-bound proof atomically with account creation. The Step 1
 baseline retains existing-account login and current Google verified-claim behavior.
 
 Step 2's Gmail delivery provider is implemented with `GOOGLE_SMTP_USER` and
@@ -151,7 +151,10 @@ Step 2's Gmail delivery provider is implemented with `GOOGLE_SMTP_USER` and
 Real Gmail TLS/authentication passed November 12, 2026. On November 13, Gmail
 accepted one test message sent through the compiled provider to the owner-selected
 configured sender inbox. The owner confirmed receipt on November 13, completing
-Step 2. Steps 3–5 remain pending, so FI-08 continues In progress. This item is separate from FI-03 password recovery and FI-02 reminders.
+Step 2. Step 3 backend enforcement completed locally November 13, with durable
+request/resend limits, code confirmation, transactional signup proof and explicit
+storage setup/readiness checks. Disposable MongoDB/API tests cover timing, delivery
+recovery and concurrent writes. Steps 4–5 remain pending, so FI-08 continues In progress. This item is separate from FI-03 password recovery and FI-02 reminders.
 
 ## Modular delivery workflow
 

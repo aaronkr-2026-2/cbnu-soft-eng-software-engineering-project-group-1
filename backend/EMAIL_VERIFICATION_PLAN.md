@@ -4,7 +4,8 @@ Date — November 12, 2026 (Asia/Seoul)
 
 Status — **In progress**. Step 1 policy and contract design completed November 12,
 2026. Step 2 completed November 13 after real SMTP delivery and owner-confirmed
-inbox receipt. Steps 3–5 remain pending. The contract below is the implementation baseline.
+inbox receipt. Step 3 backend enforcement completed locally November 13. Steps 4–5
+remain pending. The contract below is the implementation baseline.
 Owner-specified rules and selected engineering defaults are identified explicitly.
 
 Roadmap — [Future improvements](FUTURE_IMPROVEMENTS.md#fi-08--email-verification--in-progress)
@@ -33,9 +34,9 @@ Paths are relative to the named worktree root.
 
 - Backend work belongs to branch `backend` in `.worktrees/backend/`.
   `backend/src/components/member/member.service.ts` currently creates ACTIVE
-  accounts and immediately issues access/refresh credentials in `signup`.
-  `backend/src/libs/dto/member/member-auth.dto.ts` validates email format.
-  The current signup contract contains no email verification proof.
+  accounts only after consuming verified email proof in a replica-set transaction,
+  then issues access/refresh credentials.
+  `backend/src/libs/dto/member/member-auth.dto.ts` requires `emailVerificationToken`.
 - `backend/src/components/member/member.controller.ts` exposes REST signup,
   login, refresh and Google authentication. `member.module.ts` wires the models,
   providers and authentication rate limiter.
@@ -53,8 +54,9 @@ Paths are relative to the named worktree root.
   account, and accounts can currently have no email.
 - The owner reports that `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` are configured.
   The username must identify the Gmail account that generated the app password.
-  Credential values and their configuration location have not been inspected.
-  SMTP authentication and real delivery remain unverified.
+  Step 2 verified real SMTP authentication and owner-confirmed receipt.
+  Step 3 used controlled SMTP stubs and disposable databases; the combined
+  live-code/browser signup acceptance remains Step 5.
 - Read each worktree's `AGENTS.md`, session context and relevant bug-register
   entries before implementation. Recheck current callers and installed packages.
 
@@ -284,6 +286,38 @@ SMTP behavior is documented by [Nodemailer](https://nodemailer.com/smtp).
 Multi-document commit/rollback behavior is documented by
 [MongoDB](https://www.mongodb.com/docs/manual/core/transactions/).
 
+### Storage setup and operations
+
+From the backend worktree's `backend/` directory, after selecting the intended
+MongoDB replica-set/sharded database and configuring the existing JWT/SMTP settings:
+
+```bash
+npm run build
+npm run member:email:storage -- --check
+# Explicitly create only the two verification collections and their indexes:
+npm run member:email:storage -- --apply
+npm run member:email:storage -- --check
+```
+
+The default invocation is read-only readiness checking, equivalent to `--check`.
+Apply creates collections with simple collation and creates the required indexes;
+it does not rewrite members or backfill historical verification times. Complete the
+existing username migration separately. Missing collections/indexes or transaction
+support yields safe `EMAIL_VERIFICATION_UNAVAILABLE` responses for verification and
+email registration, while existing login/refresh/Google behavior is preserved.
+No setup/apply command has been run against the application database in Step 3.
+
+`npm run test:email:integration` builds and runs the owned disposable MongoDB runner
+without loading `.env`. The runner creates/removes its own replica set, standalone
+fixture and temporary files. SMTP is stubbed; this command sends no real mail.
+The suite uses explicit future clocks rather than replacing database/driver timers.
+
+For uncertain send responses, retry the same email/request ID. After a pending lease
+expires, recovery counts it once as ambiguous and returns the still-current challenge.
+A deliberate resend requires a fresh ID. After a lost signup response or credential
+issuance failure, try ordinary login: account/proof commit precedes session creation.
+Coordinate deployment with Next.js Step 4; old signup clients lack required proof.
+
 ### Signup callers and Next.js mapping
 
 | Reviewed path | Required implementation change |
@@ -322,7 +356,9 @@ sending is blocked. Re-render timing from a deadline, not an assumed interval co
 
 ### Executable acceptance matrix
 
-These checks are specified for later implementation. Execution remains pending.
+Backend EV-01–EV-10 are exercised by the Step 3 disposable MongoDB/API suite and
+existing authentication/username/booking regressions. Their evidence is recorded
+below. EV-11–EV-13 remain pending for Steps 4–5.
 
 | ID | Runner/fixture | Required observation |
 | --- | --- | --- |
@@ -432,7 +468,23 @@ restarts, concurrent sends/verifications/signups, duplicate-field rollback and
 delivery failure recovery. Exercise transactions and uniqueness on disposable
 MongoDB. Execute EV-01–EV-10 and the recorded existing-account/Google policy.
 
-**Proposed commit** — `feat(backend): require email verification for signup`
+**Delivery checkpoint — November 13, 2026**
+
+Backend implementation complete locally. Added native verification collections,
+explicit storage setup/readiness CLI, request/confirmation DTOs and scoped error
+handling, separate 10/30 per-minute IP budgets, durable email policy, keyed code
+hashes, lease recovery/fencing and atomic proof consumption/member insertion.
+All email/password roles require proof. Existing login/refresh/Google policy and
+approval rules remain intact; historical verification timestamps remain absent.
+Updated successful signup callers in authentication, username and doctor-onboarding
+fixtures. No application database setup, environment/provider changes or deployment
+were performed. No sprint covers November 13; closed Sprint 05 is preserved.
+
+Verification evidence is recorded in Progress below. Next.js integration and the
+full real-inbox/browser signup journey remain Steps 4–5. The existing Next signup
+form is temporarily incompatible with this backend contract until Step 4.
+
+**Manual commit** — `feat(backend): require email verification for signup`
 
 ### Step 4 — Integrate the Next.js signup screen
 
@@ -490,4 +542,40 @@ the actual completion date and any deployment limits.
   222 API checks passed, and real Gmail SMTP authentication passed. On November 13,
   Gmail accepted one test email to the owner-selected configured sender inbox.
   The owner confirmed inbox receipt on November 13, completing Step 2.
-- Steps 3–5 and EV-01–EV-13 full verification-flow execution remain pending.
+- Step 3 backend implementation completed locally November 13. Backend EV-01–EV-10
+  verification passed: build/full TypeScript; 96 unit, 222 API, 46 new email
+  integration, 18 username integration and 193 booking integration tests. Lint has
+  only the existing empty `config.ts` warning. Steps 4–5 and
+  EV-11–EV-13 remain pending. FI-08 remains In progress.
+
+### Step 3 verification evidence — November 13, 2026
+
+- EV-01: production global validation plus scoped DTO tests check normalization,
+  exact response fields, no-store, malformed/extra fields, leading zeros and required
+  proof for USER/DOCTOR/CLINIC. Real verified USER/CLINIC creation and doctor API
+  onboarding retain role/location/approval rules.
+- EV-02–03: controlled clocks with real conditional writes check 60-second spacing,
+  every 1/3/5/24-hour boundary, initial versus resend counting, group reset/cap,
+  blocked activity without deadline extension and exact 24-hour inactivity reset.
+- EV-04–05: independent service instances and controlled delivery check same/different
+  concurrent requests, durable state after restart/challenge cleanup, accepted,
+  rejected/NOT_SENT/ambiguous outcomes, pending retries, lease recovery exactly once,
+  stale callback fencing and recovery without a second send. Crash is simulated by
+  an abandoned reservation, not a process-kill rehearsal.
+- EV-06–07: replica-set transactions check five guesses, concurrent correct
+  confirmation, fifth failure versus success, verification versus resend, email
+  binding, supersession, exact expiry, proof expiry/replay, key rotation and usable
+  code/proof during send blocks. Previously issued proof survives resend.
+- EV-08–09: real member uniqueness/transactions check competing signup, rollback for
+  username/phone/license conflicts, rollback after insertion failure, inactive/missing
+  clinic validation and ordinary login/refresh after committed account creation loses
+  its credential response.
+- EV-10: 222 API regressions preserve existing login/refresh, account-status, Google
+  verified/no-email and role behavior. 18 username and 193 booking integration tests
+  pass with real verification-aware signup fixtures. A historical email account can
+  login/refresh while verification indexes are missing, without metadata backfill.
+- 46 email integration tests pass; the compiled read-only storage CLI and standalone
+  rejection are checked. SMTP is controlled in these tests; no fresh Gmail or Google
+  provider call/browser acceptance is claimed. Disposable runners removed their data
+  and processes. Initial local-socket sandbox denial was resolved through authorized
+  local test execution. TypeScript/test-fixture corrections are recorded in B-022.

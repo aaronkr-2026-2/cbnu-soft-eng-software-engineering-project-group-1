@@ -46,6 +46,8 @@ const MemberSchema = new Schema({
     sparse: true,
   },
 
+  emailVerifiedAt: { type: Date, select: false },
+
   // Common identifiers
   memberEmail: {
     type: String,

@@ -1053,3 +1053,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** I include both HTML and plain text so recipients can read the message in different email clients.
+
+
+## Email verification backend enforcement (FI-08 Step 3) — 2026-11-13
+
+**Tool(s) used:** Codex, local source/Git inspection, Nest build, TypeScript, Jest/Supertest, disposable MongoDB replica set/standalone, oxlint, Prettier and document/whitespace checks.
+
+**What I asked for:** Implement Step 3 of email verification, then stop for my manual commit.
+
+**Pre-planning:** Confirmed clean backend worktree at 55fd779, completed Step 2, finalized FI-08 policy, existing signup callers, username storage requirements and transaction patterns. No sprint covers November 13.
+
+**Planning:** Keep SMTP outside transactions; serialize email send policy through one durable versioned row. Use transactional confirmation and proof consumption/member creation, retaining ordinary login after a committed signup loses its response.
+
+**Implementation process:** Added explicit verification storage setup/readiness CLI, native collection types/indexes, scoped DTO/error handling and separate IP budgets. Implemented HMAC codes, resend escalation/inactivity reset, fenced send leases and same-ID recovery, proof verification and transactional signup with private verification time. Adapted authentication/username/doctor-onboarding fixtures and updated README, architecture, plan and roadmap. Build/full TypeScript, 96 unit, 222 API, 46 email integration, 18 username integration and 193 booking integration tests passed; lint retains only the existing empty config.ts warning. Local socket denial was resolved by permitted test execution. No application DB setup/data, environment, real-provider traffic, frontend, deployment or Git staging/commit/push changes. Steps 4–5 remain pending.
+
+**What I kept as-is:** Existing login/refresh/Google identity policy, public response allowlists, role/clinic approval rules, normalized username uniqueness, closed sprint records and manual Git workflow.
+
+**What I changed or rejected, and why:** Signup now requires single-use email-bound proof for every email/password role. Definitive SMTP rejection preserves the previous code; uncertain delivery consumes one allowance and permits recovery, preventing duplicate sends after lost responses.
+
+**Something the AI got wrong that I had to catch:** Automated checks caught collection metadata/model typing and a test spy on a read-only dynamic crypto namespace. Codex corrected the types and used the existing default crypto import pattern; final checks pass (B-022). These were automated catches, not an error I reported manually.
+
+**One decision I can explain without AI:** Consuming proof and creating the member in one transaction lets me correct a duplicate username without losing valid proof, while two concurrent signups cannot spend the same proof twice.

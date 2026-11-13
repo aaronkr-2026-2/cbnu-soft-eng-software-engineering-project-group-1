@@ -54,6 +54,13 @@ export class LoginDto {
 }
 
 export class SignupDto {
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{43}$/)
+  @ApiProperty({
+    description: 'Single-use email-bound proof from email-verification/verify.',
+  })
+  emailVerificationToken: string;
+
   @ApiProperty({ example: 'user@example.com' })
   @Transform(email)
   @IsEmail()
@@ -104,13 +111,15 @@ export class SignupDto {
   @ApiPropertyOptional({ description: 'Required when memberType is CLINIC.' })
   clinicName?: string;
 
-  @ValidateIf((data: SignupDto) =>
-    data.memberType === MemberType.CLINIC || data.location !== undefined,
+  @ValidateIf(
+    (data: SignupDto) =>
+      data.memberType === MemberType.CLINIC || data.location !== undefined,
   )
   @IsEnum(Location)
   @ApiPropertyOptional({
     enum: Location,
-    description: 'Required for CLINIC accounts. DOCTOR accounts inherit their clinic city and must omit this field.',
+    description:
+      'Required for CLINIC accounts. DOCTOR accounts inherit their clinic city and must omit this field.',
   })
   location?: Location;
 

@@ -51,6 +51,9 @@ flowchart TD
   Images[(Local upload directory)]
   Member[MemberService]
   Google[GoogleAuthService]
+  Verify[EmailVerificationService]
+  Mail[EmailDeliveryService]
+  Gmail[Gmail SMTP]
   Provider[Google Identity Services and signing keys]
   Booking[AppointmentService and slot helper]
   NoticeTarget[AppointmentNotificationService]
@@ -86,6 +89,11 @@ flowchart TD
   Google -->|HTTPS: fetch public signing keys for local JWT verification| Provider
   REST -->|In-process calls: validated input and principal| Booking
   GQL -->|In-process calls: validated input and principal| Booking
+  REST -->|In-process calls: request code and verify code| Verify
+  Member -->|In-process call: consume proof and create member in one transaction| Verify
+  Verify -->|MongoDB transactions: send limits, challenges and member callback| DB
+  Verify -->|In-process call after reservation commit: email and code| Mail
+  Mail -->|SMTP over TLS: branded verification email| Gmail
   Member -->|Mongoose calls: member and session reads/writes| Models
   Booking -->|Mongoose calls: eligibility/hours reads, appointment and outbox writes| Models
   GQL -->|Public slots or guarded clinic schedule mutations| Schedule
@@ -123,7 +131,7 @@ flowchart TD
   GQL -->|Interceptor events: operation field, duration, errors| Logs
 ```
 
-External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. The Gmail verification-mail provider is implemented, with signup integration pending in FI-08.
+External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. Gmail verification endpoints and transactional signup enforcement are implemented; the Next.js signup controls remain pending in FI-08.
 
 ### Next.js public discovery client
 
@@ -166,6 +174,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 
 | Interface | Operation | Access and implementation |
 | --- | --- | --- |
+| REST | `POST /member/email-verification/request`, `/member/email-verification/verify` | Public code delivery/confirmation with separate IP budgets and durable email policy; no account/session creation |
 | REST | `POST /member/signup`, `/member/login`, `/member/refresh` | Public authentication endpoints with validation and auth rate limiting; `MemberController` → `MemberService` |
 | REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
 | REST | `POST /member/username/availability`, `/member/username/availability/me` | Public signup check and guarded own-profile check; shared separate 30/minute/IP budget; MemberService performs exact normalized-key lookup |
@@ -183,7 +192,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | REST | `POST /appointment/bookAppointment`, `GET /appointment/:id` | Same guard and appointment service as GraphQL |
 | Operations | `GET /`, `/health/live`, `/health/ready`, `/status` | Public API info, liveness, database readiness, and status UI; `/status/assets/*` serves its CSS/JS |
 
-**Authentication:** signup validates public role/input fields, hashes the password, creates a member, and issues tokens. Doctors require an active clinic and start with PENDING affiliation; ADMIN is excluded from public signup. Login verifies email/password credentials and account status. Access JWTs last 15 minutes. Refresh tokens have a fixed seven-day session lifetime; only their hashes are persisted. Refresh atomically replaces the stored hash, so a token can be consumed once; rotation does not extend session expiry. There is no implemented logout/revocation endpoint.
+**Authentication:** signup validates public role/input fields and hashes the password before opening a bounded transaction. EmailVerificationService consumes valid email-bound proof and calls MemberService to validate clinic affiliation and create the member in that same session, recording private `emailVerifiedAt`. Credential issuance follows commit. Missing/expired/replayed proof cannot create a member/session, and duplicate-field failures roll back proof consumption. Doctors require an active clinic and start with PENDING affiliation; ADMIN is excluded from public signup. Login verifies email/password credentials and account status. Access JWTs last 15 minutes. Refresh tokens have a fixed seven-day session lifetime; only their hashes are persisted. Refresh atomically replaces the stored hash, so a token can be consumed once; rotation does not extend session expiry. There is no implemented logout/revocation endpoint.
 
 **Google sign-in:** the browser first requests a five-minute signed nonce from `/member/google/nonce`, which also sets an HttpOnly cookie. It passes that nonce to Google Identity Services and posts the resulting ID token to `/member/google/login` with credentials included. GoogleAuthService validates the challenge and Google's signature/audience/issuer/expiry and checks the ID-token nonce against the cookie. Production uses a Secure, host-only cookie; successful login clears it. MemberService finds by Google `sub` or immediately creates an active USER, omitting phone/password. The provider display name supplies only the trimmed/truncated full name. Every new Google identity gets `google_user` plus eight random digits and its private lowercase key, with at most ten attempts against the unique index. Returning identities retain user-edited usernames/full names. Only verified provider email is copied. Existing account profile/role remains unchanged. Email conflicts return 409 without automatic linking; inactive accounts are rejected. The service reuses normal access/refresh issuance. GOOGLE_CLIENT_ID is required for this flow; GOOGLE_CLIENT_SECRET is not consumed. The Next.js Google button/callback integration is implemented; live Google account completion remains unverified.
 
@@ -555,10 +564,10 @@ Here, shared services include reusable in-process capabilities and external prov
 
 | Capability/provider | Status | Boundary and evidence |
 | --- | --- | --- |
-| Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. An email address is a login identifier; no email is sent. |
+| Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. New email/password signup requires email ownership proof. Historical accounts retain login/refresh without backfilled verification timestamps. |
 | Google sign-in | Backend and Next.js callback implemented; live provider completion unverified | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
 | Telegram identity | Schema support only | `telegramId` exists; no implemented Telegram login flow. |
-| Email delivery | Gmail transport implemented, signup integration pending | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
+| Email delivery | Backend signup verification implemented; Next.js integration pending | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
 | External medical, pharmacy, maps, or payment APIs | No implemented integration found | No outbound business HTTP client/service found in backend source. Do not present these as existing capabilities. |
 | Logging | Implemented internally | FileLogger writes JSON lines to `LOG_FILE` or `logs/medconnect.log`; LoggingInterceptor records transport execution metadata. No hosted log service is configured in this code. |
@@ -573,8 +582,8 @@ sender and preserves six-digit leading zeros. The approved welcome copy is sent
 as responsive HTML with a plain-text fallback. `verification-email.ts` builds
 the message, and the project logo is packaged through Nest assets and embedded
 as a CID attachment from a Buffer. SMTP is
-outside database transactions. Request/resend, proof storage/enforcement and signup
-UI integration are the later FI-08 steps.
+outside database transactions. EmailVerificationService owns the durable send/code/proof
+workflow; signup UI integration remains FI-08 Step 4.
 
 The provider reads `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` when called. Password grouping
 spaces are removed. Nodemailer connects to `smtp.gmail.com:465` with certificate
@@ -582,8 +591,8 @@ validation and TLS 1.2 or later, bounded connection/DNS/socket waits and a 10-se
 AbortSignal deadline that cancels the active send. SMTP diagnostics are disabled.
 The service exposes a sanitized 503 response with `EMAIL_VERIFICATION_UNAVAILABLE`.
 Its server-side `deliveryOutcome` distinguishes NOT_SENT, REJECTED and UNKNOWN for
-future reservation handling. Provider payloads are discarded. Automatic delivery
-retry belongs to the later verification workflow.
+reservation finalization. Provider payloads are discarded. Same-request recovery
+returns its current challenge without another SMTP call; deliberate resends use new IDs.
 
 November 12 checks passed for backend build, full TypeScript, 96 unit tests
 (19 focused mail cases) and 222 API tests. Lint retains the existing empty-config
@@ -593,6 +602,44 @@ message to the owner-selected configured sender inbox and Gmail accepted it.
 The owner confirmed inbox receipt on November 13, completing FI-08 Step 2.
 The full signup verification feature is tracked in
 [FI-08](../../backend/EMAIL_VERIFICATION_PLAN.md).
+
+### Email verification storage and REST contract
+
+`EmailVerificationService` in MemberModule uses the members connection and native
+collections declared in `backend/src/schemas/email-verification.model.ts`:
+`member_email_send_limits` has one durable row per normalized email; `_id` enforces
+uniqueness. `member_email_verifications` has unique challenge identity, unique
+email/request ID, sparse unique proof hash and a `cleanupAt` TTL index. The API never
+creates these collections/indexes automatically. `member:email:storage -- --apply`
+sets them up; `--check` checks readiness. Request/verify/signup check storage and
+replica-set/sharded transaction support, returning sanitized 503 on missing prerequisites.
+Existing login, refresh and Google identity policy do not require this storage.
+
+The public request/verify paths and signup use scoped validation/error handling,
+no-store responses and safe allowlisted reasons. Each verification request/confirmation
+returns only its challenge/timing or proof/timing fields. Limits are 10 requests and
+30 confirmations per minute/IP/process, separate from the authentication budget.
+Next's upstream server is currently the peer for proxied traffic; trusted forwarded
+IP attribution is not configured. Email limits survive processes/devices/restarts.
+
+Six-digit codes last 10 minutes and permit five failures. HMAC-SHA-256 uses a key
+derived from `JWT_ACCESS_SECRET` with purpose/email/challenge binding and constant-time
+comparison. Random proof tokens are stored only as SHA-256 hashes and last 10 minutes.
+Atomic challenge updates and a shared send-limit version serialize guessing,
+confirmation and resend promotion. An already-issued proof survives resend.
+
+Sending reserves a 30-second lease in a transaction, then calls SMTP outside it.
+Accepted or ambiguous sends promote the new challenge and count once; definitive
+rejection keeps the prior code and releases the resend allowance. Every reservation
+starts 60-second spacing. An expired lease is recovered as ambiguous; reservation
+identity fences late callbacks. Three resends per group trigger 1/3/5/24-hour blocks;
+the initial send is separate. Blocked requests update activity without extending the
+block. A full 24-hour inactivity period resets escalation when no block/lease is active.
+Explicit code/proof expiry checks remain effective before delayed TTL cleanup.
+
+The required signup field is a compatibility change: deploy with the Next.js Step 4
+form/proxy work. Full API/recovery details and operator setup are in the
+[email verification plan](../../backend/EMAIL_VERIFICATION_PLAN.md).
 
 ## Clinic and doctor cities
 
@@ -891,7 +938,7 @@ Auth endpoints share a 20-request/minute/IP/process limiter. It is not a distrib
 
 | Configuration name | Purpose / current behavior |
 | --- | --- |
-| `JWT_ACCESS_SECRET` | Server-only signing key for access JWTs and Google nonce challenges; startup requires at least 32 bytes |
+| `JWT_ACCESS_SECRET` | Server-only signing key for access JWTs and Google nonce challenges, and derives the email-code HMAC key; startup requires at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Google web client audience; absence disables Google endpoints with 503. GOOGLE_CLIENT_SECRET is unused by this ID-token flow. |
 | `MONGO_URI`, `MONGO_DEV`, `MONGO_PROD`, `NODE_ENV` | Shared database.config.ts selector: explicit MONGO_URI, then MONGO_PROD in production or MONGO_DEV otherwise. Startup validates the same selection; production requires SRV. |
 | `BOOKING_POLICY_V2_ENABLED` | Exactly true/false; defaults false. Booking writes require true plus verified migration on a replica set; disabled never restores old writes. |
@@ -916,6 +963,7 @@ flowchart LR
   end
   DB[(External MongoDB / Atlas-compatible database)]
   Google[Google identity provider and public signing keys]
+  Gmail[Gmail SMTP - runtime configuration required]
   Migration[Offline migration CLI - separate operator Node process]
   Migration -->|MongoDB wire protocol: read-only audit or offline transactional migration| DB
   React -->|HTTP: JSON API requests and Bearer tokens; integration incomplete| API
@@ -927,6 +975,7 @@ flowchart LR
   API -->|Node filesystem streams: public image files| Images
   API -->|HTTP GET /uploads: public image bytes| React
   API -->|HTTPS: retrieve Google public signing keys| Google
+  API -->|SMTP over TLS port 465: verification mail| Gmail
 ```
 
 No live deployment was inspected. Browser/backend HTTP transport is shown as implemented/recorded; a production TLS terminator is not established by repository code. The local Compose file proposes a Node 24.12.0 container, PORT_API mapping, and external Docker network, but its npm working directory is inconsistent with the repository. It is not shown as a verified running container. Google public-key retrieval is wired in backend code; live provider calls were not verified. Email providers, batch processes, queues, and hosted monitoring are not deployed components established by this source inspection.
