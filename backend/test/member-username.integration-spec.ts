@@ -1,3 +1,7 @@
+import { EmailVerificationService } from '../src/components/auth/email-verification.service.js';
+import { EmailDeliveryService } from '../src/components/auth/email-delivery.service.js';
+import { setupEmailVerificationStorage } from '../src/schemas/email-verification.model.js';
+import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
@@ -40,6 +44,7 @@ describe('Offline username migration and real database enforcement', () => {
   const db = () => connection.db!;
   const members = () => db().collection('members');
   const model = () => connection.model(MEMBER, MemberSchema);
+  const originalEmailSecret = process.env.JWT_ACCESS_SECRET;
   const identity = {
     sub: 'test-google',
     name: 'Case_1',
@@ -68,6 +73,7 @@ describe('Offline username migration and real database enforcement', () => {
   afterAll(async () => {
     await db().dropDatabase();
     await connection.close();
+    if (originalEmailSecret === undefined) delete process.env.JWT_ACCESS_SECRET; else process.env.JWT_ACCESS_SECRET = originalEmailSecret;
   });
 
   const resolution = (
@@ -75,7 +81,15 @@ describe('Offline username migration and real database enforcement', () => {
     expectedMemberNick: string | null,
     memberNick: string,
   ) => ({ memberId: String(id), expectedMemberNick, memberNick });
+  const delivered = new Map<string, string>();
+  async function emailProof(email: string) {
+    const service = app!.get(EmailVerificationService);
+    const challenge = await service.request({ memberEmail: email, requestId: randomUUID() });
+    return (await service.verify({ memberEmail: email, challengeId: challenge.challengeId, code: delivered.get(email)! })).emailVerificationToken;
+  }
   async function startApi() {
+    process.env.JWT_ACCESS_SECRET = 'test-only-username-secret-at-least-32-bytes';
+    await setupEmailVerificationStorage(db());
     await migrateUsernames(connection, [], true);
     const fixture = await Test.createTestingModule({
       imports: [
@@ -93,6 +107,8 @@ describe('Offline username migration and real database enforcement', () => {
       controllers: [MemberController],
       providers: [
         MemberService,
+        EmailVerificationService,
+        { provide: EmailDeliveryService, useValue: { sendVerificationCode: async (email: string, code: string) => { delivered.set(email, code); } } },
         MemberResolver,
         MemberAccessGuard,
         {
@@ -117,15 +133,19 @@ describe('Offline username migration and real database enforcement', () => {
     await app.init();
     return app;
   }
-  const signup = (memberNick: string, n: number) =>
-    request(app!.getHttpServer())
+  const signup = async (memberNick: string, n: number, expectedStatus: number | null = 201) => {
+    const call = request(app!.getHttpServer())
       .post('/member/signup')
       .send({
+        emailVerificationToken: await emailProof(`user${n}@example.test`),
         memberEmail: `user${n}@example.test`,
         memberPassword: 'test-only-password',
         memberPhone: '+8210555500' + String(n).padStart(2, '0'),
         memberNick,
       });
+    if (expectedStatus !== null) call.expect(expectedStatus);
+    return call;
+  };
   const edit = (token: string, input: object) =>
     request(app!.getHttpServer())
       .post('/graphql')
@@ -353,8 +373,8 @@ describe('Offline username migration and real database enforcement', () => {
       status: 'AVAILABLE',
       available: true,
     });
-    const owner = await signup('Alex#1', 1).expect(201);
-    const other = await signup('Other_1', 2).expect(201);
+    const owner = await signup('Alex#1', 1);
+    const other = await signup('Other_1', 2);
     const taken = await availability(' aLEX#1 ').expect(200);
     expect(taken.body).toEqual({ status: 'TAKEN', available: false });
     expect(taken.headers['cache-control']).toBe('no-store');
@@ -409,7 +429,7 @@ describe('Offline username migration and real database enforcement', () => {
 
   it('requires a current authenticated account for the own-username check', async () => {
     await startApi();
-    const owner = await signup('Owner_1', 1).expect(201);
+    const owner = await signup('Owner_1', 1);
     await request(app!.getHttpServer())
       .post('/member/username/availability/me')
       .send({ memberNick: 'Owner_1' })
@@ -444,11 +464,12 @@ describe('Offline username migration and real database enforcement', () => {
 
   it('does not misclassify a phone conflict as a username conflict', async () => {
     await startApi();
-    const owner = await signup('Owner_1', 1).expect(201);
-    const other = await signup('Owner_2', 2).expect(201);
+    const owner = await signup('Owner_1', 1);
+    const other = await signup('Owner_2', 2);
     const signupConflict = await request(app!.getHttpServer())
       .post('/member/signup')
       .send({
+        emailVerificationToken: await emailProof('third@example.test'),
         memberEmail: 'third@example.test',
         memberPassword: 'test-only-password',
         memberPhone: '+821055550001',
@@ -469,8 +490,8 @@ describe('Offline username migration and real database enforcement', () => {
     expect((await availability('Alex#1')).body.available).toBe(true);
     expect((await availability('aLEX#1')).body.available).toBe(true);
     const replies = await Promise.all([
-      signup('Alex#1', 1),
-      signup('aLEX#1', 2),
+      signup('Alex#1', 1, null),
+      signup('aLEX#1', 2, null),
     ]);
     expect(replies.map((row) => row.status).sort()).toEqual([201, 409]);
     expect(replies.find((row) => row.status === 409)!.body).toMatchObject({
@@ -529,7 +550,7 @@ describe('Offline username migration and real database enforcement', () => {
 
   it('generates a normalized Google username independently of the full name and preserves profile edits on later login', async () => {
     await startApi();
-    await signup('GOOGLE_USER12345678', 1).expect(201);
+    await signup('GOOGLE_USER12345678', 1);
     const random = jest
       .spyOn(crypto, 'randomInt')
       .mockImplementationOnce(() => 12345678)

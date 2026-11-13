@@ -18,6 +18,9 @@ import { MemberAccessGuard } from '../auth/guards/member-access.guard.js';
 import { MemberService } from './member.service.js';
 import { MemberResolver } from './member.resolver.js';
 import { GoogleAuthService } from '../auth/google-auth.service.js';
+import { EmailVerificationService } from '../auth/email-verification.service.js';
+import { emailVerificationRateLimit } from '../auth/email-verification-rate-limit.js';
+import { EmailDeliveryService } from '../auth/email-delivery.service.js';
 
 import { UploadStorageModule } from '../upload/upload-storage.module.js';
 import { getMongoUri } from '../../database/database.config.js';
@@ -64,11 +67,25 @@ const mongoUri = getMongoUri();
     MemberResolver,
     MemberAccessGuard,
     GoogleAuthService,
+    EmailDeliveryService,
+    EmailVerificationService,
   ],
   exports: [MemberService, MemberAccessGuard],
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(emailVerificationRateLimit(10))
+      .forRoutes({
+        path: 'member/email-verification/request',
+        method: RequestMethod.POST,
+      });
+    consumer
+      .apply(emailVerificationRateLimit(30))
+      .forRoutes({
+        path: 'member/email-verification/verify',
+        method: RequestMethod.POST,
+      });
     consumer
       .apply(memberUsernameRateLimit())
       .forRoutes(

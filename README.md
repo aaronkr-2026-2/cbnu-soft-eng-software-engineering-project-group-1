@@ -47,7 +47,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
 ## Existing Features list
 
 - **Member registration and login:** REST signup for USER, DOCTOR, and CLINIC
-  accounts, password hashing, input validation, and JWT access tokens.
+  accounts with email ownership proof, password hashing, input validation, and JWT access tokens.
+  The backend supports verification codes, resend limits and single-use signup proof;
+  Next.js signup integration is pending.
 - **Username validation:** Signup and profile username edits accept 6–40 English
   letters, numbers, or `_ # $ % ! & ?`, trim surrounding whitespace, and preserve
   display capitalization. A private lowercase key, unique database index and
@@ -204,10 +206,13 @@ For a **new, empty development database only**, with all other writers stopped:
 npm run build
 npm run member:username:migrate -- --dry-run
 npm run member:username:migrate -- --apply --writers-stopped
+npm run member:email:storage -- --apply
 ```
 
 For an existing database, follow the report/review/backup procedure instead. Startup
 rejects missing or incomplete username enforcement; watch mode does not run migrations.
+Email registration also requires the explicit [verification storage setup](backend/EMAIL_VERIFICATION_PLAN.md#storage-setup-and-operations);
+missing indexes or replica-set support return a safe 503 for verification/signup.
 
 Start the backend from `backend/`:
 
@@ -239,6 +244,8 @@ The backend loads `.env` from its working directory before loading application m
 | `BOOKING_POLICY_V2_ENABLED` | Enables confirmed specialty-aware booking | `false`; set exactly `true` only after migration on a replica set |
 | `JWT_ACCESS_SECRET` | Access-token signing secret | Required; at least 32 bytes |
 | `GOOGLE_CLIENT_ID` | Expected Google web client ID for sign-in verification | Required only for Google sign-in; absent configuration returns 503 |
+| `GOOGLE_SMTP_USER` | Gmail sender account for verification mail | Required when invoking the email delivery provider |
+| `GOOGLE_SMTP` | That Gmail account's 16-character app password | Backend-only secret, displayed grouping spaces are removed |
 | `UPLOAD_DIR` | Local public image storage directory | `uploads`, relative to the backend working directory; persist this directory in deployment |
 | `CORS_ORIGINS` | Comma-separated allowed browser origins | `http://localhost:3000,http://localhost:5173` |
 
@@ -248,6 +255,13 @@ Startup, database connection, and feature modules share URI selection through
 unexpected database. Production retains the `mongodb+srv://` requirement.
 
 ## API documentation and status
+
+The Gmail verification-mail provider uses TLS on `smtp.gmail.com:465` and a
+10-second send deadline. Configure its two keys in the environment of the backend
+process, or its working-directory `.env`. Backend request/verify endpoints and signup
+proof enforcement are implemented. Next.js signup integration remains pending in the
+[email verification plan](backend/EMAIL_VERIFICATION_PLAN.md). Release both together;
+the current Next.js signup form cannot satisfy the new required proof field.
 
 REST routes have no global prefix. With the example port:
 
@@ -283,6 +297,7 @@ npm test             # Unit tests
 npm run test:e2e     # HTTP/GraphQL tests
 npm run test:booking:integration # Disposable real MongoDB concurrency tests
 npm run test:username:integration # Disposable username migration and uniqueness checks
+npm run test:email:integration # Disposable email policy, delivery recovery and signup races
 npm run test:cov     # Unit-test coverage
 ```
 
@@ -357,7 +372,12 @@ Set `JWT_ACCESS_SECRET` to a cryptographically random secret of at least 32 byte
 in `.env` (for example, generate one with `openssl rand -hex 48`). Keep it private
 and stable across restarts. Startup rejects missing or short secrets.
 
-- `POST /member/signup` returns 201. Required fields: `memberEmail`,
+- `POST /member/email-verification/request` accepts `memberEmail` and a UUID v4
+  `requestId`; request/resend returns a challenge ID and server-derived expiry/retry
+  seconds. `POST /member/email-verification/verify` accepts the email, `challengeId`
+  and six-digit string `code`, returning a single-use `emailVerificationToken`.
+  See the [full contract and recovery rules](backend/EMAIL_VERIFICATION_PLAN.md#rest-endpoints-and-dtos).
+- `POST /member/signup` returns 201. Required fields: `emailVerificationToken`, `memberEmail`,
   `memberPassword` (8–100 characters), `memberPhone` (international format such
   as `+821012345678`), and `memberNick` (Username: 6–40 English letters, numbers,
   or `_ # $ % ! & ?`). Surrounding whitespace is trimmed; capitalization is preserved.
@@ -403,7 +423,8 @@ and stable across restarts. Startup rejects missing or short secrets.
   store; configure trusted proxies explicitly for your deployment.
 
 HTTP tests use Mongoose document validation with an in-memory persistence substitute;
-they do not connect to Atlas. Separate clinic verification, email verification,
+they do not connect to Atlas. Email verification transactions, durable limits and
+concurrency have separate disposable replica-set coverage. Separate clinic verification
 and logout/revocation remain unimplemented; clinic-owned doctor affiliation review
 is available through GraphQL. Protected booking
 and appointment lookup are implemented; their prerequisites are described below.
@@ -1506,7 +1527,8 @@ Container startup and production deployment remain unverified.
 
 ## Known limitations
 
-- Email verification and logout/revocation endpoints are not implemented.
+- Next.js signup must adopt the backend email verification endpoints/proof before a coordinated release.
+- Logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;
   application-database cutover, staging/production deployment and Atlas rollout remain unverified.

@@ -1,3 +1,4 @@
+import { EmailVerificationService } from '../src/components/auth/email-verification.service.js';
 import { GoogleAuthService } from '../src/components/auth/google-auth.service.js';
 import { Test } from '@nestjs/testing';
 import {
@@ -42,6 +43,7 @@ describe('Member REST authentication', () => {
     exec: async () => value,
   });
   const signup = {
+    emailVerificationToken: 'p'.repeat(43),
     memberEmail: 'alice@example.com',
     memberPassword: 'a sufficiently long password',
     memberPhone: '+821012345678',
@@ -123,12 +125,17 @@ describe('Member REST authentication', () => {
       providers: [
         MemberService,
         GoogleAuthService,
+        // This suite isolates transport/auth regressions with simulated persistence.
+        // Real proof validity, rollback and races are in email-verification.integration-spec.
+        { provide: EmailVerificationService, useValue: {
+          createVerifiedMember: async (_email: string, _token: string, create: (session: unknown, at: Date) => Promise<unknown>) => create(undefined, new Date()),
+        } },
         {
           provide: getModelToken(MEMBER),
           useValue: {
             init: async () => {},
-            create: async (data: object) => {
-              const member = new Member(data);
+            create: async (data: object | object[]) => {
+              const member = new Member(Array.isArray(data) ? data[0] : data);
               await member.validate();
               if (
                 members.some((item) =>
@@ -147,7 +154,7 @@ describe('Member REST authentication', () => {
               )
                 throw { code: 11000 };
               members.push(member);
-              return member;
+              return Array.isArray(data) ? [member] : member;
             },
             find: (filter: Record<string, unknown>) => {
               const ids = (filter._id as { $in: unknown[] }).$in;
@@ -169,8 +176,8 @@ describe('Member REST authentication', () => {
               query(
                 members.find((item) => String(item._id) === String(id)) ?? null,
               ),
-            exists: async (filter: Record<string, unknown>) =>
-              members.find((item) =>
+            exists: (filter: Record<string, unknown>) => {
+              const found = members.find((item) =>
                 Object.entries(filter).every(([key, value]) =>
                   key === '_id'
                     ? String(item._id) === String(value)
@@ -178,7 +185,10 @@ describe('Member REST authentication', () => {
                       ? item.get(key) == null
                       : item.get(key) === value,
                 ),
-              ) ?? null,
+              ) ?? null;
+              const result = Promise.resolve(found);
+              return Object.assign(result, { session: () => result });
+            },
           },
         },
         {

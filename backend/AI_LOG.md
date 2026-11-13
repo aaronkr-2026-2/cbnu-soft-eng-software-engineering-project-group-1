@@ -988,3 +988,89 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this documentation task.
 
 **One decision I can explain without AI:** Closing the sprint records its actual outcome; release gates can remain open with stable carry-forward IDs rather than being marked passed.
+
+
+## Gmail verification email delivery — 2026-11-12
+
+**Tool(s) used:** Codex, source and Nodemailer documentation inspection, npm, Prettier, Nest build, TypeScript, Jest, oxlint and live SMTP authentication.
+
+**What I asked for:** Implement Step 2 of the email verification plan using GOOGLE_SMTP_USER and GOOGLE_SMTP.
+
+**Pre-planning:** I checked the committed plan, member module, existing auth flow and MediBridge Gmail transport. The two keys are present in the main checkout's private environment file. The backend worktree began clean at 54955e4.
+
+**Planning:** I chose a focused MemberModule mail provider with lazy configuration, one validated recipient, authenticated sender, TLS, a 10-second cancellable send deadline and safe delivery outcomes for Step 3.
+
+**Implementation process:** Added EmailDeliveryService, a delivery-outcome type, 19 focused tests and Nodemailer 10.5.0 with bundled types. Updated setup, architecture and FI-08 progress. Build/full TypeScript, 96 unit tests and all 222 API tests passed. Lint reports the existing empty config warning. Real Gmail TLS/authentication passed using only the two existing SMTP settings. Initial sandbox DNS restrictions were resolved with approved network execution. Document links and whitespace passed. Recipient selection, sending a test message and confirming inbox receipt remain pending. Steps 3–5 remain pending. No sprint record covers November 12.
+
+**What I kept as-is:** Signup/session/Google flows and account storage follow their existing behavior. The owner handles commits and pushes.
+
+**What I changed or rejected, and why:** Added protected backend SMTP configuration, input validation, cancellation and sanitized exceptions. NOT_SENT, REJECTED and UNKNOWN stay server-side so later code can handle uncertain delivery safely. The SMTP library's bundled types made a separate types dependency unnecessary.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A timeout can occur after a mail server accepts a message, so I retain an unknown delivery outcome and let the later verification workflow control retries.
+
+
+## Gmail test email submission — 2026-11-13
+
+**Tool(s) used:** Codex, compiled EmailDeliveryService and Node.js, Git/source inspection and documentation checks.
+
+**What I asked for:** Send the Step 2 test email to the configured GOOGLE_SMTP_USER address.
+
+**Pre-planning:** I verified the existing Step 2 source and compiled provider and preserved the pending implementation changes.
+
+**Planning:** I used the actual compiled provider with only the existing two SMTP settings and one random test code.
+
+**Implementation process:** Gmail accepted one message sent to the configured sender inbox. Inbox receipt confirmation is pending. I updated the plan, roadmap and architecture evidence. Source is unchanged, so I retained the prior build/typecheck, 96 unit and 222 API results without rerunning them.
+
+**What I kept as-is:** Existing application behavior and all pending source changes.
+
+**What I changed or rejected, and why:** Recorded SMTP submission separately from inbox confirmation so the delivery evidence stays accurate.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** SMTP acceptance confirms submission to Gmail. Checking the receiving inbox confirms where the message actually arrived.
+
+**Step 2 acceptance confirmation — 2026-11-13:** I confirmed that the test email arrived in the configured inbox. The earlier pending-receipt checkpoint is closed. Step 2 is complete, while Steps 3–5 remain pending. Codex updated plan/roadmap/architecture status and checked document links/whitespace. Application source and prior test results are unchanged.
+
+
+## Branded verification email — 2026-11-13
+
+**Tool(s) used:** Codex, existing logo inspection, Nest build, TypeScript, Jest, oxlint, SMTP and Git/document checks. Browser preview was attempted but the access host was unavailable.
+
+**What I asked for:** Try a new email with the approved welcome message and proposed branded style.
+
+**Pre-planning:** I checked the delivery service, staged Step 2 changes, existing logo and brand colors.
+
+**Planning:** I chose a responsive table layout with inline email styles, the actual project logo, a prominent code box and a matching plain-text alternative.
+
+**Implementation process:** Added verification-email.ts and the existing logo as a packaged backend asset, extended the mail assertions and updated the delivery service. Build/full TypeScript, changed-file lint and 19 focused tests passed. Gmail accepted one styled email sent through the compiled service to the previously requested recipient. Inbox rendering awaits recipient review. No application data or environment changes. No sprint covers November 13.
+
+**What I kept as-is:** The existing SMTP, recipient validation and timeout behavior. Previously staged work stays staged, while this follow-up is unstaged.
+
+**What I changed or rejected, and why:** Updated the actual reusable template so subsequent verification emails use the approved copy and layout. Embedding the logo supports display without an external image-host dependency.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** I include both HTML and plain text so recipients can read the message in different email clients.
+
+
+## Email verification backend enforcement (FI-08 Step 3) — 2026-11-13
+
+**Tool(s) used:** Codex, local source/Git inspection, Nest build, TypeScript, Jest/Supertest, disposable MongoDB replica set/standalone, oxlint, Prettier and document/whitespace checks.
+
+**What I asked for:** Implement Step 3 of email verification, then stop for my manual commit.
+
+**Pre-planning:** Confirmed clean backend worktree at 55fd779, completed Step 2, finalized FI-08 policy, existing signup callers, username storage requirements and transaction patterns. No sprint covers November 13.
+
+**Planning:** Keep SMTP outside transactions; serialize email send policy through one durable versioned row. Use transactional confirmation and proof consumption/member creation, retaining ordinary login after a committed signup loses its response.
+
+**Implementation process:** Added explicit verification storage setup/readiness CLI, native collection types/indexes, scoped DTO/error handling and separate IP budgets. Implemented HMAC codes, resend escalation/inactivity reset, fenced send leases and same-ID recovery, proof verification and transactional signup with private verification time. Adapted authentication/username/doctor-onboarding fixtures and updated README, architecture, plan and roadmap. Build/full TypeScript, 96 unit, 222 API, 46 email integration, 18 username integration and 193 booking integration tests passed; lint retains only the existing empty config.ts warning. Local socket denial was resolved by permitted test execution. No application DB setup/data, environment, real-provider traffic, frontend, deployment or Git staging/commit/push changes. Steps 4–5 remain pending.
+
+**What I kept as-is:** Existing login/refresh/Google identity policy, public response allowlists, role/clinic approval rules, normalized username uniqueness, closed sprint records and manual Git workflow.
+
+**What I changed or rejected, and why:** Signup now requires single-use email-bound proof for every email/password role. Definitive SMTP rejection preserves the previous code; uncertain delivery consumes one allowance and permits recovery, preventing duplicate sends after lost responses.
+
+**Something the AI got wrong that I had to catch:** Automated checks caught collection metadata/model typing and a test spy on a read-only dynamic crypto namespace. Codex corrected the types and used the existing default crypto import pattern; final checks pass (B-022). These were automated catches, not an error I reported manually.
+
+**One decision I can explain without AI:** Consuming proof and creating the member in one transaction lets me correct a duplicate username without losing valid proof, while two concurrent signups cannot spend the same proof twice.

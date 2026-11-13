@@ -44,6 +44,8 @@ import type {
   LoginDto,
   SignupDto,
 } from '../../libs/dto/member/member-auth.dto.js';
+import { EmailVerificationService } from '../auth/email-verification.service.js';
+import { verificationError } from '../auth/email-verification-error.js';
 import { hashPassword, verifyPassword } from '../auth/member-password.js';
 import { MemberUpdateInput } from '../../libs/dto/member/member-update.input.js';
 import { UploadService } from '../upload/upload.service.js';
@@ -76,6 +78,7 @@ export class MemberService implements OnModuleInit {
     @InjectModel(MEMBER_SESSION)
     private readonly sessions?: Model<MemberSessionEntity>,
     @Optional() private readonly uploads?: UploadService,
+    @Optional() private readonly emailVerification?: EmailVerificationService,
   ) {}
 
   async onModuleInit() {
@@ -768,43 +771,63 @@ export class MemberService implements OnModuleInit {
     ) {
       throw new BadRequestException('Doctor fields require a doctor account');
     }
-    if (memberType === MemberType.DOCTOR) {
-      const clinic = await members.exists({
-        _id: input.clinicId,
-        memberType: MemberType.CLINIC,
-        memberStatus: MemberStatus.ACTIVE,
-        deletedAt: null,
-      });
-      if (!clinic)
-        throw new BadRequestException('An active clinic is required');
-    }
+    const password = await hashPassword(input.memberPassword);
+    const username = this.usernameFields(input.memberNick);
+    if (!this.emailVerification)
+      throw verificationError(503, 'EMAIL_VERIFICATION_UNAVAILABLE', 30);
     let member: MemberDocument;
     try {
-      member = await members.create({
-        memberEmail: input.memberEmail.trim().toLowerCase(),
-        memberPassword: await hashPassword(input.memberPassword),
-        memberPhone: input.memberPhone,
-        ...this.usernameFields(input.memberNick),
-        memberFullName: input.memberFullName,
-        memberType,
-        memberStatus: MemberStatus.ACTIVE,
-        authProvider: AuthProvider.EMAIL,
-        ...(memberType === MemberType.CLINIC
-          ? {
-              clinicName: input.clinicName,
-              location: input.location,
-              clinicTimezone: input.clinicTimezone ?? 'Asia/Seoul',
-            }
-          : {}),
-        ...(memberType === MemberType.DOCTOR
-          ? {
-              clinicId: new Types.ObjectId(input.clinicId),
-              doctorSpecializations: input.doctorSpecializations,
-              professionalLicenseNumber: input.professionalLicenseNumber,
-              doctorClinicStatus: DoctorClinicStatus.PENDING,
-            }
-          : {}),
-      });
+      member = await this.emailVerification.createVerifiedMember(
+        input.memberEmail,
+        input.emailVerificationToken,
+        async (session, verifiedAt) => {
+          if (memberType === MemberType.DOCTOR) {
+            const clinic = await members
+              .exists({
+                _id: input.clinicId,
+                memberType: MemberType.CLINIC,
+                memberStatus: MemberStatus.ACTIVE,
+                deletedAt: null,
+              })
+              .session(session);
+            if (!clinic)
+              throw new BadRequestException('An active clinic is required');
+          }
+          const [created] = await members.create(
+            [
+              {
+                memberEmail: input.memberEmail.trim().toLowerCase(),
+                memberPassword: password,
+                emailVerifiedAt: verifiedAt,
+                memberPhone: input.memberPhone,
+                ...username,
+                memberFullName: input.memberFullName,
+                memberType,
+                memberStatus: MemberStatus.ACTIVE,
+                authProvider: AuthProvider.EMAIL,
+                ...(memberType === MemberType.CLINIC
+                  ? {
+                      clinicName: input.clinicName,
+                      location: input.location,
+                      clinicTimezone: input.clinicTimezone ?? 'Asia/Seoul',
+                    }
+                  : {}),
+                ...(memberType === MemberType.DOCTOR
+                  ? {
+                      clinicId: new Types.ObjectId(input.clinicId),
+                      doctorSpecializations: input.doctorSpecializations,
+                      professionalLicenseNumber:
+                        input.professionalLicenseNumber,
+                      doctorClinicStatus: DoctorClinicStatus.PENDING,
+                    }
+                  : {}),
+              },
+            ],
+            { session },
+          );
+          return created;
+        },
+      );
     } catch (error) {
       if (
         typeof error === 'object' &&

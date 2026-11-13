@@ -36,6 +36,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                       | —                |
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                       | —                |
 | FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`     | November 5, 2026 |
+| FI-08 | Email verification                        | Verify email ownership with an expiring code before creating a new email/password account                      | Medium         | **In progress** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md) | —                |
 
 ## Scope notes for future plans
 
@@ -128,6 +129,32 @@ GraphQL upload promises; build/full TypeScript,12 upload and all222 API checks p
 Lint has the pre-existing config.ts warning. Disposable data only; production
 storage/deployment,legacy rewriting and additional image-editing features remain out
 of scope. Commits remain manual and separate for backend/Next.
+
+### FI-08 — Email verification — In progress
+
+The [dedicated plan](EMAIL_VERIFICATION_PLAN.md) defines five steps covering policy
+and API agreement, Gmail delivery, backend enforcement, Next.js signup and combined
+acceptance, with checks and manual commit boundaries. Step 1 policy/contracts were
+finalized November 12, 2026, including API/error/proxy contracts, transactional
+proof consumption and an acceptance matrix. Selected defaults are a six-digit
+code valid for 10 minutes and five failed guesses per challenge. The owner
+requested escalating resend blocks of 1 hour, 3 hours, 5 hours and 24 hours. The plan
+interprets this as a block after each group of three resends, with 60-second spacing
+within groups and the initial email separate from the count. Maximum cooldown is
+24 hours. The owner selected reset after 24 hours without a send attempt. Blocked
+send attempts count as activity while the existing block deadline stays fixed.
+Signup consumes email-bound proof atomically with account creation. The Step 1
+baseline retains existing-account login and current Google verified-claim behavior.
+
+Step 2's Gmail delivery provider is implemented with `GOOGLE_SMTP_USER` and
+`GOOGLE_SMTP`. Backend build/typecheck, 96 unit tests and 222 API tests passed.
+Real Gmail TLS/authentication passed November 12, 2026. On November 13, Gmail
+accepted one test message sent through the compiled provider to the owner-selected
+configured sender inbox. The owner confirmed receipt on November 13, completing
+Step 2. Step 3 backend enforcement completed locally November 13, with durable
+request/resend limits, code confirmation, transactional signup proof and explicit
+storage setup/readiness checks. Disposable MongoDB/API tests cover timing, delivery
+recovery and concurrent writes. Steps 4–5 remain pending, so FI-08 continues In progress. This item is separate from FI-03 password recovery and FI-02 reminders.
 
 ## Modular delivery workflow
 
