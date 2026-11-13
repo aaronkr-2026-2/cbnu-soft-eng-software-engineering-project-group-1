@@ -36,7 +36,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                       | —                |
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                       | —                |
 | FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`     | November 5, 2026 |
-| FI-08 | Email verification                        | Verify email ownership with an expiring code before creating a new email/password account                      | Medium         | **In progress** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md) | —                |
+| FI-08 | Email verification                        | Verify email ownership with an expiring code before creating a new email/password account                      | Medium         | **Completed** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md) | November 13, 2026 |
 
 ## Scope notes for future plans
 
@@ -130,7 +130,7 @@ Lint has the pre-existing config.ts warning. Disposable data only; production
 storage/deployment,legacy rewriting and additional image-editing features remain out
 of scope. Commits remain manual and separate for backend/Next.
 
-### FI-08 — Email verification — In progress
+### FI-08 — Email verification — Completed
 
 The [dedicated plan](EMAIL_VERIFICATION_PLAN.md) defines five steps covering policy
 and API agreement, Gmail delivery, backend enforcement, Next.js signup and combined
@@ -154,7 +154,15 @@ configured sender inbox. The owner confirmed receipt on November 13, completing
 Step 2. Step 3 backend enforcement completed locally November 13, with durable
 request/resend limits, code confirmation, transactional signup proof and explicit
 storage setup/readiness checks. Disposable MongoDB/API tests cover timing, delivery
-recovery and concurrent writes. Steps 4–5 remain pending, so FI-08 continues In progress. This item is separate from FI-03 password recovery and FI-02 reminders.
+recovery and concurrent writes. Step 4 Next.js integration is committed as `0ebc234`, with code/proof controls,
+proxy allowlists and local disposable-stack/browser acceptance. Step 5 passed 507
+automated tests, the production build and 15 combined proxy/API requests. The live
+Gmail code reached the approved inbox and completed real browser verification,
+signup, subsequent login and reload/refresh. Disposable database checks confirmed
+one account/proof consumption, verification time and fixed-expiry token rotation.
+Completed locally November 13, 2026. Disposable data/processes were removed;
+application database setup and coordinated production deployment remain unperformed.
+This item is separate from FI-03 password recovery and FI-02 reminders.
 
 ## Modular delivery workflow
 

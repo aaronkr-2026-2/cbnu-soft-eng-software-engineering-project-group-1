@@ -2,13 +2,13 @@
 
 Date — November 12, 2026 (Asia/Seoul)
 
-Status — **In progress**. Step 1 policy and contract design completed November 12,
-2026. Step 2 completed November 13 after real SMTP delivery and owner-confirmed
-inbox receipt. Step 3 backend enforcement completed locally November 13. Steps 4–5
-remain pending. The contract below is the implementation baseline.
+Status — **Completed locally November 13, 2026**. Steps 1–5 and the agreed
+acceptance flow are complete. Automated checks, disposable-stack/browser checks
+and real Gmail receipt/signup/login/refresh evidence are separated below.
+Production deployment remains unperformed; coordinated release prerequisites apply.
 Owner-specified rules and selected engineering defaults are identified explicitly.
 
-Roadmap — [Future improvements](FUTURE_IMPROVEMENTS.md#fi-08--email-verification--in-progress)
+Roadmap — [Future improvements](FUTURE_IMPROVEMENTS.md#fi-08--email-verification--completed)
 
 ## Goal and scope
 
@@ -48,6 +48,7 @@ Paths are relative to the named worktree root.
   `next/components/auth/AuthPage.tsx` submits through `next/libs/api/auth.ts`,
   `next/libs/api/session.ts` and `next/libs/server/session-proxy.ts`.
   The proxy allowlists request fields and bridges HttpOnly refresh cookies.
+  Step 4 is committed on `next` as `0ebc234`; backend acceptance uses `f117f1f`.
 - Google authentication validates the provider token and nonce. In
   `backend/src/components/auth/google-auth.service.ts`, email is copied only
   when Google's `email_verified` claim is true. Google subject identifies the
@@ -358,7 +359,8 @@ sending is blocked. Re-render timing from a deadline, not an assumed interval co
 
 Backend EV-01–EV-10 are exercised by the Step 3 disposable MongoDB/API suite and
 existing authentication/username/booking regressions. Their evidence is recorded
-below. EV-11–EV-13 remain pending for Steps 4–5.
+below. EV-11–EV-13 completed through Steps 4–5, with live evidence recorded in
+the final acceptance section.
 
 | ID | Runner/fixture | Required observation |
 | --- | --- | --- |
@@ -480,9 +482,9 @@ Updated successful signup callers in authentication, username and doctor-onboard
 fixtures. No application database setup, environment/provider changes or deployment
 were performed. No sprint covers November 13; closed Sprint 05 is preserved.
 
-Verification evidence is recorded in Progress below. Next.js integration and the
-full real-inbox/browser signup journey remain Steps 4–5. The existing Next signup
-form is temporarily incompatible with this backend contract until Step 4.
+Verification evidence is recorded in Progress below. Next.js integration subsequently completed in Step 4 at `0ebc234`. The full
+real-inbox/browser signup journey subsequently completed in Step 5; coordinate
+both applications when preparing release.
 
 **Manual commit** — `feat(backend): require email verification for signup`
 
@@ -505,7 +507,16 @@ explicit send request. Execute EV-11–EV-12.
 Show actionable errors and accessible status/focus with keyboard and mobile
 layouts. The UI starts a session only after successful signup.
 
-**Proposed commit** — `feat(next): add email verification to patient signup`
+**Delivery checkpoint — November 13, 2026**
+
+Completed on the Next branch in `0ebc234`. Typecheck, 125 tests and isolated
+production builds passed. Real Next proxy → compiled Nest → disposable MongoDB
+checks and native Chrome verified wrong-code recovery, email edits, retained
+form/proof through username conflict, successful signup, keyboard confirmation
+and 390px layout. SMTP was stubbed in Step 4. Details are in the
+[Next architecture record](../docs/architecture/architecture-next.md).
+
+**Delivered commit** — `feat(next): add email verification to patient signup`
 
 ### Step 5 — Verify the complete flow and prepare release
 
@@ -545,8 +556,9 @@ the actual completion date and any deployment limits.
 - Step 3 backend implementation completed locally November 13. Backend EV-01–EV-10
   verification passed: build/full TypeScript; 96 unit, 222 API, 46 new email
   integration, 18 username integration and 193 booking integration tests. Lint has
-  only the existing empty `config.ts` warning. Steps 4–5 and
-  EV-11–EV-13 remain pending. FI-08 remains In progress.
+  only the existing empty `config.ts` warning. Step 4 subsequently completed
+  at `0ebc234`; Step 5 real Gmail/browser signup/login/refresh acceptance
+  completed November 13, 2026. FI-08 is Completed locally.
 
 ### Step 3 verification evidence — November 13, 2026
 
@@ -579,3 +591,72 @@ the actual completion date and any deployment limits.
   provider call/browser acceptance is claimed. Disposable runners removed their data
   and processes. Initial local-socket sandbox denial was resolved through authorized
   local test execution. TypeScript/test-fixture corrections are recorded in B-022.
+
+
+### Step 5 final acceptance — November 13, 2026
+
+Backend `f117f1f` and Next `0ebc234` were clean before verification. Backend build,
+full TypeScript and lint pass, with only the pre-existing empty `config.ts` warning.
+All 96 unit, 222 API, 46 disposable email lifecycle and 18 disposable username
+integration tests pass. Next typecheck and 125 tests pass; the isolated production
+build also passes without temporary API URLs. Total: 507 tests across these suites.
+Booking rules were unchanged; the prior Step 3 193-test booking result is historical,
+not a Step 5 rerun. Existing Google verified/no-email/status policy uses automated
+library/signature tests and real database identity tests; no fresh live Google sign-in.
+
+The tracked signup callers were rechecked: Next forwards proof while forcing USER;
+the authentication, username and doctor-onboarding fixtures contain proof. Existing
+suites cover lost responses, same-ID retry, resend, exact expiry, concurrent writes,
+code/proof privacy and duplicate rollback. Step 4's actual proxy/browser checks
+remain separate recorded evidence. No application database setup/data, deployment,
+branch merge, staging, commit or push has been performed.
+
+The owner explicitly approved up to two verification emails to the configured sender
+inbox after the initial automatic approval rejection. One real email was requested
+from the actual Next signup screen, sent by the compiled Gmail provider and accepted
+by Gmail. The owner supplied the received code, which passed code verification in
+Chrome. Browser signup created the disposable account; subsequent sign-out/login
+and reload restored the signed-in session. Read-only disposable database checks
+confirmed one account, one consumed proof, an actual `emailVerifiedAt`, refresh-token
+rotation and unchanged fixed session expiry. No code, proof or credentials are
+retained in project records. Only one of the two approved emails was needed.
+
+Fifteen additional actual Next proxy → Nest → disposable MongoDB requests passed
+same-ID recovery, resend/cooldown, supersession, email binding, proof replay,
+signup/login/refresh cookies, definitive/ambiguous delivery failure and expiry.
+Their synthetic-address mail was explicitly stubbed, separate from the live inbox
+flow. Existing tests cover lost confirmation/signup responses and long cooldowns;
+Step 4's keyboard/390px/error/draft-preservation evidence remains applicable.
+The Step 5 live verification also used keyboard code confirmation. The corrected
+countdown displayed 10m 0s after verification.
+
+The browser was signed out, password saving declined and the dedicated tab closed.
+The owned runner and disposable MongoDB files were removed after checks; sanitized
+local evidence remains under `/private/tmp/medconnect-email5-runtime-Zp640V`.
+The final isolated no-fixture-URL build is
+`/private/tmp/medconnect-email5-release-xmrb9sd4`. No application database,
+environment, dependency, deployment, staging, commit, push or merge changed.
+No sprint covers November 13; closed history is preserved. Steps 1–5 and FI-08 are
+complete locally; production rollout/throughput/proxy/TLS remain unverified.
+
+The final changes are documentation-only; suggested manual commits are
+`docs(backend): complete email verification acceptance` and
+`docs(next): record live email signup acceptance`.
+
+### Coordinated release preparation
+
+1. Integrate the verified backend and Next commits together using the owner's
+   normal Git workflow. Old signup clients must supply verification proof.
+2. Before starting the selected API environment, complete the existing username
+   migration and `member:email:storage -- --apply`, then run its read-only `--check`.
+   These application-environment actions were not performed by this acceptance run.
+3. Configure stable private `JWT_ACCESS_SECRET`, the matching Gmail sender/app
+   password, server-side Next `API_URL` and reachable public API/GraphQL URLs.
+   SMTP credentials belong only to Nest; never expose them through NEXT_PUBLIC.
+4. Use HTTPS for production session cookies and verify actual Host/Origin/CORS and
+   proxy topology. Proxied clients currently share the upstream IP budget; untrusted
+   forwarded-IP headers must not override attribution.
+5. The local real inbox/browser acceptance is complete. Recheck deployed runtime
+   configuration and acceptance after coordinated release; local success does not
+   establish a deployed environment. Deployment/production throughput,
+   shared multi-process IP storage and production proxy/TLS remain unverified.

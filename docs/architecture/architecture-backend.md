@@ -131,7 +131,7 @@ flowchart TD
   GQL -->|Interceptor events: operation field, duration, errors| Logs
 ```
 
-External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. Gmail verification endpoints and transactional signup enforcement are implemented; the Next.js signup controls remain pending in FI-08.
+External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. Gmail verification endpoints and transactional signup enforcement are implemented; the Next.js signup controls are implemented, with local real Gmail/browser acceptance completed in FI-08.
 
 ### Next.js public discovery client
 
@@ -567,7 +567,7 @@ Here, shared services include reusable in-process capabilities and external prov
 | Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. New email/password signup requires email ownership proof. Historical accounts retain login/refresh without backfilled verification timestamps. |
 | Google sign-in | Backend and Next.js callback implemented; live provider completion unverified | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
 | Telegram identity | Schema support only | `telegramId` exists; no implemented Telegram login flow. |
-| Email delivery | Backend signup verification implemented; Next.js integration pending | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
+| Email delivery | Backend signup verification implemented; Next.js integration and local live combined acceptance complete | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
 | External medical, pharmacy, maps, or payment APIs | No implemented integration found | No outbound business HTTP client/service found in backend source. Do not present these as existing capabilities. |
 | Logging | Implemented internally | FileLogger writes JSON lines to `LOG_FILE` or `logs/medconnect.log`; LoggingInterceptor records transport execution metadata. No hosted log service is configured in this code. |
@@ -583,7 +583,7 @@ as responsive HTML with a plain-text fallback. `verification-email.ts` builds
 the message, and the project logo is packaged through Nest assets and embedded
 as a CID attachment from a Buffer. SMTP is
 outside database transactions. EmailVerificationService owns the durable send/code/proof
-workflow; signup UI integration remains FI-08 Step 4.
+workflow; signup UI integration completed in FI-08 Step 4 on Next commit `0ebc234`.
 
 The provider reads `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` when called. Password grouping
 spaces are removed. Nodemailer connects to `smtp.gmail.com:465` with certificate
@@ -637,8 +637,8 @@ the initial send is separate. Blocked requests update activity without extending
 block. A full 24-hour inactivity period resets escalation when no block/lease is active.
 Explicit code/proof expiry checks remain effective before delayed TTL cleanup.
 
-The required signup field is a compatibility change: deploy with the Next.js Step 4
-form/proxy work. Full API/recovery details and operator setup are in the
+The required signup field is a compatibility change: deploy with the implemented
+Next.js Step 4 form/proxy work (`0ebc234`). Full API/recovery details and operator setup are in the
 [email verification plan](../../backend/EMAIL_VERIFICATION_PLAN.md).
 
 ## Clinic and doctor cities
@@ -1064,3 +1064,26 @@ Earlier step-specific notes describe their historical scope; this section supers
 pending Step 12 integration/recovery statements. Production deployment, external
 providers, workload/SLA validation and databases above the auditor limit remain outside
 this acceptance. See the operations runbook for pause/retry/reconciliation procedures.
+
+
+## Email verification release acceptance — November 13, 2026
+
+Step 5 passed backend build/full TypeScript/lint (existing empty-config warning only),
+96 unit/222 API/46 email integration/18 username integration tests, Next typecheck/
+125 tests and a final isolated production build without fixture API URLs: 507 tests.
+Fifteen actual proxy/API requests also passed retry/resend/expiry/binding/replay,
+signup/login/refresh and definitive/ambiguous mail failure with synthetic-address
+SMTP stubs. Existing Google policy remains covered automatically; no fresh live
+Google sign-in or production deployment is claimed.
+
+After explicit owner approval, the actual Next signup form requested one real Gmail
+code to the configured sender inbox. The owner supplied the received code and Chrome
+completed verification, signup, sign-out/login and reload-based session restoration.
+Read-only disposable MongoDB checks confirmed one account, one consumed proof,
+private email verification time, refresh-token rotation and unchanged fixed expiry.
+Step 4 separately covered keyboard/390px/error/draft preservation with stubbed mail.
+The browser signed out and closed; the owned stack and disposable database files
+were removed. FI-08 is Completed locally. Application database setup, coordinated
+production deployment, topology/TLS and throughput remain unverified. The owning
+[plan](../../backend/EMAIL_VERIFICATION_PLAN.md#coordinated-release-preparation)
+records operator prerequisites and verification limits.
