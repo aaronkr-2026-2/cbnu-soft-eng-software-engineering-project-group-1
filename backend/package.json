@@ -48,7 +48,7 @@
     "graphql": "^16.14.2",
     "graphql-upload-ts": "^2.2.0",
     "mongodb": "^7.6.0",
-    "mongoose": "^9.10.0",
+    "mongoose": "^9.11.4",
     "nodemailer": "^10.5.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -72,5 +72,17 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.2"
+  },
+  "overrides": {
+    "@nestjs/platform-express": {
+      "multer": "2.5.0"
+    },
+    "@nestjs/graphql": {
+      "@graphql-tools/utils": "12.0.2"
+    },
+    "@nestjs/mau": {
+      "undici": "6.29.1",
+      "tmp": "0.2.7"
+    }
   }
 }
