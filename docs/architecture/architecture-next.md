@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated November 5, 2026 for doctor/clinic directory search Steps4–6. Earlier patient booking,
+Updated November 13, 2026 for FI-08 email verification Step 4. Earlier patient booking,
 staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
@@ -18,6 +18,8 @@ flowchart TD
   Routes[Pages and shared layout] --> Features[Discovery, Auth, Profile, Patient Care, Workspace, Notifications]
   Features --> Transport[libs/api fetch helpers and GraphQL documents]
   Features --> Session[Memory session store]
+  Features --> Verification[Per-form email verification state]
+  Verification -->|Fixed email-request and email-verify actions| Bridge
   Session --> Bridge[Next session API bridge]
   Transport -->|Public or bearer GraphQL| Nest[Nest services and guards]
   Bridge -->|Allowlisted auth REST| Nest
@@ -222,13 +224,66 @@ crop from the API. All data is disposable; deployment/intended production storag
 and rewriting legacy images are outside this acceptance.
 
 
+## Email verification signup — FI-08 Step 4, November 13, 2026
+
+`AuthPage` composes `components/auth/EmailVerification.tsx` beside the email field.
+The per-form `EmailVerification` state in `libs/email-verification.ts` is subscribed
+through `use-email-verification.ts`, following the existing username-check pattern.
+It owns challenge/proof deadlines, request identity, messages and cancellation;
+Nest owns email policy, guesses, persistence and atomic proof consumption.
+
+- Send code and Verify email are explicit button actions. Six-digit strings preserve
+  leading zeros; labels, one-time-code autocomplete, numeric input hints, keyboard
+  focus and polite status messages are included. The small-screen panel stacks its
+  controls. Account creation requires both valid proof and username availability.
+- Changing the normalized email or form mode cancels obsolete requests and clears
+  verification. Revisions also reject stale responses from transports that ignore
+  aborts. Request IDs, codes and proof exist only in form memory, with no browser
+  storage, serialized page props, URL fields or cross-tab token broadcasts.
+- Uncertain delivery exposes Retry send using the same UUID v4. A deliberate
+  Send new code/Resend code uses a new UUID and clears prior proof. Existing code
+  entry is retained on failure when a prior challenge may still be usable. Absolute
+  server-derived deadlines drive cooldowns; interval ticks redraw current remaining
+  time and expire proof. Blocked sends do not prevent verification or valid signup.
+- `libs/api/email-verification.ts` uses the existing session transport/timeouts.
+  The bridge adds only `email-request` → `email-verification/request` and
+  `email-verify` → `email-verification/verify`, forwards declared fields, validates
+  response shape/duration/opaque-token bounds and returns only challenge/timing or
+  proof/timing fields. Neither action calls tokenResult or sets session cookies.
+- `email-verification-contract.ts` is a shared public contract without server-only
+  imports. Proxy/session/auth error normalization preserves only known reason/status
+  pairs and finite retry timing clamped to 1–86400 seconds. Provider payloads and
+  arbitrary fields are dropped; no-store, same-origin JSON/header checks and fixed
+  upstream URL are preserved. Signup forwards proof while forcing USER and keeps
+  the existing exact USERNAME_TAKEN/memberNick marker.
+- Correctable signup conflicts preserve unrelated form fields and valid proof.
+  Required/invalid proof from Nest clears email authorization and asks for a fresh
+  code. Ordinary login guidance remains for an uncertain committed signup response.
+  Only completed signup calls the established session store.
+
+The current Nest peer for all proxied clients is Next's server. Their code-request
+and confirmation IP budgets are shared; changing an untrusted forwarded-IP header
+does not grant another budget. Durable email escalation remains backend-owned.
+Configure backend verification storage and SMTP before a coordinated release.
+
+Verification: typecheck, frontend tests and isolated production build results are
+recorded in the Next delivery log. Real Next proxy → compiled Nest → disposable
+replica-set HTTP checks covered field/error contracts, delivery rejection and
+ambiguous-send recovery, expired proof, persisted signup details, login cookies and
+shared upstream IP limits. Native Chrome passed wrong-code correction, email-edit
+invalidation, keyboard code confirmation, username-conflict draft/proof preservation
+and successful signup, plus a 390px layout check. SMTP was stubbed and no application
+database or live provider was used. FI-08 Step 5's real inbox/browser release
+acceptance remains pending. The shared backend plan is preserved under the Next
+worktree's protected-backend rule; this section records Step 4 delivery.
+
 ## Sessions and deployment
 
 ```mermaid
 flowchart LR
   Browser[Browser] -->|Pages and same-origin auth POST| Next[Next server]
   Next -->|HttpOnly refresh and nonce cookies| Browser
-  Next -->|REST login, signup, refresh, Google| API[Nest API]
+  Next -->|REST login, signup, refresh, Google and email codes| API[Nest API]
   Browser -->|GraphQL, bearer access token for private operations| API
   Browser -->|REST username check; Bearer token for own-profile check| API
   API --> DB[(MongoDB replica set)]

@@ -1,9 +1,15 @@
+import {
+  verificationProblem,
+  type VerificationReason,
+} from '../email-verification-contract';
 import { isUsernameTaken } from '../username';
 let queue: Promise<unknown> = Promise.resolve();
 export class SessionError extends Error {
   constructor(
     readonly status: number,
     readonly usernameTaken = false,
+    readonly verificationReason?: VerificationReason,
+    readonly retryAfterSeconds?: number,
   ) {
     super('Session unavailable');
   }
@@ -32,13 +38,17 @@ export function sessionRequest<T>(
         signal: controller.signal,
       });
       if (!response.ok) {
-        const detail =
-          response.status === 409
-            ? await response.json().catch(() => null)
-            : null;
+        const detail = await response.json().catch(() => null);
+        const problem = ['signup', 'email-request', 'email-verify'].includes(
+          action,
+        )
+          ? verificationProblem(detail, response.status)
+          : {};
         throw new SessionError(
           response.status,
           action === 'signup' && isUsernameTaken(detail),
+          problem.verificationReason,
+          problem.retryAfterSeconds,
         );
       }
       return (await response.json()) as T;

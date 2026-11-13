@@ -54,8 +54,8 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 - `/doctors`: server-paged approved doctor cards, full-name search, clinic-city/
   specialty filters, A–Z/Z–A sorting, name suggestions and **View times** links.
   Committed filters/page live in shareable URLs; typing commits after300ms or Enter.
-- `/auth`: email/password sign-in, patient signup, password visibility controls,
-  validation, and optional Google Identity Services popup sign-in.
+- `/auth`: email/password sign-in, patient signup with email ownership codes,
+  resend timing, password visibility controls, validation, and optional Google sign-in.
 - `/mypage`: authenticated private profile, inline Save/Cancel editing, optional
   current/new/confirm password fields, and square photo cropping/upload/removal.
 - `/book`: clinic, doctor, specialty, visual month calendar and real 30-minute slot
@@ -124,7 +124,7 @@ the mutation. No slot is reserved merely by selecting it.
 ## Sessions and Google sign-in
 
 The same-origin `/api/session/[action]` bridge forwards allowlisted authentication
-inputs to Nest login/signup/refresh/Google endpoints. It requires same-origin JSON
+inputs to Nest login/signup/refresh/Google and email-verification endpoints. It requires same-origin JSON
 POSTs and a custom header, disables caching, and stores rotating refresh tokens
 in HttpOnly SameSite=Lax cookies scoped to `/api/session` (Secure in production).
 JavaScript receives only the public member summary and access token. Tokens never
@@ -147,6 +147,27 @@ register the frontend origin in Google's Authorized JavaScript origins. The SDK
 passes the nonce and ID token to Nest; Google tokens never authorize booking.
 Nonce expiry, rejected credentials, and SDK failures are recoverable. Real Google
 account login has not been verified in this step.
+
+Patient signup requests a six-digit email code, confirms it, and submits the returned
+single-use proof with account details. Wrong/expired codes, exhausted guesses and
+send outages have recoverable messages. Retry send reuses an uncertain request ID;
+Send new code uses a fresh ID. The backend supplies 60-second and escalating
+1/3/5/24-hour waits. Codes and proof expire after 10 minutes; changing the normalized
+email or switching form mode clears verification. Temporary code/proof/request ID
+stay in form memory and never create a session. Username conflicts retain the form
+and valid proof; only completed signup starts a session.
+
+Run the backend's explicit verification storage setup on a replica set and configure
+its private Gmail settings, as described in the
+[email verification contract](../backend/EMAIL_VERIFICATION_PLAN.md#storage-setup-and-operations).
+Next receives no SMTP credentials. Request/verify routes set no session cookies.
+Proxied clients currently share the Next server's upstream IP budget (10 code
+requests and 30 confirmations per minute per API process); forwarded-IP attribution
+needs a verified deployment configuration. A reload retains no proof, and the next
+explicit send obtains authoritative cooldown timing.
+
+Local browser/proxy acceptance used real Nest/disposable MongoDB with stubbed mail.
+The full real-inbox/browser journey and deployment remain the separate FI-08 Step 5.
 
 Patient signup remains `USER` only. Doctor/clinic registration UI is pending.
 Successful profile password changes clear the browser session and require login;

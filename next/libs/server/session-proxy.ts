@@ -1,3 +1,9 @@
+import {
+  emailChallenge,
+  emailProof,
+  verificationProblem,
+  type VerificationReason,
+} from '../email-verification-contract';
 import { isUsernameTaken } from '../username';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createHash } from 'node:crypto';
@@ -46,6 +52,8 @@ class AuthFailure extends Error {
   constructor(
     readonly status: number,
     readonly usernameTaken = false,
+    readonly verificationReason?: VerificationReason,
+    readonly retryAfterSeconds?: number,
   ) {
     super('Authentication unavailable');
   }
@@ -63,13 +71,21 @@ async function upstream(path: string, input: object, cookieHeader?: string) {
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    const detail =
-      response.status === 409 ? await response.json().catch(() => null) : null;
+    const detail = await response.json().catch(() => null);
+    const problem = [
+      'signup',
+      'email-verification/request',
+      'email-verification/verify',
+    ].includes(path)
+      ? verificationProblem(detail, response.status)
+      : {};
     throw new AuthFailure(
       [400, 401, 403, 409, 429].includes(response.status)
         ? response.status
         : 503,
       path === 'signup' && isUsernameTaken(detail),
+      problem.verificationReason,
+      problem.retryAfterSeconds,
     );
   }
   return response;
@@ -163,12 +179,43 @@ export async function sessionProxy(req: NextApiRequest, res: NextApiResponse) {
     return;
   }
   if (
-    !['login', 'signup', 'google', 'nonce', 'refresh'].includes(String(action))
+    typeof action !== 'string' ||
+    ![
+      'login',
+      'signup',
+      'google',
+      'nonce',
+      'refresh',
+      'email-request',
+      'email-verify',
+    ].includes(action)
   ) {
     res.status(404).end();
     return;
   }
   try {
+    if (action === 'email-request' || action === 'email-verify') {
+      const input =
+        action === 'email-request'
+          ? { memberEmail: body.memberEmail, requestId: body.requestId }
+          : {
+              memberEmail: body.memberEmail,
+              challengeId: body.challengeId,
+              code: body.code,
+            };
+      const response = await upstream(
+        action === 'email-request'
+          ? 'email-verification/request'
+          : 'email-verification/verify',
+        input,
+      );
+      const raw = await response.json();
+      const result =
+        action === 'email-request' ? emailChallenge(raw) : emailProof(raw);
+      if (!result) throw new AuthFailure(503);
+      res.status(200).json(result);
+      return;
+    }
     if (action === 'nonce') {
       const response = await upstream('google/nonce', {});
       const value = await response.json();
@@ -220,6 +267,7 @@ export async function sessionProxy(req: NextApiRequest, res: NextApiResponse) {
       const input =
         action === 'signup'
           ? {
+              emailVerificationToken: body.emailVerificationToken,
               memberEmail: body.memberEmail,
               memberPassword: body.memberPassword,
               memberNick: body.memberNick,
@@ -247,7 +295,25 @@ export async function sessionProxy(req: NextApiRequest, res: NextApiResponse) {
       res.setHeader('Set-Cookie', cookie(refreshName(), '', 0));
     if (action === 'google')
       res.setHeader('Set-Cookie', cookie(nonceName(), '', 0));
+    const verification =
+      ['signup', 'email-request', 'email-verify'].includes(String(action)) &&
+      error instanceof AuthFailure
+        ? error
+        : undefined;
+    const reason =
+      verification?.verificationReason ??
+      (status === 503 &&
+      (action === 'email-request' || action === 'email-verify')
+        ? 'EMAIL_VERIFICATION_UNAVAILABLE'
+        : undefined);
+    const retryAfterSeconds =
+      verification?.retryAfterSeconds ??
+      (reason === 'EMAIL_VERIFICATION_UNAVAILABLE' ? 30 : undefined);
+    if (retryAfterSeconds !== undefined)
+      res.setHeader('Retry-After', String(retryAfterSeconds));
     res.status(status).json({
+      ...(reason ? { reason } : {}),
+      ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
       error: 'Session request could not be completed',
       ...(action === 'signup' &&
       error instanceof AuthFailure &&

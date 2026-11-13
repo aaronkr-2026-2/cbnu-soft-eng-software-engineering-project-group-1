@@ -748,3 +748,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** The header should show the saved photo, while unsaved crop selections stay in the profile editor.
+
+
+## Email verification signup (FI-08 Step 4) — 2026-11-13
+
+**Tool(s) used:** Codex, source/Git inspection, installed Next.js Pages Router documentation, Yarn/TypeScript/Node tests, Webpack builds, native Chrome computer use and disposable Next/Nest/MongoDB HTTP fixtures.
+
+**What I asked for:** Implement the next email verification step, then stop for my manual commit.
+
+**Pre-planning:** Verified clean next worktree at f117f1f and the committed Step 3 contract. Read the actual signup/session proxy, username-check patterns, owning instructions and MediBridge auth styles. Backend files are protected; no sprint covers November 13.
+
+**Planning:** Keep email verification in one per-form memory state with abort/revision guards. Reuse the same-origin proxy and existing session lifecycle, retaining drafts/proof through correctable username conflicts and recovering uncertain sends with the same UUID.
+
+**Implementation process:** Added Send/Resend/Retry send, six-digit code entry, Verify email, status/focus and deadline-based timing. Extended fixed proxy actions and input/result/error allowlists, required signup proof and retained USER enforcement. Typecheck and 125 Node tests passed (26 added). Isolated production builds passed, including a final build without fixture API URLs. Twenty real proxy→Nest→disposable MongoDB requests checked delivery failures/recovery, expired proof, persistence, login cookies and shared upstream IP budgets. Native Chrome verified wrong-code recovery, email-change invalidation, keyboard confirmation, username-conflict preservation, successful signup and 390px controls. Declined password saving, signed out, restored emulation and closed the dedicated tab. SMTP was stubbed; real Gmail/browser release acceptance is Step 5. Updated READMEs/Next architecture and local session/lessons records; preserved the protected backend plan and closed sprints. No app DB, provider, environment, dependency, backend source, deployment or Git staging/commit/push changes.
+
+**What I kept as-is:** Existing login/Google/session cookie behavior, username checks and conflict marker, backend authority, static public shells and private-data boundaries.
+
+**What I changed or rejected, and why:** Signup starts a session only after proof-backed account creation. A separate Retry send retains an uncertain request ID, while Send new code explicitly starts another action; this prevents an accidental duplicate email after a lost response.
+
+**Something the AI got wrong that I had to catch:** Chrome showed a new deadline as 10m 1s because the last interval tick preceded the response. Codex corrected rendering to use the current clock and added a server-rendered regression test; final 125 tests/build pass (NEXT-013). This was a browser/agent catch, not an error I reported manually.
+
+**One decision I can explain without AI:** Email proof belongs only to the email that was verified. Clearing it on email edits prevents me from accidentally submitting another address with the old proof.

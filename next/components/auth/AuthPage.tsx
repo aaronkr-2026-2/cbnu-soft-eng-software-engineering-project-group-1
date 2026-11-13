@@ -1,3 +1,5 @@
+import { EmailVerification } from './EmailVerification';
+import { useEmailVerification } from '../../libs/use-email-verification';
 import { useUsernameCheck } from '../../libs/use-username-check';
 import { authReturn } from '../../libs/auth-return';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -55,9 +57,15 @@ export function AuthPage() {
   const heading = useRef<HTMLHeadingElement>(null);
   const signup = mode === 'signup';
   const username = useUsernameCheck(mode);
+  const emailVerification = useEmailVerification(mode);
+  const emailBusy = ['sending', 'verifying'].includes(
+    emailVerification.state.status,
+  );
   useEffect(() => {
     if (!busy && username.state.status === 'taken')
-      form.current?.querySelector<HTMLInputElement>('[name="username"]')?.focus();
+      form.current
+        ?.querySelector<HTMLInputElement>('[name="username"]')
+        ?.focus();
   }, [busy, username.state.status]);
 
   useEffect(() => () => request.current?.abort(), []);
@@ -68,6 +76,7 @@ export function AuthPage() {
   function switchMode() {
     if (request.current || googleBusy.current) return;
     username.check.reset();
+    emailVerification.check.reset();
     setMode(signup ? 'signin' : 'signup');
     setFields((previous) => ({ ...previous, password: '', confirm: '' }));
     setErrors({});
@@ -76,6 +85,7 @@ export function AuthPage() {
 
   function update(key: keyof Fields, value: string) {
     if (key === 'username') username.check.reset();
+    if (key === 'email') emailVerification.check.edit(value);
     setFields((previous) =>
       previous[key] === value ? previous : { ...previous, [key]: value },
     );
@@ -91,6 +101,7 @@ export function AuthPage() {
   }
 
   async function completeSignIn(result: AuthResult) {
+    emailVerification.check.reset();
     startSession(result);
     setFields((previous) => ({ ...previous, password: '', confirm: '' }));
     // Fixed internal destination; no user-supplied redirect URL.
@@ -99,7 +110,8 @@ export function AuthPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (request.current || googleBusy.current) return;
+    if (request.current || googleBusy.current || emailVerification.check.busy())
+      return;
     const nextErrors: typeof errors = {};
     const email = fields.email.trim().toLowerCase();
     const length = (value: string) => Array.from(value).length;
@@ -113,6 +125,9 @@ export function AuthPage() {
         ? 'Use 8–100 characters.'
         : 'Enter your password (up to 128 characters).';
     if (signup) {
+      if (!emailVerification.check.token(email))
+        nextErrors.email =
+          'Verify this email address before creating your account.';
       const invalidUsername = usernameError(fields.username);
       if (invalidUsername) nextErrors.username = invalidUsername;
       else if (!username.check.available(fields.username))
@@ -144,6 +159,7 @@ export function AuthPage() {
         signup
           ? ({
               ...input,
+              emailVerificationToken: emailVerification.check.token(email)!,
               memberType: 'USER',
               memberNick: fields.username.trim(),
               memberPhone: fields.phone.trim(),
@@ -167,12 +183,25 @@ export function AuthPage() {
           ...previous,
           username: undefined,
         }));
-      } else if (!controller.signal.aborted)
+      } else if (!controller.signal.aborted) {
+        if (
+          reason instanceof AuthError &&
+          [
+            'EMAIL_VERIFICATION_INVALID',
+            'EMAIL_VERIFICATION_REQUIRED',
+          ].includes(reason.verificationReason ?? '')
+        ) {
+          emailVerification.check.rejectProof();
+          form.current
+            ?.querySelector<HTMLInputElement>('[name="email"]')
+            ?.focus();
+        }
         setError(
           reason instanceof Error
             ? reason.message
             : 'We couldn’t sign you in. Please try again.',
         );
+      }
     } finally {
       if (!controller.signal.aborted) {
         request.current = null;
@@ -308,6 +337,13 @@ export function AuthPage() {
                   fullWidth
                 />
                 {signup && (
+                  <EmailVerification
+                    email={fields.email}
+                    disabled={busy}
+                    verification={emailVerification}
+                  />
+                )}
+                {signup && (
                   <TextField
                     id="phone"
                     name="phone"
@@ -358,7 +394,10 @@ export function AuthPage() {
                   fullWidth
                   disabled={
                     busy ||
-                    (signup && !username.check.available(fields.username))
+                    (signup &&
+                      (emailBusy ||
+                        !emailVerification.check.token(fields.email) ||
+                        !username.check.available(fields.username)))
                   }
                   endIcon={!pending && <ArrowForwardRounded />}
                 >
@@ -376,7 +415,7 @@ export function AuthPage() {
               </div>
               <div className="auth-alternatives">
                 <GoogleSignIn
-                  disabled={pending}
+                  disabled={pending || emailBusy}
                   onBusyChange={googleBusyChanged}
                   onSuccess={completeSignIn}
                 />
