@@ -1095,3 +1095,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No application-code AI error identified. Codex corrected an incomplete temporary build path and reran the correct build successfully. Native browser cleanup briefly lost its window; reconnect confirmed sign-out and the dedicated tab then closed.
 
 **One decision I can explain without AI:** Disposable MongoDB proves real email ownership and signup behavior without creating an account in the application database. Coordinating frontend/backend release keeps signup clients compatible with required proof.
+
+
+## Patch critical transitive dependencies — 2026-11-13
+
+**Tool(s) used:** Codex, Git/source/lockfile inspection, npm registry resolution/install/audit, Nest build, TypeScript, oxlint, Jest/Supertest and direct proxy-trust regression checks.
+
+**What I asked for:** Apply the proposed small backend update to resolve the three critical Dependabot alerts.
+
+**Pre-planning:** Verified clean backend 3a65ce3 and current instructions. Critical advisories affect runtime proxy-addr 2.0.7 and development Handlebars 4.7.9 through ts-jest. Existing dependency ranges admit the patched versions. No sprint covers November 13.
+
+**Planning:** Resolve named transitive updates in a temporary lockfile copy, review the package diff, then install and verify the reviewed lockfile in the backend worktree.
+
+**Implementation process:** Updated only proxy-addr to 2.0.8 and Handlebars to 4.7.10 in package-lock.json. npm installed exactly two changed packages. Build/full TypeScript, 96 unit and 222 API tests pass. Lint retains the existing empty config.ts warning. Direct checks confirm broad IPv6 trust prefixes cannot trust/spoof IPv4 clients, valid mapped subnets retain correct matching and Express defaults to trust proxy false. Fresh backend npm audit has zero critical findings (9 high, 21 moderate and 6 low package findings remain). GitHub alert status follows integration into default branch main. Staging, commit, push and merge remain manual.
+
+**What I kept as-is:** Existing dependency declarations and application behavior. The patch fits the approved critical-alert scope.
+
+**What I changed or rejected, and why:** Used the existing compatible version ranges and a reviewed lockfile-only update. This keeps the security fix small and exercises the real installed dependency versions in existing tests.
+
+**Something the AI got wrong that I had to catch:** Codex's first temporary smoke assertion expected an invalid trust prefix to throw. Source/advisory inspection established that the fix instead denies cross-family matches. Codex corrected the assertion to verify actual matching and forwarded-IP behavior, then all checks passed (B-023). This was an automated/agent catch, not an error I reported manually.
+
+**One decision I can explain without AI:** A patch update within existing dependency ranges can fix the critical packages while keeping the change small enough to review and test directly.
