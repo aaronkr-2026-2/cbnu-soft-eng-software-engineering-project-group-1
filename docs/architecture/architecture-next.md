@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated November 13, 2026 for FI-08 email verification final acceptance. Earlier patient booking,
+Updated November 14, 2026 for the account deletion commitment dialog. Earlier email verification, patient booking,
 staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
@@ -18,6 +18,8 @@ flowchart TD
   Routes[Pages and shared layout] --> Features[Discovery, Auth, Profile, Patient Care, Workspace, Notifications]
   Features --> Transport[libs/api fetch helpers and GraphQL documents]
   Features --> Session[Memory session store]
+  Features --> DeletionReview[AccountDeletionReview dialog state]
+  DeletionReview -->|Scoped readiness and explicit cancellation| Transport
   Features --> Verification[Per-form email verification state]
   Verification -->|Fixed email-request and email-verify actions| Bridge
   Session --> Bridge[Next session API bridge]
@@ -501,3 +503,61 @@ FI-08 is Completed locally. No application-database setup, environment/dependenc
 changes, deployment, merge, staging, commit or push occurred. No sprint covers
 November 13. The [shared plan](../../backend/EMAIL_VERIFICATION_PLAN.md#coordinated-release-preparation)
 records coordinated release prerequisites and deployment/proxy/TLS limits.
+
+
+## Account deletion review — November 14, 2026
+
+Account deletion Step 3 is complete locally in the Next worktree. My Page exposes
+Delete account for USER, DOCTOR and CLINIC accounts. It opens
+`components/mypage/AccountDeletionDialog.tsx` while retaining the profile draft.
+The dialog provides appointment/waitlist totals, paginated lists, clinic-local
+dates/statuses, role-appropriate actions and resolution instructions. Clinic
+accounts also see the number of affiliations affected by eventual closure.
+
+`apollo/user/account-deletion.ts` selects only the readiness projection.
+`libs/api/account-deletion.ts` reuses `careRequest`, the existing cancelAppointment
+and leaveWaitlist documents, authenticated token refresh and safe HTTP/GraphQL
+error handling. Queries omit cookies and disable caching. Response validation
+rejects incomplete or contradictory readiness. The UI uses server counts across
+all pages, and a later empty page cannot establish eligibility. Nest owns status,
+time, relationship and cancellation permissions. This frontend requires backend
+Step 2, verified against commit `587e5ed`.
+
+`libs/account-deletion.ts` owns one review state per open dialog. It discards late
+reads on refresh/close, serializes actions, refreshes both lists after every
+cancellation attempt and retains successful server changes if another action
+fails. Uncertain replies trigger a read before another action is offered. Writes
+are never automatically replayed. Pagination has independent cursors, detects
+repeated/incomplete pages, and restarts both lists if counts change. Window focus
+and restored visibility refresh the open dialog. Separate page requests may
+observe different backend snapshots.
+
+MUI supplies modal focus containment, Escape/backdrop dismissal and focus
+restoration. The heading receives initial focus. Inline cancellation confirmation
+explains the action, and focus moves to the content before a canceled row disappears.
+Loading/error feedback and retry controls accompany disabled actions. Closing
+aborts frontend requests and preserves already committed cancellations.
+
+The final Delete account control remains disabled in this delivery, including
+zero-blocker accounts. The ready state explicitly reports that closure is currently
+unavailable. Step 4 will add agreement, deletion submission and confirmed-success
+cookie/session/cross-tab cleanup. Browser closure acceptance, production rollout
+and coordinated branch integration remain later work.
+
+Verification passed TypeScript, all 144 Node tests (17 new transport/state
+regressions), and isolated production builds with fixture URLs cleared in the
+final release build. Nine additional actual frontend-adapter scenarios against
+Nest and owned disposable MongoDB passed for patient pagination, cancellations,
+lost-response reconciliation, doctor permissions, clinic actions/affiliation
+impact and zero blockers. Chrome verified all three roles, 23-record pagination,
+patient booking/waitlist and clinic booking cancellations, draft preservation,
+initial focus, keyboard containment, Escape/trigger focus restoration, error
+feedback and ready/disabled states. The clinic dialog wraps and scrolls at
+390×844. Screen-reader software and final account closure were outside this step's
+browser checks. No sprint covers November 14.
+
+The dedicated browser session was signed out, password saving declined, device
+emulation/DevTools closed and the preview tab closed. The owned preview runner was
+stopped and its MongoDB directory removal verified. Existing development servers
+and protected backend sources were preserved. The backend plan is maintained on
+its own branch, and this section records the frontend Step 3 delivery.

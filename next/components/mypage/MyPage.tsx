@@ -1,3 +1,4 @@
+import { AccountDeletionDialog } from './AccountDeletionDialog';
 import { useUsernameCheck } from '../../libs/use-username-check';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
@@ -118,6 +119,7 @@ function PersonalInfo({
   const [imageError, setImageError] = useState('');
   const [brokenImage, setBrokenImage] = useState(false);
   const [reload, setReload] = useState(0);
+  const [deleting, setDeleting] = useState(false);
   const request = useRef<AbortController | null>(null);
   const uploadedImage = useRef('');
   const form = useRef<HTMLFormElement>(null);
@@ -615,6 +617,26 @@ function PersonalInfo({
           }}
         />
       )}
+      {profile.memberType !== 'ADMIN' && (
+        <div className="mypage__delete">
+          <div>
+            <h3>Delete account</h3>
+            <p>
+              Review appointments and waitlists that need to be resolved before
+              account closure.
+            </p>
+          </div>
+          <Button
+            color="error"
+            variant="outlined"
+            disabled={busy || !!cropFile}
+            onClick={() => setDeleting(true)}
+          >
+            Delete account
+          </Button>
+        </div>
+      )}
+      {deleting && <AccountDeletionDialog onClose={() => setDeleting(false)} />}
       {!editing && (
         <Button
           className="mypage__reload"

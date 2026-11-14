@@ -45,6 +45,11 @@ authentication. Production needs HTTPS for Secure HttpOnly session cookies, and
 the frontend/API URLs must be reachable from their respective browser/server
 contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 
+The account deletion review requires backend Step 2 (`587e5ed`), including
+`accountDeletionReadiness`. Its final Delete account control is disabled until the
+agreement, submission and sign-out flow is delivered. See the
+[frontend account deletion record](../docs/architecture/architecture-next.md#account-deletion-review--november-14-2026).
+
 ## Screens
 
 - `/`: responsive landing page, searchable clinic directory, doctor previews,
@@ -61,6 +66,8 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
   resend timing, password visibility controls, validation, and optional Google sign-in.
 - `/mypage`: authenticated private profile, inline Save/Cancel editing, optional
   current/new/confirm password fields, and square photo cropping/upload/removal.
+  USER, DOCTOR and CLINIC accounts can review deletion blockers and cancel permitted
+  bookings/waitlists. Final account deletion awaits agreement and session cleanup.
 - `/book`: clinic, doctor, specialty, visual month calendar and real 30-minute slot
   selection; review and immediate appointment confirmation or waitlist enrollment.
 - `/appointments`: patient-scoped paginated visits/history, status filters,

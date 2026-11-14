@@ -852,3 +852,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** Putting the service location in the hero makes it visible before visitors reach the footer.
+
+
+## Account deletion Step 3 commitment dialog — 2026-11-14
+
+**Tool(s) used:** Codex, local source/reference inspection, Yarn/TypeScript/Node tests, isolated Next builds, disposable Nest/MongoDB fixtures and native Chrome through CUA.
+
+**What I asked for:** Implement Step 3 of the account deletion plan.
+
+**Pre-planning:** Started from clean Next `6cefd3c`, checked backend Step 2 `587e5ed`, current profile/session/care helpers, MediBridge profile reference and the installed Next client-fetching guide. Existing navigation/hero changes were already committed. Next instructions protect backend folders and require stopping after the agreed step.
+
+**Planning:** Add a focused dialog and a per-dialog review controller. Reuse careRequest and the existing cancellation documents. Use complete backend counts with independent list cursors, keep role/time enforcement in Nest, and leave final closure for Step 4.
+
+**Implementation process:** Added readiness DTO/document/adapter, response validation, stale-read/pagination/action state, inline cancellation confirmation and responsive MUI dialog/styles. My Page supports all three eligible roles and retains drafts. TypeScript,144 tests (17 new) and isolated production builds pass. Nine actual frontend-adapter/API/database scenarios pass, including lost replies after committed cancellation. Chrome verified roles, full patient pagination, patient booking/waitlist and clinic booking cancellations, keyboard/focus/Escape, draft retention, errors, ready/disabled feedback and390×844 layout. Final release build clears fixture URLs. Signed out, declined password saving, restored browser controls, closed the dedicated tab, stopped the owned fixture and verified Mongo cleanup. Updated owning/root README, architecture and local session context. No sprint covers November14, and Step4/final closure/deployment remain pending.
+
+**What I kept as-is:** Existing profile/password/image editing and server cancellation/queue rules. Commitment and authentication writes remain owned by Nest.
+
+**What I changed or rejected, and why:** Complete counts determine whether blockers exist. Loading a later empty page cannot establish readiness. Mutations refresh both lists and uncertain outcomes are reconciled through reads, so successful cancellations remain applied without automatic replay.
+
+**Something the AI got wrong that I had to catch:** Tool feedback rejected a Linux-only typing argument on macOS, uppercase modifier spelling and a stale accessibility ID after closing a modal. Focus-then-type, documented key names and fresh accessibility snapshots corrected these verification calls. Native device dimensions required focusing and replacing the numeric field text. Application checks passed.
+
+**One decision I can explain without AI:** After cancellation I refresh appointments and waitlists together, because releasing a booking can change waitlist allocation and account readiness.

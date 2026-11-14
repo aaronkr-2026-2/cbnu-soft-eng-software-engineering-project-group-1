@@ -165,7 +165,10 @@ this does not establish deployed integration or enable automatic waitlist bookin
   exact-slot booking, mobile/keyboard interaction and read-outage recovery. IN_APP
   is the configured channel; production worker flags and promotion gate remain unchanged.
 - **Next.js My Page:** `/mypage` provides private profile editing, optional password
-  changes, and image preview/upload/removal. Earlier focused tests and a local
+  changes, and image preview/upload/removal. USER, DOCTOR and CLINIC accounts can
+  review account-deletion commitments with complete counts, paginated lists and
+  permitted cancellation actions. Final account closure awaits the confirmation flow.
+  Earlier focused tests and a local
   browser fixture passed; live profile storage/password flows remain unverified.
 
 Update this list whenever a new feature is added. Keep entries aligned with the
