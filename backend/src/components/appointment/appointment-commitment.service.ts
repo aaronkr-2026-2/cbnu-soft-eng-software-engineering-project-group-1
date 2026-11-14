@@ -47,9 +47,15 @@ export class AppointmentCommitmentService {
       );
   }
 
-  private slot(input: { doctorId: string; startsAt: string }) {
+  private slot(input: {
+    doctorId: string;
+    clinicId: string;
+    startsAt: string;
+  }) {
     if (
-      !/^[a-f\d]{24}$/i.test(input.doctorId) ||
+      ![input.doctorId, input.clinicId].every((id) =>
+        /^[a-f\d]{24}$/i.test(id),
+      ) ||
       !Number.isFinite(+new Date(input.startsAt))
     )
       throw new BadRequestException('Invalid doctor or slot');
@@ -67,7 +73,12 @@ export class AppointmentCommitmentService {
     await this.waitlists.prepare();
     const slot = this.slot(input);
     const entry = await this.coordination.run(
-      { doctorIds: [slot.doctorId], patientIds: [member._id], slots: [slot] },
+      {
+        clinicIds: [new Types.ObjectId(input.clinicId)],
+        doctorIds: [slot.doctorId],
+        patientIds: [member._id],
+        slots: [slot],
+      },
       async (tx) => {
         const target = await this.appointments.validateSlot(input, member, tx);
         await this.appointments.requireOccupied(target, tx);
@@ -120,6 +131,10 @@ export class AppointmentCommitmentService {
       await this.appointments.prepareLifecycle();
     const result = await this.coordination.run(
       {
+        clinicIds: [
+          original.clinicId,
+          new Types.ObjectId(input.destination.clinicId),
+        ],
         doctorIds: [original.doctorId, destination.doctorId],
         patientIds: [member._id],
         slots: [original, destination],

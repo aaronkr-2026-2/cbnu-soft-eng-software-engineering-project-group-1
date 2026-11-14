@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  HttpException,
   ConflictException,
   Injectable,
   ForbiddenException,
@@ -12,7 +13,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes, randomInt } from 'node:crypto';
-import { Model, Types, type PipelineStage } from 'mongoose';
+import { Model, Types, type PipelineStage, type ClientSession } from 'mongoose';
 import {
   DirectoryNameSuggestionsInput,
   DirectorySearchInput,
@@ -62,6 +63,13 @@ import {
 } from './member-username-error.js';
 import type { UsernameAvailability } from '../../libs/dto/member/member-username.dto.js';
 
+import { BookingCoordinationService } from '../booking/booking-coordination.service.js';
+import { AccountDeletionCommitmentService } from '../booking/account-deletion-commitment.service.js';
+import { AccountDeletionException } from '../booking/account-deletion-error.js';
+import { AccountDeletionPageInput } from '../../libs/dto/member/account-deletion.input.js';
+import type { AccountDeletionEntry } from '../../libs/dto/member/member.js';
+import { AppointmentStatus } from '../../libs/enum/appointment.enum.js';
+
 const REFRESH_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const tokenHash = (token: string) =>
   createHash('sha256').update(token).digest('hex');
@@ -79,6 +87,9 @@ export class MemberService implements OnModuleInit {
     private readonly sessions?: Model<MemberSessionEntity>,
     @Optional() private readonly uploads?: UploadService,
     @Optional() private readonly emailVerification?: EmailVerificationService,
+    @Optional() private readonly coordination?: BookingCoordinationService,
+    @Optional()
+    private readonly deletionCommitments?: AccountDeletionCommitmentService,
   ) {}
 
   async onModuleInit() {
@@ -472,35 +483,51 @@ export class MemberService implements OnModuleInit {
       throw new ForbiddenException('Only clinics can review affiliations');
     if (!/^[a-f\d]{24}$/i.test(doctorId))
       throw new BadRequestException('Invalid doctor ID');
-    if ((await this.myProfile(principal)).memberType !== MemberType.CLINIC)
-      throw new ForbiddenException('Only clinics can review affiliations');
-    const scope = {
-      _id: new Types.ObjectId(doctorId),
-      clinicId: principal._id,
-      memberType: MemberType.DOCTOR,
-      memberStatus: MemberStatus.ACTIVE,
-      deletedAt: null,
-    };
-    const doctor = await this.members!.findOne(scope)
-      .select({ doctorClinicStatus: 1 })
-      .lean()
-      .exec();
-    if (!doctor) throw new NotFoundException('Doctor application not found');
-    const status = approve
-      ? DoctorClinicStatus.APPROVED
-      : DoctorClinicStatus.REJECTED;
-    if (doctor.doctorClinicStatus === status) return status;
-    if (doctor.doctorClinicStatus !== DoctorClinicStatus.PENDING)
-      throw new ConflictException('Only pending affiliations can be reviewed');
-    const result = await this.members!.updateOne(
-      { ...scope, doctorClinicStatus: DoctorClinicStatus.PENDING },
-      { $set: { doctorClinicStatus: status } },
+    if (!this.coordination)
+      throw new ServiceUnavailableException('Clinic coordination unavailable');
+    return this.coordination.run(
+      {
+        clinicIds: [principal._id],
+        doctorIds: [new Types.ObjectId(doctorId)],
+        patientIds: [],
+        slots: [],
+      },
+      async (tx) => {
+        await this.currentDeletionMember(principal, tx.session);
+        const scope = {
+          _id: new Types.ObjectId(doctorId),
+          clinicId: principal._id,
+          memberType: MemberType.DOCTOR,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+        };
+        const doctor = await this.members!.findOne(scope)
+          .select({ doctorClinicStatus: 1 })
+          .session(tx.session)
+          .lean()
+          .exec();
+        if (!doctor)
+          throw new NotFoundException('Doctor application not found');
+        const status = approve
+          ? DoctorClinicStatus.APPROVED
+          : DoctorClinicStatus.REJECTED;
+        if (doctor.doctorClinicStatus === status) return status;
+        if (doctor.doctorClinicStatus !== DoctorClinicStatus.PENDING)
+          throw new ConflictException(
+            'Only pending affiliations can be reviewed',
+          );
+        const result = await this.members!.updateOne(
+          { ...scope, doctorClinicStatus: DoctorClinicStatus.PENDING },
+          { $set: { doctorClinicStatus: status }, $inc: { __v: 1 } },
+          { session: tx.session },
+        );
+        if (result.modifiedCount !== 1)
+          throw new ConflictException(
+            'Doctor application changed; refresh before reviewing',
+          );
+        return status;
+      },
     );
-    if (result.modifiedCount !== 1)
-      throw new ConflictException(
-        'Doctor application changed; refresh before reviewing',
-      );
-    return status;
   }
 
   // Clinics own cities. Resolve doctor cities from current affiliations in one query.
@@ -598,10 +625,272 @@ export class MemberService implements OnModuleInit {
     };
   }
 
+  private async currentDeletionMember(
+    principal: MemberPrincipal,
+    session: ClientSession,
+  ) {
+    const member = await this.models()
+      .members.findOne({
+        _id: principal._id,
+        memberType: principal.memberType,
+        memberStatus: MemberStatus.ACTIVE,
+        deletedAt: null,
+      })
+      .select('+authVersion')
+      .session(session)
+      .read('primary')
+      .maxTimeMS(5000)
+      .exec();
+    if (!member || (member.authVersion ?? 0) !== (principal.authVersion ?? 0))
+      throw new UnauthorizedException('Invalid access token');
+    return member;
+  }
+
+  async accountDeletionReadiness(
+    principal: MemberPrincipal,
+    input: AccountDeletionPageInput,
+  ) {
+    if (!this.deletionCommitments)
+      throw new AccountDeletionException('ACCOUNT_DELETION_UNAVAILABLE', 503);
+    this.deletionCommitments.scope(principal);
+    const session = await this.models().members.db.startSession({
+      snapshot: true,
+    });
+    try {
+      await this.currentDeletionMember(principal, session);
+      const asOf = new Date();
+      const state = await this.deletionCommitments.read(
+        principal,
+        input,
+        session,
+        asOf,
+      );
+      const affiliationImpactCount =
+        principal.memberType === MemberType.CLINIC
+          ? await this.models()
+              .members.countDocuments(this.detachmentScope(principal._id))
+              .session(session)
+              .read('primary')
+              .maxTimeMS(5000)
+              .exec()
+          : 0;
+      const ids = [
+        ...state.appointments.entries,
+        ...state.waitlists.entries,
+      ].flatMap((row) => [row.clinicId, row.doctorId]);
+      const labels = await this.models()
+        .members.find({ _id: { $in: ids } })
+        .select({
+          clinicName: 1,
+          memberFullName: 1,
+          memberNick: 1,
+          clinicTimezone: 1,
+        })
+        .session(session)
+        .read('primary')
+        .maxTimeMS(5000)
+        .lean()
+        .exec();
+      const byId = new Map(labels.map((row) => [String(row._id), row]));
+      const entries = (
+        rows: typeof state.appointments.entries,
+        kind: 'APPOINTMENT' | 'WAITLIST',
+      ): AccountDeletionEntry[] =>
+        rows.map((row) => {
+          let permittedAction = 'NONE';
+          let resolutionReason: string | null = null;
+          if (typeof row.version !== 'string' || !row.version || row.status === AppointmentStatus.PENDING)
+            resolutionReason = 'LEGACY_RESOLUTION_REQUIRED';
+          else if (kind === 'WAITLIST') {
+            if (principal.memberType === MemberType.USER)
+              permittedAction = 'CANCEL_WAITLIST';
+            else resolutionReason = 'CONTACT_PATIENT';
+          } else if (row.startsAt <= asOf) resolutionReason = 'VISIT_IN_PROGRESS';
+          else if (principal.memberType === MemberType.DOCTOR)
+            resolutionReason = 'CONTACT_PATIENT_OR_CLINIC';
+          else permittedAction = 'CANCEL_BOOKING';
+          const clinic = byId.get(String(row.clinicId));
+          const doctor = byId.get(String(row.doctorId));
+          let clinicTimezone = clinic?.clinicTimezone ?? 'UTC';
+          try {
+            new Intl.DateTimeFormat('en', { timeZone: clinicTimezone });
+          } catch {
+            clinicTimezone = 'UTC';
+          }
+          return {
+            id: String(row._id),
+            kind,
+            status: row.status,
+            startsAt: row.startsAt,
+            endsAt: row.endsAt,
+            clinicId: String(row.clinicId),
+            doctorId: String(row.doctorId),
+            clinicName: clinic?.clinicName || 'Clinic unavailable',
+            doctorName:
+              doctor?.memberFullName ||
+              doctor?.memberNick ||
+              'Doctor unavailable',
+            clinicTimezone,
+            permittedAction,
+            resolutionReason,
+          };
+        });
+      return {
+        asOf,
+        ready: state.appointmentCount === 0 && state.waitlistCount === 0,
+        appointmentCount: state.appointmentCount,
+        waitlistCount: state.waitlistCount,
+        affiliationImpactCount,
+        appointments: {
+          ...state.appointments,
+          entries: entries(state.appointments.entries, 'APPOINTMENT'),
+        },
+        waitlists: {
+          ...state.waitlists,
+          entries: entries(state.waitlists.entries, 'WAITLIST'),
+        },
+      };
+    } catch (error) {
+      if (error instanceof HttpException) throw error;
+      throw new AccountDeletionException('ACCOUNT_DELETION_UNAVAILABLE', 503);
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  private detachmentScope(clinicId: Types.ObjectId) {
+    return {
+      clinicId,
+      memberType: MemberType.DOCTOR,
+      memberStatus: { $in: [MemberStatus.ACTIVE, MemberStatus.SUSPENDED] },
+      deletedAt: null,
+      doctorClinicStatus: {
+        $in: [DoctorClinicStatus.PENDING, DoctorClinicStatus.APPROVED],
+      },
+    };
+  }
+
+  private async deleteAccount(
+    principal: MemberPrincipal,
+  ): Promise<MemberUpdateResponse> {
+    if (!this.deletionCommitments || !this.coordination)
+      throw new AccountDeletionException('ACCOUNT_DELETION_UNAVAILABLE', 503);
+    this.deletionCommitments.scope(principal);
+    try {
+      return await this.coordination.run(
+        {
+          clinicIds:
+            principal.memberType === MemberType.CLINIC ? [principal._id] : [],
+          doctorIds:
+            principal.memberType === MemberType.DOCTOR ? [principal._id] : [],
+          patientIds:
+            principal.memberType === MemberType.USER ? [principal._id] : [],
+          slots: [],
+        },
+        async (tx) => {
+          const member = await this.currentDeletionMember(
+            principal,
+            tx.session,
+          );
+          const asOf = new Date();
+          const state = await this.deletionCommitments!.read(
+            principal,
+            new AccountDeletionPageInput(),
+            tx.session,
+            asOf,
+          );
+          if (state.appointmentCount || state.waitlistCount)
+            throw new AccountDeletionException(
+              'ACCOUNT_DELETION_BLOCKED',
+              409,
+              { ...state, asOf },
+            );
+          const detachSelf =
+            member.memberType === MemberType.DOCTOR &&
+            [DoctorClinicStatus.PENDING, DoctorClinicStatus.APPROVED].includes(
+              member.doctorClinicStatus,
+            );
+          const changed = await this.models().members.updateOne(
+            {
+              _id: member._id,
+              memberStatus: MemberStatus.ACTIVE,
+              deletedAt: null,
+              $expr: {
+                $eq: [
+                  { $ifNull: ['$authVersion', 0] },
+                  principal.authVersion ?? 0,
+                ],
+              },
+            },
+            {
+              $set: {
+                memberStatus: MemberStatus.DELETED,
+                deletedAt: asOf,
+                authVersion: (member.authVersion ?? 0) + 1,
+                ...(detachSelf
+                  ? { doctorClinicStatus: DoctorClinicStatus.REMOVED }
+                  : {}),
+              },
+              $inc: { __v: 1 },
+            },
+            { session: tx.session },
+          );
+          if (changed.modifiedCount !== 1)
+            throw new AccountDeletionException('ACCOUNT_DELETION_CHANGED', 409);
+          if (member.memberType === MemberType.CLINIC) {
+            await this.models().members.updateMany(
+              this.detachmentScope(member._id),
+              {
+                $set: { doctorClinicStatus: DoctorClinicStatus.REMOVED },
+                $inc: { __v: 1 },
+              },
+              { session: tx.session },
+            );
+          }
+          await this.models().sessions.deleteMany(
+            { memberId: member._id },
+            { session: tx.session },
+          );
+          return {
+            member: null,
+            requiresLogin: true,
+            imageCleanupPending: false,
+          };
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof AccountDeletionException ||
+        error instanceof UnauthorizedException
+      )
+        throw error;
+      throw new AccountDeletionException('ACCOUNT_DELETION_UNAVAILABLE', 503);
+    }
+  }
+
   async updateMember(
     principal: MemberPrincipal,
     input: MemberUpdateInput,
   ): Promise<MemberUpdateResponse> {
+    if (
+      input.memberStatus !== undefined ||
+      input.deletionAgreement !== undefined
+    ) {
+      if (
+        input.memberStatus !== MemberStatus.DELETED ||
+        input.deletionAgreement !== true ||
+        Object.entries(input).some(
+          ([key, value]) =>
+            !['memberStatus', 'deletionAgreement'].includes(key) &&
+            value !== undefined,
+        )
+      )
+        throw new AccountDeletionException(
+          'ACCOUNT_DELETION_INVALID_INPUT',
+          400,
+        );
+      return this.deleteAccount(principal);
+    }
     const { members } = this.models();
     const member = await members
       .findOne({
@@ -775,13 +1064,25 @@ export class MemberService implements OnModuleInit {
     const username = this.usernameFields(input.memberNick);
     if (!this.emailVerification)
       throw verificationError(503, 'EMAIL_VERIFICATION_UNAVAILABLE', 30);
+    const affiliationClinic =
+      memberType === MemberType.DOCTOR
+        ? new Types.ObjectId(input.clinicId)
+        : undefined;
+    if (affiliationClinic) {
+      if (!this.coordination)
+        throw new ServiceUnavailableException(
+          'Clinic coordination unavailable',
+        );
+      await this.coordination.prepareClinic(affiliationClinic);
+    }
     let member: MemberDocument;
     try {
       member = await this.emailVerification.createVerifiedMember(
         input.memberEmail,
         input.emailVerificationToken,
         async (session, verifiedAt) => {
-          if (memberType === MemberType.DOCTOR) {
+          if (affiliationClinic) {
+            await this.coordination!.lockClinic(affiliationClinic, session);
             const clinic = await members
               .exists({
                 _id: input.clinicId,
@@ -935,34 +1236,84 @@ export class MemberService implements OnModuleInit {
     );
   }
 
-  async refresh(refreshToken: string): Promise<MemberAuthResponse> {
-    const { members, sessions } = this.models();
-    const nextToken = randomBytes(32).toString('base64url');
-    // Atomic replacement ensures only one request can consume the old token.
-    const session = await sessions
-      .findOneAndUpdate(
+  private async memberTransaction<T>(
+    work: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.models().members.db.startSession();
+    try {
+      return await session.withTransaction(() => work(session), {
+        readConcern: { level: 'snapshot' },
+        writeConcern: { w: 'majority' },
+        readPreference: 'primary',
+        maxCommitTimeMS: 5000,
+        timeoutMS: 10000,
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  private async fenceSessionMember(
+    memberId: Types.ObjectId,
+    authVersion: number,
+    session: ClientSession,
+  ) {
+    const member = await this.models()
+      .members.findOneAndUpdate(
         {
-          refreshTokenHash: tokenHash(refreshToken),
-          expiresAt: { $gt: new Date() },
+          _id: memberId,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+          // Legacy accounts without authVersion are version zero.
+          $expr: { $eq: [{ $ifNull: ['$authVersion', 0] }, authVersion] },
         },
-        { $set: { refreshTokenHash: tokenHash(nextToken) } },
-        { new: true },
+        { $inc: { __v: 1 } },
+        { session, returnDocument: 'after' },
       )
-      .exec();
-    if (!session) throw new UnauthorizedException('Invalid refresh token');
-    const member = await members
-      .findById(session.memberId)
       .select('+authVersion')
       .exec();
-    if (
-      !member ||
-      member.memberStatus !== MemberStatus.ACTIVE ||
-      member.deletedAt ||
-      (member.authVersion ?? 0) !== (session.authVersion ?? 0)
-    ) {
-      await sessions.deleteOne({ _id: session._id });
-      throw new UnauthorizedException('Invalid refresh token');
-    }
+    return member;
+  }
+
+  async refresh(refreshToken: string): Promise<MemberAuthResponse> {
+    const { sessions } = this.models();
+    const nextToken = randomBytes(32).toString('base64url');
+    const member = await this.memberTransaction(async (transaction) => {
+      const original = await sessions
+        .findOne({
+          refreshTokenHash: tokenHash(refreshToken),
+          expiresAt: { $gt: new Date() },
+        })
+        .session(transaction)
+        .exec();
+      if (!original) throw new UnauthorizedException('Invalid refresh token');
+      const current = await this.fenceSessionMember(
+        original.memberId,
+        original.authVersion ?? 0,
+        transaction,
+      );
+      if (!current) {
+        await sessions.deleteOne(
+          { _id: original._id },
+          { session: transaction },
+        );
+        return null;
+      }
+      const rotated = await sessions
+        .findOneAndUpdate(
+          {
+            _id: original._id,
+            refreshTokenHash: tokenHash(refreshToken),
+            expiresAt: { $gt: new Date() },
+          },
+          { $set: { refreshTokenHash: tokenHash(nextToken) } },
+          { session: transaction, returnDocument: 'after' },
+        )
+        .exec();
+      if (!rotated) throw new UnauthorizedException('Invalid refresh token');
+      return current;
+    });
+    if (!member) throw new UnauthorizedException('Invalid refresh token');
     return this.response(member, nextToken);
   }
 
@@ -971,14 +1322,27 @@ export class MemberService implements OnModuleInit {
   ): Promise<MemberAuthResponse> {
     const { sessions } = this.models();
     const refreshToken = randomBytes(32).toString('base64url');
-    const response = await this.response(member, refreshToken);
-    await sessions.create({
-      memberId: member._id,
-      authVersion: member.authVersion ?? 0,
-      refreshTokenHash: tokenHash(refreshToken),
-      expiresAt: new Date(Date.now() + REFRESH_LIFETIME_MS),
+    const current = await this.memberTransaction(async (transaction) => {
+      const current = await this.fenceSessionMember(
+        member._id,
+        member.authVersion ?? 0,
+        transaction,
+      );
+      if (!current) throw new UnauthorizedException('Invalid session');
+      await sessions.create(
+        [
+          {
+            memberId: current._id,
+            authVersion: current.authVersion ?? 0,
+            refreshTokenHash: tokenHash(refreshToken),
+            expiresAt: new Date(Date.now() + REFRESH_LIFETIME_MS),
+          },
+        ],
+        { session: transaction },
+      );
+      return current;
     });
-    return response;
+    return this.response(current, refreshToken);
   }
 
   private async response(

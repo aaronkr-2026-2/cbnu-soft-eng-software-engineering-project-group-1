@@ -123,6 +123,7 @@ export class AppointmentPromotionService
         const candidate = await this.waitlists.firstForPromotion(event);
         const result = await this.coordination.run(
           {
+            clinicIds: [event.clinicId],
             doctorIds: [event.doctorId],
             patientIds: candidate ? [candidate.patientId] : [],
             slots: [event],

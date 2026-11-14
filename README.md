@@ -62,6 +62,10 @@ this does not establish deployed integration or enable automatic waitlist bookin
   fields, changes passwords with current-password verification and confirmation, and
   saves uploaded profile images. Password changes invalidate existing sessions;
   successful image replacement deletes the previous owned image.
+- **Account deletion backend:** Authenticated USER, DOCTOR, and CLINIC accounts can
+  read complete commitment counts and soft-delete through `updateMember` after
+  commitments clear. Closure invalidates sessions and detaches clinic affiliations.
+  The My Page dialog is pending. See the [account deletion contract](backend/ACCOUNT_DELETION_PLAN.md).
 - **Google sign-in API:** Nonce-bound Google ID-token verification, automatic USER
   registration without phone/password, unique eight-digit generated usernames,
   and the existing access/refresh session contract. Next.js includes the Google
@@ -175,7 +179,8 @@ below. Booking also requires the existing policy V2 activation/migration checks.
 
 Use Node.js 24.x with npm for the backend and a reachable MongoDB replica set or Atlas
 cluster. The project uses Node's built-in `.env` loading. For Atlas, configure
-network access and a database account before starting the API.
+network access and a database account before starting the API. Login, Google session
+issuance, refresh, affiliation changes, and account deletion use replica-set transactions.
 
 From the repository root:
 
@@ -299,6 +304,7 @@ npm run test:e2e     # HTTP/GraphQL tests
 npm run test:booking:integration # Disposable real MongoDB concurrency tests
 npm run test:username:integration # Disposable username migration and uniqueness checks
 npm run test:email:integration # Disposable email policy, delivery recovery and signup races
+npm run test:account-deletion:integration # Disposable deletion blockers, rollback and races
 npm run test:cov     # Unit-test coverage
 ```
 
@@ -684,8 +690,11 @@ All fields are optional; omitted fields remain unchanged. Empty updates and expl
 case-insensitive unique), `memberPhone` (international format, unique), `memberImage`,
 `memberAddress` (up to 300), and `memberDesc` (up to 2,000). Clinics may additionally
 edit `clinicName` (1–150) and `location` (Location enum). Empty address/description
-strings clear those fields. Account IDs, roles/status, email/provider, clinic affiliation,
-and approval fields are not editable. The authenticated account determines ownership.
+strings clear those fields. Account IDs, roles, email/provider, clinic affiliation,
+and approval fields are controlled by the server. The authenticated account determines
+ownership. Self-deletion accepts only `{ memberStatus: DELETED, deletionAgreement: true }`
+as a dedicated `updateMember` branch and returns a nullable `member` with
+`requiresLogin: true`. See the [account deletion contract](backend/ACCOUNT_DELETION_PLAN.md).
 Phone changes update the stored contact; SMS verification is not implemented.
 Username edits share signup validation and retain display capitalization after
 trimming. The private `memberNickNormalized` field is updated atomically with the

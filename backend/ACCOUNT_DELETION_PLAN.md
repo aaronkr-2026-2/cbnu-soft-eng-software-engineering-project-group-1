@@ -2,8 +2,9 @@
 
 Date — November 14, 2026 (Asia/Seoul)
 
-Status — Step 1 completed November 14, 2026. Commitment rules and API contracts
-are recorded below. Steps 2–6 implementation and runtime verification are pending.
+Status — Steps 1–2 completed locally November 14, 2026. Backend readiness and
+transactional soft deletion are implemented and verified. Frontend Steps 3–4,
+full interface acceptance in Step 5, and integration preparation remain pending.
 
 Related feedback — [Issue #10, item 6](https://github.com/aaronkr-2026-2/cbnu-soft-eng-software-engineering-project-group-1/issues/10).
 
@@ -32,7 +33,7 @@ retention handling are specified.
 - Soft-delete the account and retain its stored records.
 - Reserve physical deletion for admins.
 
-## Current source baseline
+## Step 1 source baseline
 
 Paths below are relative to the corresponding worktree root.
 
@@ -90,8 +91,8 @@ contract, complete-read strategy, and clinic-affiliation policy.
 ## Step 1 contract decisions — November 14, 2026
 
 This section defines the target contract for Steps 2–5. Source inspection completed
-on backend `79b118f` and Next `6cefd3c`. The APIs described as new below still
-require implementation. The owner selected automatic affiliation detachment during
+on backend `79b118f` and Next `6cefd3c`. The APIs described below form the agreed target contract. Step 2 implementation
+evidence is recorded below. The owner selected automatic affiliation detachment during
 clinic deletion. Remaining policy details are engineering defaults chosen in Step 1.
 
 ### Role and ownership matrix
@@ -279,8 +280,8 @@ requirements. Unavailable storage/coordination makes deletion unavailable.
 
 Deletion atomically sets DELETED/deletedAt, increments authVersion and __v,
 invalidates every refresh session, and applies affiliation detachment. Existing
-profile saves filter ACTIVE/deletedAt and compare __v. Login/Google session issuance
-and refresh currently have separate member/session steps, so Step 2 must serialize
+profile saves filter ACTIVE/deletedAt and compare __v. At the Step 1 baseline, login/Google session issuance
+and refresh had separate member/session steps, so Step 2 must serialize
 those writes with deletion or demonstrate equivalent fencing. A pre-deletion token
 must fail current-account validation after closure, and session issuance must not
 leave a usable post-deletion refresh session. Record-level races remain runtime
@@ -327,6 +328,51 @@ later implementation steps. No sprint covers November 14 in the current records.
 
 Completion evidence — implementation plus focused real-database tests for
 ownership, blockers, transaction rollback, session invalidation, and races.
+
+### Step 2 delivery evidence — November 14, 2026
+
+Implemented guarded `accountDeletionReadiness` and deletion-only `updateMember`
+with explicit agreement. The response retains existing field names and returns
+`member: null`, `requiresLogin: true`, `imageCleanupPending: false` after closure.
+Ordinary edits retain their existing response. Legacy confirmed records without a
+usable version show LEGACY_RESOLUTION_REQUIRED because the cancellation service
+requires migration. The internal projection includes version solely for that decision.
+
+`AccountDeletionCommitmentService` reads source records and cleanup cutoffs using
+complete-count facets and paginated results. Primary snapshots and bounded queries
+keep readiness consistent. The deletion transaction rechecks account identity,
+role/authVersion and blockers after taking the shared gate. It atomically records
+DELETED/deletedAt, advances authVersion/__v, invalidates sessions and detaches
+PENDING/APPROVED clinic affiliations, including suspended doctors. Legacy omitted
+and null authVersion values advance from zero. Stored account and care data remain.
+
+Clinic gates cover new online/REST/staff booking, waitlist enrollment/replacement,
+promotion and affiliation writes. Doctor signup acquires its gate within the
+existing verification-proof transaction. Credential issuance and refresh use a
+transactional member-version write to serialize with deletion. Invalid refresh
+sessions retain their prior cleanup behavior.
+
+Verification passed build, full TypeScript and 637 automated checks, comprising
+96 unit, 222 API, 62 new real-database deletion, 193 booking/worker, 46 email and
+18 username/Google identity integration tests. Deletion coverage includes all
+three roles, legacy/terminal/malformed states, exact time boundaries, cleanup
+watermarks, 205 appointments and empty later pages, privacy/cursor ownership,
+106 affiliation detachments, rollback, session invalidation, and booking, staff,
+REST, enrollment, replacement, allocation, signup/review, login/Google, refresh,
+profile-save and overlapping-deletion races. Google identity verification in these
+race checks uses a synthetic provider response. No live provider interaction was used.
+
+Lint retains the existing empty config.ts warning. Initial sandbox local-port
+failures were resolved through local test execution access. Fixture collection,
+projection and overlapping-request expectations were corrected. The first draft's
+invalid-refresh cleanup regression was caught by the API suite and fixed before
+the passing runs. Disposable runners own and clean up their database processes/data.
+
+Repeat the focused suite from `backend` with
+`npm run test:account-deletion:integration`. This step verifies backend/API behavior.
+My Page UI, browser/cookie/cross-tab behavior, broad final interface acceptance,
+and deployment/integration remain Steps 3–6. No sprint covers November 14.
+
 
 ## Step 3 — Build the My Page commitment dialog
 
@@ -424,12 +470,12 @@ navigation and hero changes in the Next worktree.
 | Step | Status |
 | --- | --- |
 | 1. Commitment rules and API contract | Completed November 14, 2026 |
-| 2. Backend soft deletion and concurrency | Pending |
+| 2. Backend soft deletion and concurrency | Completed locally November 14, 2026 |
 | 3. My Page blocker/cancellation dialog | Pending |
 | 4. Agreement and frontend completion | Pending |
 | 5. Automated and browser acceptance | Pending |
 | 6. Delivery records and integration preparation | Pending |
 
-Step 1 is complete. Step 2 is next when requested. Admin physical deletion, account
+Steps 1–2 are complete locally. Step 3 is next in the Next worktree when requested. Admin physical deletion, account
 restoration, blocked-status administration, and identifier reuse remain separately
 scoped work.

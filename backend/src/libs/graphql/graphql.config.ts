@@ -1,3 +1,4 @@
+import { AccountDeletionException } from '../../components/booking/account-deletion-error.js';
 import { HttpException } from '@nestjs/common';
 import { ApolloDriver, type ApolloDriverConfig } from '@nestjs/apollo';
 import { unwrapResolverError } from '@apollo/server/errors';
@@ -36,6 +37,7 @@ export const graphqlConfig: ApolloDriverConfig = {
       return {
         message: status >= 500 ? 'Service unavailable' : original.message,
         extensions: {
+          ...(original instanceof AccountDeletionException ? { accountDeletion: original.accountDeletion } : {}),
           code: codes[status] ?? 'INTERNAL_SERVER_ERROR',
           ...(original instanceof UsernameTakenException
             ? { reason: original.reason, field: original.field }

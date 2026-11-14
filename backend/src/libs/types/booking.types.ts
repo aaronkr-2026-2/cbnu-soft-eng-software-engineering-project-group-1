@@ -6,6 +6,7 @@ import type { DoctorSpecialization } from '../enum/member.enum.js';
 // alignment inside the transaction before reserving a commitment.
 export type BookingSlot = { doctorId: Types.ObjectId; startsAt: Date };
 export type BookingScope = {
+  clinicIds?: Types.ObjectId[];
   doctorIds?: Types.ObjectId[];
   patientIds: Types.ObjectId[];
   slots: BookingSlot[];

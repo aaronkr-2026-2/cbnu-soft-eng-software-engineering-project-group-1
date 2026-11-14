@@ -1,4 +1,4 @@
-import { Field, ID, ObjectType } from '@nestjs/graphql';
+import { Field, ID, Int, ObjectType } from '@nestjs/graphql';
 import {
   DoctorClinicStatus,
   DoctorSpecialization,
@@ -37,7 +37,40 @@ export class MemberSelf extends Member {
 
 @ObjectType()
 export class MemberUpdateResult {
-  @Field(() => MemberSelf) member: MemberSelf;
+  @Field(() => MemberSelf, { nullable: true }) member: MemberSelf | null;
   @Field(() => Boolean) requiresLogin: boolean;
   @Field(() => Boolean) imageCleanupPending: boolean;
+}
+
+@ObjectType()
+export class AccountDeletionEntry {
+  @Field(() => ID) id: string;
+  @Field(() => String) kind: string;
+  @Field(() => String) status: string;
+  @Field(() => Date) startsAt: Date;
+  @Field(() => Date) endsAt: Date;
+  @Field(() => ID) clinicId: string;
+  @Field(() => ID) doctorId: string;
+  @Field(() => String) clinicName: string;
+  @Field(() => String) doctorName: string;
+  @Field(() => String) clinicTimezone: string;
+  @Field(() => String) permittedAction: string;
+  @Field(() => String, { nullable: true }) resolutionReason: string | null;
+}
+
+@ObjectType()
+export class AccountDeletionPage {
+  @Field(() => [AccountDeletionEntry]) entries: AccountDeletionEntry[];
+  @Field(() => ID, { nullable: true }) nextCursor: string | null;
+}
+
+@ObjectType()
+export class AccountDeletionReadiness {
+  @Field(() => Date) asOf: Date;
+  @Field(() => Boolean) ready: boolean;
+  @Field(() => Int) appointmentCount: number;
+  @Field(() => Int) waitlistCount: number;
+  @Field(() => Int) affiliationImpactCount: number;
+  @Field(() => AccountDeletionPage) appointments: AccountDeletionPage;
+  @Field(() => AccountDeletionPage) waitlists: AccountDeletionPage;
 }

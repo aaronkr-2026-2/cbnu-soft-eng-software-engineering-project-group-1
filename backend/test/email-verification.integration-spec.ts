@@ -1,3 +1,6 @@
+import { BookingCoordinationService } from '../src/components/booking/booking-coordination.service.js';
+import { BOOKING_GATE, BookingGateSchema } from '../src/schemas/booking-gate.model.js';
+import { BOOKING_COMMITMENT, BookingCommitmentSchema } from '../src/schemas/booking-commitment.model.js';
 import { Test } from '@nestjs/testing';
 import {
   ValidationPipe,
@@ -119,6 +122,11 @@ describe('Email verification with real replica-set transactions (EV-01–10)', (
       controllers: [MemberController],
       providers: [
         MemberService,
+        { provide: BookingCoordinationService, useValue: new BookingCoordinationService(
+          connection,
+          connection.model(BOOKING_GATE, BookingGateSchema),
+          connection.model(BOOKING_COMMITMENT, BookingCommitmentSchema),
+        ) },
         GoogleAuthService,
         EmailVerificationService,
         { provide: EmailDeliveryService, useValue: mail },

@@ -1,3 +1,5 @@
+import { AccountDeletionCommitmentService } from './account-deletion-commitment.service.js';
+import { WAITLIST_CLEANUP, WaitlistCleanupSchema } from '../../schemas/waitlist-cleanup.model.js';
 import { WAITLIST, WaitlistSchema } from '../../schemas/waitlist.model.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -32,15 +34,18 @@ import {
           { name: MEMBER, schema: MemberSchema },
           { name: BOOKING_POLICY, schema: BookingPolicySchema },
           { name: WAITLIST, schema: WaitlistSchema },
+          { name: WAITLIST_CLEANUP, schema: WaitlistCleanupSchema },
         ]),
       ]
     : [],
   providers: [
+    AccountDeletionCommitmentService,
     BookingCoordinationService,
     BookingMigrationService,
     BookingPolicyService,
   ],
   exports: [
+    AccountDeletionCommitmentService,
     BookingCoordinationService,
     BookingPolicyService,
     BookingMigrationService,

@@ -188,6 +188,7 @@ export class AppointmentService {
     try {
       return await this.coordination.run(
         {
+          clinicIds: [new Types.ObjectId(input.clinicId)],
           doctorIds: [doctorId],
           patientIds: [patientId],
           slots: [{ doctorId, startsAt }],

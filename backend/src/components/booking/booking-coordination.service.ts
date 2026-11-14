@@ -78,6 +78,21 @@ export class BookingCoordinationService {
     await this.initialization;
   }
 
+  async prepareClinic(id: Types.ObjectId): Promise<void> {
+    await this.prepare();
+    await this.prepareGates([`clinic:${id.toHexString()}`]);
+  }
+
+  async lockClinic(id: Types.ObjectId, session: ClientSession): Promise<void> {
+    const result = await this.gates!.updateOne(
+      { _id: `clinic:${id.toHexString()}` },
+      { $inc: { revision: 1 } },
+      { session },
+    );
+    if (result.matchedCount !== 1)
+      throw new ServiceUnavailableException('Clinic coordination unavailable');
+  }
+
   async run<T>(
     scope: BookingScope,
     work: (tx: BookingTransaction) => Promise<T>,
@@ -88,6 +103,7 @@ export class BookingCoordinationService {
     const commitments = this.commitments!;
     const keys = [
       ...new Set([
+        ...(scope.clinicIds ?? []).map((id) => `clinic:${id.toHexString()}`),
         ...(scope.doctorIds ?? []).map((id) => `doctor:${id.toHexString()}`),
         ...scope.patientIds.map(patientKey),
         ...scope.slots.map(slotKey),
@@ -95,31 +111,7 @@ export class BookingCoordinationService {
     ].sort();
     if (!keys.length)
       throw new Error('Booking transaction requires coordination keys');
-    // Seed before opening the transaction to avoid concurrent first-use upsert
-    // duplicate-key errors. These rows have no business meaning without a txn.
-    for (const _id of keys) {
-      try {
-        await gates.updateOne(
-          { _id },
-          {
-            $setOnInsert: {
-              revision: 0,
-              generation: 0,
-              allocationPending: false,
-            },
-          },
-          { upsert: true },
-        );
-      } catch (error) {
-        if (!(
-          typeof error === 'object' &&
-          error !== null &&
-          'code' in error &&
-          error.code === 11000
-        ))
-          throw error;
-      }
-    }
+    await this.prepareGates(keys);
     const session = await connection.startSession();
     let attempts = 0;
     try {
@@ -289,6 +281,34 @@ export class BookingCoordinationService {
       );
     } finally {
       await session.endSession();
+    }
+  }
+
+  private async prepareGates(keys: string[]): Promise<void> {
+    // Seed before opening the transaction to avoid concurrent first-use upsert
+    // duplicate-key errors. These rows have no business meaning without a txn.
+    for (const _id of keys) {
+      try {
+        await this.gates!.updateOne(
+          { _id },
+          {
+            $setOnInsert: {
+              revision: 0,
+              generation: 0,
+              allocationPending: false,
+            },
+          },
+          { upsert: true },
+        );
+      } catch (error) {
+        if (!(
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 11000
+        ))
+          throw error;
+      }
     }
   }
 

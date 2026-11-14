@@ -27,6 +27,7 @@
     "booking:migrate": "node --env-file-if-exists=.env dist/tools/booking-migration.js",
     "booking:status": "node --env-file-if-exists=.env dist/tools/booking-status.js",
     "member:email:storage": "node --env-file-if-exists=.env dist/tools/email-verification-storage.js",
+    "test:account-deletion:integration": "npm run build && node test/run-booking-integration.cjs test/jest-account-deletion.json",
     "test:email:integration": "npm run build && node test/run-booking-integration.cjs test/jest-email.json"
   },
   "dependencies": {

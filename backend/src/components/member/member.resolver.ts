@@ -1,3 +1,4 @@
+import { AccountDeletionPageInput } from '../../libs/dto/member/account-deletion.input.js';
 import { Args, Context, ID, Mutation, Query, Resolver } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import {
@@ -9,6 +10,7 @@ import {
   Member,
   MemberSelf,
   MemberUpdateResult,
+  AccountDeletionReadiness,
 } from '../../libs/dto/member/member.js';
 import { MemberService } from './member.service.js';
 import { DoctorClinicStatus } from '../../libs/enum/member.enum.js';
@@ -49,6 +51,15 @@ export class MemberResolver {
   @Query(() => MemberSelf)
   myProfile(@Context('req') request: AuthenticatedRequest) {
     return this.memberService.myProfile(request.member);
+  }
+
+  @UseGuards(MemberAccessGuard)
+  @Query(() => AccountDeletionReadiness)
+  accountDeletionReadiness(
+    @Args('input', { defaultValue: {} }) input: AccountDeletionPageInput,
+    @Context('req') request: AuthenticatedRequest,
+  ) {
+    return this.memberService.accountDeletionReadiness(request.member, input);
   }
 
   @UseGuards(MemberAccessGuard)

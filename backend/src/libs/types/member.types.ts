@@ -64,7 +64,7 @@ export type MemberSelfProfile = MemberProfile &
   };
 
 export type MemberUpdateResponse = {
-  member: MemberSelfProfile;
+  member: MemberSelfProfile | null;
   requiresLogin: boolean;
   imageCleanupPending: boolean;
 };

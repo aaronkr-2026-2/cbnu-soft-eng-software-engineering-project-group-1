@@ -63,7 +63,8 @@ flowchart TD
   Promotion[AppointmentPromotionService - gated polling]
   Commitments[AppointmentCommitmentService]
   Waitlist[WaitlistService]
-  Coordination[BookingCoordinationService]
+  Coordination[BookingCoordinationService - patient, doctor, clinic and slot gates]
+  DeletionCheck[AccountDeletionCommitmentService]
   Schedule[AppointmentScheduleService]
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
@@ -94,6 +95,9 @@ flowchart TD
   Verify -->|MongoDB transactions: send limits, challenges and member callback| DB
   Verify -->|In-process call after reservation commit: email and code| Mail
   Mail -->|SMTP over TLS: branded verification email| Gmail
+  Member -->|In-process calls: deletion and affiliation transactions| Coordination
+  Member -->|In-process call: account-scoped blocker snapshot| DeletionCheck
+  DeletionCheck -->|MongoDB aggregation: appointments, waitlists and cleanup cutoffs| Models
   Member -->|Mongoose calls: member and session reads/writes| Models
   Booking -->|Mongoose calls: eligibility/hours reads, appointment and outbox writes| Models
   GQL -->|Public slots or guarded clinic schedule mutations| Schedule
@@ -189,6 +193,7 @@ There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server
 | GraphQL | `createClinicAppointment`, `cancelAppointment`, `setAppointmentOutcome` | Guarded actor/participant permissions; shared AppointmentService rules and transactional outbox |
 | GraphQL | `getAvailableSlots`, `setDoctorWeeklyHours`, `setDoctorDateOverrides` | Public bounded slot reads; own-clinic guarded schedule writes |
 | GraphQL | `myClinicDoctors`, `reviewDoctorAffiliation` | Own-clinic affiliation discovery/review through MemberService |
+| GraphQL | `accountDeletionReadiness(input)`, `updateMember(input)` with DELETED/agreement | Current USER/DOCTOR/CLINIC account, complete blocker counts/pages, transactional soft deletion and session invalidation |
 | REST | `POST /appointment/bookAppointment`, `GET /appointment/:id` | Same guard and appointment service as GraphQL |
 | Operations | `GET /`, `/health/live`, `/health/ready`, `/status` | Public API info, liveness, database readiness, and status UI; `/status/assets/*` serves its CSS/JS |
 
@@ -1087,3 +1092,39 @@ were removed. FI-08 is Completed locally. Application database setup, coordinate
 production deployment, topology/TLS and throughput remain unverified. The owning
 [plan](../../backend/EMAIL_VERIFICATION_PLAN.md#coordinated-release-preparation)
 records operator prerequisites and verification limits.
+
+## Account deletion backend
+
+`MemberResolver` exposes guarded `accountDeletionReadiness` and the deletion branch
+of `updateMember`. `MemberService` owns account/session writes and automatic
+PENDING/APPROVED affiliation detachment. The exported
+`AccountDeletionCommitmentService` in `BookingModule` owns account-scoped blocker
+queries over source appointments, waitlists and `waitlist_cleanup`. This dependency
+keeps member deletion independent of `AppointmentModule`.
+
+Readiness uses one primary read-only snapshot, complete counts and independent
+`_id`-ordered pages with limits of 1–100. Source queries include legacy commitments
+and honor cleanup watermarks. Invalid nonterminal records fail with a safe conflict.
+Cancellation permissions include role, time and legacy-version restrictions.
+The detailed [contract](../../backend/ACCOUNT_DELETION_PLAN.md#step-1-contract-decisions--november-14-2026)
+defines exact status/time rules, DTO fields and safe GraphQL error extensions.
+
+Deletion shares patient or doctor gates with commitment writers and adds a clinic
+gate shared by booking, enrollment, replacement, allocation and affiliation changes.
+Every new commitment rechecks current account/clinic/doctor eligibility after gate
+acquisition. Doctor signup writes the clinic gate inside the existing email-proof
+transaction. Deletion writes DELETED/deletedAt, advances authVersion/__v, removes
+refresh sessions and detaches applicable affiliations atomically. Stored profiles,
+images, identifiers and historical care records remain retained.
+
+Email/Google credential issuance and refresh now write the current member's __v
+inside the same transaction as session insertion/rotation. This write conflicts
+with deletion and fences current status/authVersion. Invalid refresh sessions are
+removed transactionally. Refresh expiry retains its fixed lifetime. These paths
+require the configured replica set. The frontend dialog, cross-tab/cookie cleanup,
+browser acceptance and production rollout remain later delivery steps.
+
+November 14 local verification passed build/full TypeScript, 96 unit, 222 API,
+62 account-deletion, 193 booking/worker, 46 email and 18 username/Google identity
+checks. The database suites use owned disposable MongoDB processes. Lint retains
+its existing empty config.ts warning. These results cover backend/API behavior.
