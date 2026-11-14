@@ -1074,3 +1074,78 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** Automated checks caught collection metadata/model typing and a test spy on a read-only dynamic crypto namespace. Codex corrected the types and used the existing default crypto import pattern; final checks pass (B-022). These were automated catches, not an error I reported manually.
 
 **One decision I can explain without AI:** Consuming proof and creating the member in one transaction lets me correct a duplicate username without losing valid proof, while two concurrent signups cannot spend the same proof twice.
+
+
+## Email verification final acceptance (FI-08 Step 5) — 2026-11-13
+
+**Tool(s) used:** Codex, Git/source inspection, Nest build/TypeScript/oxlint/Jest, disposable MongoDB, Yarn/Node tests, isolated Webpack builds, real Gmail SMTP, native Chrome and read-only session checks.
+
+**What I asked for:** Complete email verification Step 5. I explicitly approved up to two messages to the configured sender inbox and supplied the received test code.
+
+**Pre-planning:** Verified clean backend f117f1f and Next 0ebc234, final contracts, Step 4 evidence and existing automated Google policy. No sprint covers November 13.
+
+**Planning:** Rerun relevant checks and use the actual Next form, compiled Gmail provider and disposable database for real inbox/signup/login/refresh acceptance. Keep production rollout separate.
+
+**Implementation process:** Backend build/full TypeScript/lint and 96 unit/222 API/46 email integration/18 username integration tests pass; Next typecheck/125 tests and final isolated production build pass (507 tests total). Fifteen actual proxy/API requests pass synthetic retry/resend/expiry/binding/replay/signup/login/refresh and rejected/ambiguous delivery recovery. Real Gmail accepted one approved code; the received code verified in Chrome, signup succeeded, ordinary login worked and reload restored the session. Read-only disposable checks confirm one account/consumed proof, actual email verification time, refresh rotation and fixed expiry. Previous Step 4 keyboard/390px/error/draft evidence is retained separately. Marked FI-08 and owning records Completed locally, documented release prerequisites and preserved closed sprints. Browser signed out, password saving declined, dedicated tab closed; runner42830 stopped and disposable MongoDB files verified removed. No application DB, source, environment, dependency, deployment, merge, staging, commit or push changes. Final release build /private/tmp/medconnect-email5-release-xmrb9sd4; sanitized evidence /private/tmp/medconnect-email5-runtime-Zp640V.
+
+**What I kept as-is:** Existing login/Google/session/role behavior, manual Git workflow and application/production data. Fresh live Google acceptance remains outside my previously selected automated scope.
+
+**What I changed or rejected, and why:** Updated stale shared Step 4 status and recorded completed local acceptance separately from unperformed deployment. The initial automatic approval rejection was resolved by my explicit live-mail approval before any real send; only one of two approved emails was used.
+
+**Something the AI got wrong that I had to catch:** No application-code AI error identified. Codex corrected an incomplete temporary build path and reran the correct build successfully. Native browser cleanup briefly lost its window; reconnect confirmed sign-out and the dedicated tab then closed.
+
+**One decision I can explain without AI:** Disposable MongoDB proves real email ownership and signup behavior without creating an account in the application database. Coordinating frontend/backend release keeps signup clients compatible with required proof.
+
+
+## Patch critical transitive dependencies — 2026-11-13
+
+**Tool(s) used:** Codex, Git/source/lockfile inspection, npm registry resolution/install/audit, Nest build, TypeScript, oxlint, Jest/Supertest and direct proxy-trust regression checks.
+
+**What I asked for:** Apply the proposed small backend update to resolve the three critical Dependabot alerts.
+
+**Pre-planning:** Verified clean backend 3a65ce3 and current instructions. Critical advisories affect runtime proxy-addr 2.0.7 and development Handlebars 4.7.9 through ts-jest. Existing dependency ranges admit the patched versions. No sprint covers November 13.
+
+**Planning:** Resolve named transitive updates in a temporary lockfile copy, review the package diff, then install and verify the reviewed lockfile in the backend worktree.
+
+**Implementation process:** Updated only proxy-addr to 2.0.8 and Handlebars to 4.7.10 in package-lock.json. npm installed exactly two changed packages. Build/full TypeScript, 96 unit and 222 API tests pass. Lint retains the existing empty config.ts warning. Direct checks confirm broad IPv6 trust prefixes cannot trust/spoof IPv4 clients, valid mapped subnets retain correct matching and Express defaults to trust proxy false. Fresh backend npm audit has zero critical findings (9 high, 21 moderate and 6 low package findings remain). GitHub alert status follows integration into default branch main. Staging, commit, push and merge remain manual.
+
+**What I kept as-is:** Existing dependency declarations and application behavior. The patch fits the approved critical-alert scope.
+
+**What I changed or rejected, and why:** Used the existing compatible version ranges and a reviewed lockfile-only update. This keeps the security fix small and exercises the real installed dependency versions in existing tests.
+
+**Something the AI got wrong that I had to catch:** Codex's first temporary smoke assertion expected an invalid trust prefix to throw. Source/advisory inspection established that the fix instead denies cross-family matches. Codex corrected the assertion to verify actual matching and forwarded-IP behavior, then all checks passed (B-023). This was an automated/agent catch, not an error I reported manually.
+
+**One decision I can explain without AI:** A patch update within existing dependency ranges can fix the critical packages while keeping the change small enough to review and test directly.
+
+## Patch high severity dependencies — 2026-11-14
+
+**Tool(s) used:** Codex, Git, public npm metadata/advisories, npm/Yarn, TypeScript, Nest/Webpack, oxlint, Jest/Node tests and owned disposable MongoDB.
+
+**What I asked for:** Update the risky dependency versions to patched versions in backend and Next.
+
+**Pre-planning:** Started November 13 from clean backend 89f54b0 and Next 522f158. Inspected dependency paths, package-manager configuration and local lessons. Several Nest packages pin affected dependencies exactly. No sprint covers this work date; closed Sprint 05 is preserved.
+
+**Planning:** Resolve named updates in isolated temporary copies, inspect lockfile changes, use scoped overrides for pinned Nest transitive packages, then install and verify the resulting trees. Keep the existing Nest major/minor versions.
+
+**Implementation process:** Raised Mongoose's declared minimum to ^9.11.4, resolving 9.12.1 with MongoDB 7.8.0. Scoped overrides install Multer 2.5.0, GraphQL Tools utils 12.0.2, backend Undici 6.29.1 and tmp 0.2.7. Updated body-parser to 2.4.0 and brace-expansion copies to 5.0.13/2.1.8. The initial isolated tmp 0.2.6 proposal exposed an additional high advisory, so 0.2.7 was selected before application. Next's single Undici lock entry updates to 8.12.4 with its manifest unchanged. Final audits: backend 0 critical/0 high/19 moderate/4 low, Next recursive audit exit 0 with no findings. Build/full TypeScript, 96 unit, 222 API, 193 booking, 118 directory, 18 username and 46 email integration tests pass; Next typecheck, 125 tests and isolated production build pass (818 tests total). Direct tmp traversal rejection, normal file cleanup and external-editor compatibility checks pass. Lint retains the existing empty config.ts warning; Mongoose emits a new-option deprecation warning in passing integration tests. Test runners own and clean their disposable MongoDB files. Recorded delivery after local midnight November 14. GitHub status follows integration into main; deployment remains unverified.
+
+**What I kept as-is:** Application source, framework versions, API contracts, environment and application data, plus manual staging/commit/push/merge workflow.
+
+**What I changed or rejected, and why:** Used reviewed named dependency updates and scoped overrides instead of broad framework upgrades. The overrides should be revisited when upstream Nest dependency pins adopt patched releases. Updated delivery records in each application's own worktree.
+
+**Something the AI got wrong that I had to catch:** Codex's temporary smoke check compared macOS /var and /private/var paths literally. It corrected the check to compare canonical paths, then the checks passed (B-024). This was an agent catch, not my manual report.
+
+**One decision I can explain without AI:** A patched version must pass a fresh audit as well as our tests: tmp 0.2.6 fixes the original alert but introduces exposure to a separate advisory, so the verified choice is 0.2.7.
+
+
+## Account deletion Step 2 backend — 2026-11-14
+
+**Tool(s) used:** Codex, source inspection, TypeScript/Nest build, Jest/Supertest, disposable MongoDB replica-set runners, Oxlint and Git diff checks.
+**What I asked for:** Start Step 2 of the account deletion plan after choosing automatic clinic affiliation detachment.
+**Pre-planning:** Read Step 1 contracts, worktree instructions, session context and relevant bug lessons. Backend d421db1 was clean. Existing patient/doctor/slot gates covered booking, while clinic affiliation and separate credential writes needed coordination with closure.
+**Planning:** Keep member/session/affiliation writes in MemberService and complete blocker reads in an exported BookingModule provider. Add clinic gates to creation paths and reuse the signup proof transaction. Fence credential writes with the member version in the session transaction.
+**Implementation process:** Added guarded complete readiness counts/pages, source/cleanup-aware validation, role/time/legacy action hints, deletion agreement/status validation, nullable deletion result and safe errors. Implemented atomic soft deletion, session invalidation and affiliation detachment. Added focused disposable integration tests and adapted existing isolated auth/email fixtures. Build/full TypeScript, 96 unit, 222 API, 62 deletion, 193 booking/worker, 46 email and 18 username/Google tests passed (637 total). Lint retains the existing config.ts warning. Local-port sandbox failures were resolved through authorized test execution. Updated plan, README and architecture. Frontend/browser/integration/deployment remain later steps, and no sprint covers November 14.
+**What I kept as-is:** Account identifiers, profile/images and care history remain stored. Ordinary profile/password responses, booking/cancellation/queue semantics and fixed refresh expiry are preserved.
+**What I changed or rejected, and why:** A paginated page cannot establish eligibility, so counts cover the whole role-scoped source set. Shared gate writes and member-version writes serialize concurrent commitment/session creation with closure.
+**Something the AI got wrong that I had to catch:** The API suite caught lost cleanup of invalid refresh sessions in the first transactional draft. Cleanup now commits before authentication rejection. Source review caught an omitted internal version projection needed for legacy action hints. Fixtures also needed the actual email collection constants, coordinator wiring and an assertion allowing either overlapping deletion to win. These corrections passed the final checks.
+**One decision I can explain without AI:** Deletion must write the same gate as a new booking before checking commitments, otherwise both transactions could observe a clear account and commit conflicting outcomes.

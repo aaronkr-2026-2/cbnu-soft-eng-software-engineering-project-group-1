@@ -4,6 +4,7 @@ import {
   type MiddlewareConsumer,
   type NestModule,
 } from '@nestjs/common';
+import { BookingModule } from '../booking/booking.module.js';
 import { memberRateLimit } from '../auth/member-rate-limit.js';
 import { memberUsernameRateLimit } from './member-username-rate-limit.js';
 import { JwtModule } from '@nestjs/jwt';
@@ -30,6 +31,7 @@ const mongoUri = getMongoUri();
 @Module({
   imports: [
     UploadStorageModule,
+    BookingModule,
     ...(mongoUri
       ? [
           MongooseModule.forFeature([

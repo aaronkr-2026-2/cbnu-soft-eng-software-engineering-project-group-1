@@ -58,6 +58,7 @@ describe('updateMember GraphQL', () => {
   >();
   const matches = (doc: MemberDocument, filter: Record<string, unknown>) =>
     Object.entries(filter).every(([key, value]) => {
+      if (key === '$expr') return (doc.authVersion ?? 0) === (value as { $eq: [unknown, number] }).$eq[1];
       const actual: unknown = doc.get(key);
       if (value && typeof value === 'object' && '$exists' in value)
         return (actual !== undefined) === value.$exists;
@@ -70,6 +71,7 @@ describe('updateMember GraphQL', () => {
   const query = <T>(fn: () => T | Promise<T>) => {
     const chain = {
       select: () => chain,
+      session: () => chain,
       lean: () => chain,
       exec: async () => fn(),
     };
@@ -90,15 +92,15 @@ describe('updateMember GraphQL', () => {
               String(row._id) !== String(current._id) &&
               ['memberPhone', 'memberNick', 'memberNickNormalized'].some(
                 (key) =>
-                  update.$set[key] !== undefined &&
-                  row.get(key) === update.$set[key],
+                  update.$set?.[key] !== undefined &&
+                  row.get(key) === update.$set?.[key],
               ),
           )
         )
           throw { code: 11000 };
         // Work on a copy: failed validation must not mutate the stored record.
         const candidate = new Member(current.toObject());
-        candidate.set(update.$set);
+        candidate.set(update.$set ?? {});
         for (const [key, value] of Object.entries(update.$inc))
           candidate.set(key, Number(candidate.get(key) ?? 0) + value);
         await candidate.validate();
@@ -135,6 +137,7 @@ describe('updateMember GraphQL', () => {
         {
           provide: getModelToken(MEMBER),
           useValue: {
+            db: { startSession: async () => ({ withTransaction: async (work: () => Promise<unknown>) => work(), endSession: async () => {} }) },
             findOne: (filter: Record<string, unknown>) =>
               query(() => rows.find((row) => matches(row, filter)) ?? null),
             find: (filter: Record<string, unknown>) =>
@@ -154,12 +157,13 @@ describe('updateMember GraphQL', () => {
         {
           provide: getModelToken(MEMBER_SESSION),
           useValue: {
-            create: async (data: {
+            findOne: ({ refreshTokenHash }: { refreshTokenHash: string }) => query(() => sessions.get(refreshTokenHash) ?? null),
+            create: async ([data]: {
               memberId: Types.ObjectId;
               refreshTokenHash: string;
               authVersion: number;
               expiresAt: Date;
-            }) =>
+            }[]) =>
               sessions.set(data.refreshTokenHash, {
                 ...data,
                 _id: data.refreshTokenHash,

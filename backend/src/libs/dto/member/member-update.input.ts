@@ -2,12 +2,14 @@ import { Field, InputType } from '@nestjs/graphql';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsBoolean,
   IsString,
   Length,
   Matches,
   MaxLength,
   ValidateIf,
 } from 'class-validator';
+import { MemberStatus } from '../../enum/member.enum.js';
 import { Location } from '../../enum/location.enum.js';
 import { IsUsername } from '../../../components/member/member-username.js';
 
@@ -20,6 +22,16 @@ const passwordFields = (data: MemberUpdateInput) =>
 
 @InputType()
 export class MemberUpdateInput {
+  @Field(() => MemberStatus, { nullable: true })
+  @ValidateIf((_data, value) => value !== undefined)
+  @IsEnum(MemberStatus)
+  memberStatus?: MemberStatus;
+
+  @Field(() => Boolean, { nullable: true })
+  @ValidateIf((_data, value) => value !== undefined)
+  @IsBoolean()
+  deletionAgreement?: boolean;
+
   @Field(() => String, { nullable: true })
   @ValidateIf((_data, value) => value !== undefined)
   @Transform(trim)

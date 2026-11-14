@@ -1,3 +1,4 @@
+import { BookingCoordinationService } from '../src/components/booking/booking-coordination.service.js';
 import { EmailVerificationService } from '../src/components/auth/email-verification.service.js';
 import { GoogleAuthService } from '../src/components/auth/google-auth.service.js';
 import { Test } from '@nestjs/testing';
@@ -40,6 +41,7 @@ describe('Member REST authentication', () => {
   >();
   const query = (value: unknown) => ({
     select: () => query(value),
+    session: () => query(value),
     exec: async () => value,
   });
   const signup = {
@@ -124,6 +126,7 @@ describe('Member REST authentication', () => {
       controllers: [MemberController],
       providers: [
         MemberService,
+        { provide: BookingCoordinationService, useValue: { prepareClinic: async () => {}, lockClinic: async () => {} } },
         GoogleAuthService,
         // This suite isolates transport/auth regressions with simulated persistence.
         // Real proof validity, rollback and races are in email-verification.integration-spec.
@@ -133,6 +136,12 @@ describe('Member REST authentication', () => {
         {
           provide: getModelToken(MEMBER),
           useValue: {
+            db: { startSession: async () => ({ withTransaction: async (work: () => Promise<unknown>) => work(), endSession: async () => {} }) },
+            findOneAndUpdate: (filter: { _id: unknown; $expr: { $eq: [unknown, number] } }, update: { $inc: { __v: number } }) => {
+              const member = members.find((item) => String(item._id) === String(filter._id) && item.memberStatus === 'ACTIVE' && !item.deletedAt && (item.authVersion ?? 0) === filter.$expr.$eq[1]);
+              if (member) member.set('__v', Number(member.get('__v') ?? 0) + update.$inc.__v);
+              return query(member ?? null);
+            },
             init: async () => {},
             create: async (data: object | object[]) => {
               const member = new Member(Array.isArray(data) ? data[0] : data);
@@ -194,11 +203,12 @@ describe('Member REST authentication', () => {
         {
           provide: getModelToken(MEMBER_SESSION),
           useValue: {
-            create: async (data: {
+            findOne: ({ refreshTokenHash }: { refreshTokenHash: string }) => query(sessions.get(refreshTokenHash) ?? null),
+            create: async ([data]: {
               memberId: unknown;
               refreshTokenHash: string;
               expiresAt: Date;
-            }) => {
+            }[]) => {
               sessions.set(data.refreshTokenHash, {
                 ...data,
                 _id: data.refreshTokenHash,
