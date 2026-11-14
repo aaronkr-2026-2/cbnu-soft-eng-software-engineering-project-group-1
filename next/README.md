@@ -49,6 +49,9 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 
 - `/`: responsive landing page, searchable clinic directory, doctor previews,
   care guide, My Care links, and illustrative appointment art. The hero art is sample content.
+  Desktop/mobile navigation shows My Care after sign-in. Staff see Workspace after
+  sign-in. The hero banner and shared footer identify the service as helping people currently in
+  South Korea find clinics and doctors.
 - `/clinics`: server-paged clinic cards, clinic-name/city/specialty search, sorting,
   name suggestions and doctor previews, with filters/page preserved in the URL.
 - `/doctors`: server-paged approved doctor cards, full-name search, clinic-city/

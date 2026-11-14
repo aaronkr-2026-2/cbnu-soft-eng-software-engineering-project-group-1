@@ -130,6 +130,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   URLs. Clinic cards open public clinic-specific doctor previews with View times
   links. The homepage retains local clinic discovery from the first100 public
   doctors. Ratings remain labeled placeholders; combined local browser acceptance passed.
+- **Next.js navigation:** Desktop/mobile My Care appears after sign-in, with
+  Workspace for clinic/doctor accounts. The hero banner and shared footer identify the service
+  as helping people currently in South Korea find clinics and doctors.
 - **Next.js authentication:** `/auth` offers email/password login, patient signup,
   and optional Google popup sign-in. A same-origin session bridge keeps rotating
   refresh tokens in HttpOnly cookies; access tokens stay in memory. Reload restores

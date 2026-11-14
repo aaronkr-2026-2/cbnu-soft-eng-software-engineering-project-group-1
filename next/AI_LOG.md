@@ -810,3 +810,45 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** Codex's temporary smoke check compared macOS /var and /private/var paths literally. It corrected the check to compare canonical paths, then the checks passed (B-024). This was an agent catch, not my manual report.
 
 **One decision I can explain without AI:** A patched version must pass a fresh audit as well as our tests: tmp 0.2.6 fixes the original alert but introduces exposure to a separate advisory, so the verified choice is 0.2.7.
+
+
+## Instructor navigation and Korea service feedback — 2026-11-14
+
+**Tool(s) used:** Codex, delegated implementation agent, Git/source inspection, Yarn, TypeScript and Node rendered-markup tests.
+
+**What I asked for:** Hide My Care until login, remove Your Care navigation and state that the service is for people currently in Korea. Account deletion is deferred.
+
+**Pre-planning:** Inspected the Next worktree, session store, PatientGate, shared header/footer, reference Navbar, installed Next Link guide and existing tests. Your care was already removed from the top navbar. No frontend sprint covers November 14.
+
+**Planning:** Use the existing session subscription to conditionally render desktop/mobile care links and place the Korea wording in the shared footer. The local instruction requested Terra 5.6 implementation delegation, which is unavailable, so Codex used the available Terra 6.1 agent.
+
+**Implementation process:** Wrapped both My Care/Workspace links in session checks, removed the remaining Your care footer link and changed the footer tagline to “Helping people currently in South Korea find clinics and doctors.” Added two rendered-markup tests covering signed-out, patient, clinic, doctor, return-to-signed-out menus and footer copy. yarn typecheck, all 127 tests and git diff --check passed. Updated both READMEs and local session context. Browser interaction/visual checks and production build were unrun. Closed sprints were preserved.
+
+**What I kept as-is:** Existing role-specific Workspace routing, session restoration, appointment PatientGate and deferred account deletion.
+
+**What I changed or rejected, and why:** I used the shared footer for the Korea service note so it appears across pages, and removed its remaining Your care link to resolve navigation ambiguity.
+
+**Something the AI got wrong that I had to catch:** Codex initially used a repository-relative test path from the application directory. The write failed before creating a file, and Codex corrected the path. No application-code AI error identified during this task.
+
+**One decision I can explain without AI:** The header already subscribes to session changes, so a session check makes My Care appear after login and disappear after logout using the existing state flow.
+
+
+## Korea service message in hero banner — 2026-11-14
+
+**Tool(s) used:** Codex, source inspection, Yarn/TypeScript and localhost HTTP verification.
+
+**What I asked for:** Add the Korea service message to the hero banner too.
+
+**Pre-planning:** Inspected the existing hero paragraph and current navigation/footer changes in the Next worktree.
+
+**Planning:** Reuse the footer wording in the existing hero description and retain its line break.
+
+**Implementation process:** Updated LandingPage and both READMEs. Typechecking and whitespace checks passed. The running localhost preview returned HTTP 200 with the new message in the hero markup. Browser visual verification is unavailable because the browser host is unavailable. No sprint covers November 14.
+
+**What I kept as-is:** Existing hero layout and actions.
+
+**What I changed or rejected, and why:** Replaced generic hero description with the Korea service message to make the audience clear immediately.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Putting the service location in the hero makes it visible before visitors reach the footer.

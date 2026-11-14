@@ -7,13 +7,12 @@ export function SiteFooter() {
       <div className="container footer-main">
         <div>
           <Brand />
-          <p>Connecting people with their next step in care.</p>
+          <p>Helping people currently in South Korea find clinics and doctors.</p>
         </div>
         <nav aria-label="Footer navigation">
           <Link href="/clinics">Clinics</Link>
           <Link href="/doctors">Doctors</Link>
           <Link href="/#how-it-works">How it works</Link>
-          <Link href="/#your-care">Your care</Link>
         </nav>
       </div>
       <div className="container footer-bottom">
