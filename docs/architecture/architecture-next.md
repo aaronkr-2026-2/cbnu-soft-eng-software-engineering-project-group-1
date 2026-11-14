@@ -607,3 +607,20 @@ Step 5 broader role/interface acceptance, coordinated integration and production
 rollout remain pending. Step 4 mobile interaction was unverified. Step 3 records its
 prior 390×844 layout check. Dedicated browser tabs and owned disposable services were
 cleaned up. The protected backend plan remains maintained in its owning worktree.
+
+## Account deletion Step 5 checkpoint — November 14, 2026
+
+Step 5 reused the completed backend account-deletion integration evidence rather than
+repeating its destructive races and retention checks. A fresh owned disposable
+Next-to-Nest fixture confirmed current readiness for patient, doctor, clinic and
+zero-blocker accounts. Patient readiness returned 23 appointments and one waitlist
+with permitted cancellation actions. Doctor rows were read-only, clinic readiness
+reported the expected affiliation impact, and the zero-blocker account was ready.
+Unauthenticated readiness returned `UNAUTHENTICATED`.
+
+The planned desktop/mobile role-interface pass could not run because Chrome changed
+outside the task and its browser host became unavailable before a dedicated local tab
+opened. Step 3 desktop role, pagination, keyboard/focus and 390×844 evidence plus
+Step 4 success, lost-reply and cookie-retry evidence remain recorded above. The
+remaining Step 5 interface pass, coordinated integration and production rollout need
+browser availability.

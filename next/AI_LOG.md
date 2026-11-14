@@ -894,3 +894,23 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** TypeScript caught the AI's initial use of an unsupported MUI Dialog prop. The implementation now guards onClose using installed component types. No owner-reported application defect was identified.
 
 **One decision I can explain without AI:** A lost deletion reply needs recovery feedback because the account may already be closed, and a rejected session alone cannot establish that outcome.
+
+## Account deletion Step 5 checkpoint — 2026-11-14
+
+**Tool(s) used:** Codex, disposable Next/Nest/MongoDB fixture and native Chrome through CUA.
+
+**What I asked for:** Run Step 5 while reusing tests already completed in earlier steps.
+
+**Pre-planning:** I reviewed the existing backend integration cases and Step 3–4 browser evidence, then selected only remaining live role-readiness checks.
+
+**Planning:** Check patient, doctor, clinic, ready-account and unauthenticated behavior without closing additional accounts.
+
+**Implementation process:** A fresh fixture confirmed patient 23-appointment/one-waitlist blockers with cancellation actions, doctor read-only rows, clinic affiliation impact, ready zero-blocker state and unauthenticated rejection. The owned fixture and MongoDB were removed. Chrome changed outside the task and browser access became unavailable before the dedicated local tab opened, so desktop/mobile role-interface completion remains pending. Existing backend integration evidence continues to cover destructive role, concurrency, Google identity, identifier and retained-history behavior.
+
+**What I kept as-is:** Source code, configuration, dependencies and the previously passing checks.
+
+**What I changed or rejected, and why:** I reused prior automated coverage as requested. Automatic approval review rejected a first read-check command because it also contained deletion of an unapproved synthetic account. That command never ran. I reran a read-only version.
+
+**Something the AI got wrong that I had to catch:** The initial command included an unapproved account deletion while preparing a mixed-input check. Automatic approval review stopped it before execution.
+
+**One decision I can explain without AI:** Role readiness can be verified without closing another account, while the existing isolated backend suite already covers the destructive mutation contract and races.
