@@ -20,9 +20,15 @@ const {
 const {
   deletionReadiness,
   cancelDeletionBlocker,
+  deleteAccount,
+  AccountDeletionError,
 } = require('../libs/api/account-deletion.ts');
 const { BookingError } = require('../libs/api/booking.ts');
-const { startSession, clearSession } = require('../libs/auth-session.ts');
+const {
+  startSession,
+  clearSession,
+  currentSessionMemberId,
+} = require('../libs/auth-session.ts');
 const originalFetch = global.fetch;
 afterEach(async () => {
   clearSession();
@@ -377,15 +383,24 @@ test('doctor, clinic, legacy and in-progress resolution messages identify the re
 });
 
 test('a readiness failure disables actions until an explicit successful retry', async () => {
-  let reads = 0; let writes = 0;
-  const review = new AccountDeletionReview(async () => {
-    if (++reads === 1) throw new BookingError('Unavailable');
-    return data([row(1)]);
-  }, async () => { writes++; });
-  await review.refresh(); await review.act(row(1));
-  assert.equal(review.snapshot().status, 'error'); assert.equal(writes, 0);
+  let reads = 0;
+  let writes = 0;
+  const review = new AccountDeletionReview(
+    async () => {
+      if (++reads === 1) throw new BookingError('Unavailable');
+      return data([row(1)]);
+    },
+    async () => {
+      writes++;
+    },
+  );
   await review.refresh();
-  assert.equal(review.snapshot().status, 'ready'); assert.equal(review.snapshot().error, '');
+  await review.act(row(1));
+  assert.equal(review.snapshot().status, 'error');
+  assert.equal(writes, 0);
+  await review.refresh();
+  assert.equal(review.snapshot().status, 'ready');
+  assert.equal(review.snapshot().error, '');
 });
 
 test('waitlist pagination sends its own cursor and preserves appointment blockers', async () => {
@@ -400,8 +415,312 @@ test('waitlist pagination sends its own cursor and preserves appointment blocker
       ? data([row(9)], [row(2, 'WAITLIST')], { waitlistCount: 2 })
       : first;
   });
-  await review.refresh(); await review.more('waitlists');
+  await review.refresh();
+  await review.more('waitlists');
   assert.deepEqual(inputs, [{}, { waitlistAfter: id(1) }]);
-  assert.deepEqual(review.snapshot().data.waitlists.entries.map((item) => item.id), [id(1), id(2)]);
-  assert.deepEqual(review.snapshot().data.appointments.entries.map((item) => item.id), [id(9)]);
+  assert.deepEqual(
+    review.snapshot().data.waitlists.entries.map((item) => item.id),
+    [id(1), id(2)],
+  );
+  assert.deepEqual(
+    review.snapshot().data.appointments.entries.map((item) => item.id),
+    [id(9)],
+  );
+});
+
+test('deletion sends only status/agreement and accepts only the confirmed result contract', async () => {
+  signedIn();
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    assert.match(body.query, /mutation DeleteAccount/);
+    assert.doesNotMatch(body.query, /memberPhone|memberEmail|accessToken/);
+    assert.deepEqual(body.variables, {
+      input: { memberStatus: 'DELETED', deletionAgreement: true },
+    });
+    assert.equal(options.credentials, 'omit');
+    assert.equal(options.cache, 'no-store');
+    return Response.json({
+      data: {
+        updateMember: { requiresLogin: true, imageCleanupPending: false },
+      },
+    });
+  };
+  await deleteAccount(signal(), id(1));
+});
+
+test('deletion pins the expected account and never submits for another signed-in member', async () => {
+  signedIn();
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return Response.json({});
+  };
+  await assert.rejects(
+    deleteAccount(signal(), id(99)),
+    (error) => error.code === 'UNAUTHENTICATED',
+  );
+  assert.equal(calls, 0);
+  assert.equal(currentSessionMemberId(), id(1));
+});
+
+test('explicit blocker conflicts remain recoverable and never expose raw error text', async () => {
+  signedIn();
+  global.fetch = async () =>
+    Response.json({
+      errors: [
+        {
+          message: 'private database payload',
+          extensions: {
+            code: 'CONFLICT',
+            accountDeletion: { reason: 'ACCOUNT_DELETION_BLOCKED' },
+          },
+        },
+      ],
+    });
+  await assert.rejects(
+    deleteAccount(signal()),
+    (error) =>
+      error instanceof AccountDeletionError &&
+      !error.uncertain &&
+      error.reason === 'ACCOUNT_DELETION_BLOCKED' &&
+      !error.message.includes('private'),
+  );
+});
+
+test('server failures, partial results and invalid deletion confirmations are uncertain', async () => {
+  signedIn();
+  for (const [body, status] of [
+    [
+      {
+        errors: [
+          {
+            extensions: {
+              code: 'SERVICE_UNAVAILABLE',
+              accountDeletion: { reason: 'ACCOUNT_DELETION_UNAVAILABLE' },
+            },
+          },
+        ],
+      },
+      200,
+    ],
+    [
+      {
+        data: {
+          updateMember: { requiresLogin: false, imageCleanupPending: false },
+        },
+      },
+      200,
+    ],
+    [{ data: { updateMember: { requiresLogin: true } } }, 200],
+    [
+      {
+        data: {
+          updateMember: { requiresLogin: true, imageCleanupPending: false },
+        },
+        errors: [{ extensions: { code: 'CONFLICT' } }],
+      },
+      200,
+    ],
+    [{}, 503],
+  ]) {
+    global.fetch = async () => Response.json(body, { status });
+    await assert.rejects(deleteAccount(signal()), (error) => error.uncertain);
+  }
+});
+
+test('a rejected deletion token preserves the dialog session boundary and cannot establish success', async () => {
+  signedIn();
+  global.fetch = async () =>
+    Response.json({ errors: [{ extensions: { code: 'UNAUTHENTICATED' } }] });
+  await assert.rejects(
+    deleteAccount(signal()),
+    (error) => error.uncertain && error.code === 'UNAUTHENTICATED',
+  );
+  assert.equal(currentSessionMemberId(), id(1));
+});
+
+test('a lost deletion response is uncertain and is never replayed by transport', async () => {
+  signedIn();
+  let writes = 0;
+  global.fetch = async () => {
+    writes++;
+    throw new TypeError('Synthetic lost reply');
+  };
+  await assert.rejects(deleteAccount(signal()), (error) => error.uncertain);
+  assert.equal(writes, 1);
+});
+
+test('deletion requires unchecked-by-default agreement and clear, complete readiness', async () => {
+  let writes = 0;
+  const review = new AccountDeletionReview(
+    async () => data(),
+    undefined,
+    async () => {
+      writes++;
+    },
+  );
+  assert.equal(review.snapshot().agreement, false);
+  assert.equal(await review.submit(), false);
+  await review.refresh();
+  assert.equal(await review.submit(), false);
+  review.agree(true);
+  assert.equal(review.canDelete(), true);
+  assert.equal(await review.submit(), true);
+  assert.equal(review.snapshot().outcome, 'deleted');
+  assert.equal(writes, 1);
+  assert.equal(await review.submit(), false);
+  const blocked = new AccountDeletionReview(
+    async () => data([row(1)]),
+    undefined,
+    async () => {
+      writes++;
+    },
+  );
+  await blocked.refresh();
+  blocked.agree(true);
+  assert.equal(blocked.canDelete(), false);
+});
+
+test('agreement resets on newly discovered blockers and changed affiliation impact', async () => {
+  let response = data();
+  const review = new AccountDeletionReview(async () => response);
+  await review.refresh();
+  review.agree(true);
+  assert.equal(review.canDelete(), true);
+  response = data([row(1)]);
+  await review.refresh();
+  assert.equal(review.snapshot().agreement, false);
+  response = data();
+  await review.refresh();
+  review.agree(true);
+  response = data([], [], { affiliationImpactCount: 2 });
+  await review.refresh();
+  assert.equal(review.snapshot().agreement, false);
+});
+
+test('expired readiness disables deletion before any mutation is sent', async () => {
+  let writes = 0;
+  const review = new AccountDeletionReview(
+    async () => data(),
+    undefined,
+    async () => {
+      writes++;
+    },
+  );
+  await review.refresh();
+  review.agree(true);
+  review.expire(review.snapshot().checkedAt + 30000);
+  assert.equal(review.canDelete(), false);
+  assert.equal(review.snapshot().agreement, false);
+  await review.submit();
+  assert.equal(writes, 0);
+  assert.match(review.snapshot().error, /expired/);
+});
+
+test('overlapping deletion submissions produce one mutation and lock reads/actions', async () => {
+  const done = deferred();
+  let writes = 0;
+  let reads = 0;
+  const review = new AccountDeletionReview(
+    async () => {
+      reads++;
+      return data();
+    },
+    undefined,
+    async () => {
+      writes++;
+      await done.promise;
+    },
+  );
+  await review.refresh();
+  review.agree(true);
+  const pending = review.submit();
+  await review.submit();
+  await review.refresh();
+  assert.equal(writes, 1);
+  assert.equal(reads, 1);
+  assert.equal(review.snapshot().outcome, 'submitting');
+  done.resolve();
+  await pending;
+});
+
+test('new blockers at submission reset agreement and refresh both lists', async () => {
+  let reads = 0;
+  const review = new AccountDeletionReview(
+    async () => (++reads === 1 ? data() : data([row(1)], [row(2, 'WAITLIST')])),
+    undefined,
+    async () => {
+      throw new AccountDeletionError(
+        'New commitments',
+        'CONFLICT',
+        'ACCOUNT_DELETION_BLOCKED',
+      );
+    },
+  );
+  await review.refresh();
+  review.agree(true);
+  assert.equal(await review.submit(), false);
+  assert.equal(reads, 2);
+  assert.equal(review.snapshot().agreement, false);
+  assert.equal(review.snapshot().data.waitlistCount, 1);
+  assert.equal(review.canDelete(), false);
+});
+
+test('uncertain deletion remains uncertain after readable state or rejected session restoration', async () => {
+  let reads = 0;
+  let writes = 0;
+  const review = new AccountDeletionReview(
+    async () => {
+      if (++reads > 2)
+        throw new BookingError('Session ended', 'UNAUTHENTICATED');
+      return data();
+    },
+    undefined,
+    async () => {
+      writes++;
+      throw new AccountDeletionError('Lost reply', '', '', true);
+    },
+  );
+  await review.refresh();
+  review.agree(true);
+  assert.equal(await review.submit(), false);
+  assert.equal(review.snapshot().outcome, 'uncertain');
+  await review.refresh();
+  review.agree(true);
+  await review.submit();
+  assert.equal(writes, 1);
+  assert.equal(review.snapshot().outcome, 'uncertain');
+  await review.refresh();
+  assert.equal(review.snapshot().outcome, 'uncertain');
+  assert.equal(review.canDelete(), false);
+});
+
+test('closing during a deletion request discards late replies without claiming success', async () => {
+  const done = deferred();
+  const review = new AccountDeletionReview(
+    async () => data(),
+    undefined,
+    async () => done.promise,
+  );
+  await review.refresh();
+  review.agree(true);
+  const pending = review.submit();
+  review.dispose();
+  done.resolve();
+  assert.equal(await pending, false);
+  assert.notEqual(review.snapshot().outcome, 'deleted');
+});
+
+test('session clearing reports cookie-cleanup success and failure while clearing memory immediately', async () => {
+  signedIn();
+  const reply = deferred();
+  global.fetch = async () => reply.promise;
+  const pending = clearSession();
+  assert.equal(currentSessionMemberId(), null);
+  reply.resolve(Response.json({ signedOut: true }));
+  assert.equal(await pending, true);
+  signedIn();
+  global.fetch = async () => Response.json({}, { status: 503 });
+  assert.equal(await clearSession(), false);
+  assert.equal(currentSessionMemberId(), null);
 });

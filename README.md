@@ -167,7 +167,8 @@ this does not establish deployed integration or enable automatic waitlist bookin
 - **Next.js My Page:** `/mypage` provides private profile editing, optional password
   changes, and image preview/upload/removal. USER, DOCTOR and CLINIC accounts can
   review account-deletion commitments with complete counts, paginated lists and
-  permitted cancellation actions. Final account closure awaits the confirmation flow.
+  permitted cancellation actions. Closure requires explicit agreement and fresh readiness,
+  with confirmed-success navigation, uncertain-response recovery and retryable sign-out.
   Earlier focused tests and a local
   browser fixture passed; live profile storage/password flows remain unverified.
 

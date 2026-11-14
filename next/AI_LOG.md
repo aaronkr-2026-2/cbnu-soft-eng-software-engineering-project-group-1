@@ -873,3 +873,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** Tool feedback rejected a Linux-only typing argument on macOS, uppercase modifier spelling and a stale accessibility ID after closing a modal. Focus-then-type, documented key names and fresh accessibility snapshots corrected these verification calls. Native device dimensions required focusing and replacing the numeric field text. Application checks passed.
 
 **One decision I can explain without AI:** After cancellation I refresh appointments and waitlists together, because releasing a booking can change waitlist allocation and account readiness.
+
+
+## Account deletion Step 4 confirmation and session cleanup — 2026-11-14
+
+**Tool(s) used:** Codex, source and MediBridge reference inspection, installed Next documentation, Yarn/TypeScript/Node tests, isolated builds, disposable Nest/MongoDB and native Chrome through CUA.
+
+**What I asked for:** Implement Step 4, close the three named disposable test accounts, and remove “Your existing records will remain stored.”
+
+**Pre-planning:** Started from clean Next `1cb33d9` against backend `587e5ed`. Checked the existing deletion, session and profile entry points, the reference profile and installed client-fetching guide.
+
+**Planning:** Require fresh zero-blocker readiness and explicit agreement, submit the existing mutation once, preserve unknown outcomes across session loss, and await browser cookie cleanup before confirmation navigation.
+
+**Implementation process:** Added mutation transport and identity pinning, agreement/freshness/outcome state, persistent dialog ownership, awaitable sign-out with retry, and the focused public confirmation page. Removed the requested sentence. TypeScript, all160 Node tests and the final isolated production build pass. Chrome verified the three approved accounts through success, lost post-commit reply and failed-cookie-cleanup recovery, plus cross-tab logout/reload. Read-only database checks confirmed exactly three deleted accounts with advanced auth versions and zero refresh sessions. Login failed for each. Release source equality, fixture-free browser bundles, local links and whitespace checks passed. Dedicated tabs and owned fixtures were closed, and disposable Mongo files were removed. Updated both READMEs, Next architecture and local records. Step5 broader role/mobile/integration acceptance and production rollout remain pending. No sprint covers November14.
+
+**What I kept as-is:** Nest owns deletion eligibility, affiliation detachment, account writes and session revocation. Existing profile editing and cancellation contracts remain in use.
+
+**What I changed or rejected, and why:** I chose a30-second frontend readiness lifetime. A dedicated deletion transport preserves uncertain outcomes through authentication errors. Automatic approval review rejected a broader destructive API matrix containing additional accounts, so browser deletion verification used the three explicitly approved accounts.
+
+**Something the AI got wrong that I had to catch:** TypeScript caught the AI's initial use of an unsupported MUI Dialog prop. The implementation now guards onClose using installed component types. No owner-reported application defect was identified.
+
+**One decision I can explain without AI:** A lost deletion reply needs recovery feedback because the account may already be closed, and a rejected session alone cannot establish that outcome.

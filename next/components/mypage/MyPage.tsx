@@ -15,6 +15,7 @@ import EditOutlined from '@mui/icons-material/EditOutlined';
 import CameraAltOutlined from '@mui/icons-material/CameraAltOutlined';
 import {
   clearSession,
+  currentSessionMemberId,
   updateSessionMember,
   useSession,
 } from '../../libs/auth-session';
@@ -56,6 +57,28 @@ const locations = [
 export function MyPage() {
   const session = useSession();
   const [notice, setNotice] = useState('');
+  const router = useRouter();
+  const [deleting, setDeleting] = useState<string | null>(null);
+  useEffect(() => {
+    if (deleting && session && session.member._id !== deleting)
+      setDeleting(null);
+  }, [deleting, session]);
+  async function finishDeletion() {
+    if (currentSessionMemberId() && currentSessionMemberId() !== deleting) {
+      setDeleting(null);
+      return true;
+    }
+    const cleared = await clearSession();
+    if (!cleared) return false;
+    if (currentSessionMemberId()) {
+      setDeleting(null);
+      return true;
+    }
+    setNotice('Your account has been deleted.');
+    setDeleting(null);
+    await router.replace('/account-deleted').catch(() => false);
+    return true;
+  }
   return (
     <div className="landing site-shell mypage">
       <a className="skip-link" href="#main">
@@ -72,6 +95,10 @@ export function MyPage() {
           <PersonalInfo
             key={session.accessToken}
             token={session.accessToken}
+            onDelete={(member) => {
+              setNotice('');
+              setDeleting(member._id);
+            }}
             onSessionEnded={() => {
               setNotice('Your session has ended. Please sign in again.');
               clearSession();
@@ -89,6 +116,19 @@ export function MyPage() {
         )}
       </main>
       <SiteFooter />
+      {deleting && (
+        <AccountDeletionDialog
+          key={deleting}
+          memberId={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={finishDeletion}
+          onUncertain={() =>
+            setNotice(
+              'Account deletion could not be confirmed. Sign in to review your account status before making another request.',
+            )
+          }
+        />
+      )}
     </div>
   );
 }
@@ -96,9 +136,11 @@ export function MyPage() {
 function PersonalInfo({
   token,
   onSessionEnded,
+  onDelete,
 }: {
   token: string;
   onSessionEnded: () => void;
+  onDelete: (member: SelfProfile) => void;
 }) {
   const router = useRouter();
   const username = useUsernameCheck(token);
@@ -119,7 +161,6 @@ function PersonalInfo({
   const [imageError, setImageError] = useState('');
   const [brokenImage, setBrokenImage] = useState(false);
   const [reload, setReload] = useState(0);
-  const [deleting, setDeleting] = useState(false);
   const request = useRef<AbortController | null>(null);
   const uploadedImage = useRef('');
   const form = useRef<HTMLFormElement>(null);
@@ -630,13 +671,12 @@ function PersonalInfo({
             color="error"
             variant="outlined"
             disabled={busy || !!cropFile}
-            onClick={() => setDeleting(true)}
+            onClick={() => onDelete(profile)}
           >
             Delete account
           </Button>
         </div>
       )}
-      {deleting && <AccountDeletionDialog onClose={() => setDeleting(false)} />}
       {!editing && (
         <Button
           className="mypage__reload"

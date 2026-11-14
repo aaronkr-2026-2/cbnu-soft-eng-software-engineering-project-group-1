@@ -199,3 +199,19 @@
     }
   }
 }
+
+.account-deletion__agreement {
+  border-top: 1px solid v.$borderColor;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  p {
+    line-height: 1.6;
+  }
+  .MuiFormControlLabel-root {
+    align-items: flex-start;
+    margin-right: 0;
+  }
+  .MuiCheckbox-root {
+    padding-top: 0;
+  }
+}

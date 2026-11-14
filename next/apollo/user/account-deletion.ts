@@ -37,3 +37,12 @@ export const ACCOUNT_DELETION_READINESS = gql`
     resolutionReason
   }
 `;
+
+export const DELETE_ACCOUNT = gql`
+  mutation DeleteAccount($input: MemberUpdateInput!) {
+    updateMember(input: $input) {
+      requiresLogin
+      imageCleanupPending
+    }
+  }
+`;

@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated November 14, 2026 for the account deletion commitment dialog. Earlier email verification, patient booking,
+Updated November 14, 2026 for account deletion confirmation and session cleanup. Earlier email verification, patient booking,
 staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
@@ -561,3 +561,49 @@ emulation/DevTools closed and the preview tab closed. The owned preview runner w
 stopped and its MongoDB directory removal verified. Existing development servers
 and protected backend sources were preserved. The backend plan is maintained on
 its own branch, and this section records the frontend Step 3 delivery.
+
+
+## Account deletion confirmation — Step 4, November 14, 2026
+
+Step 4 is complete locally. The Step 3 unavailable-control description above records
+its earlier delivery. The dialog now requires an unchecked explicit agreement and
+complete zero-blocker readiness checked within 30 seconds. This freshness interval
+is a frontend engineering default. Expiry, failed reads, new blockers and changed
+clinic affiliation impact reset agreement. Nest rechecks eligibility during deletion
+and automatically detaches clinic doctor affiliations under the agreed contract.
+
+`apollo/user/account-deletion.ts` adds the existing `updateMember` mutation with
+`memberStatus: DELETED` and `deletionAgreement: true`. The dedicated transport in
+`libs/api/account-deletion.ts` pins the initiating member identity, disables caching,
+omits cookies and applies a 15-second timeout. It confirms success only from the
+expected `requiresLogin` and `imageCleanupPending` fields. Safe conflicts refresh
+both commitment lists. Lost, partial and rejected-session responses preserve an
+uncertain outcome with a status-check action. Mutation replay requires a new user
+request. Session rejection alone never establishes successful closure.
+
+My Page owns the dialog above its session-dependent profile subtree so session loss
+preserves recovery feedback. Submitting and confirmed-cleanup states lock dismissal.
+`clearSession()` synchronously clears memory, fences late refresh responses and
+broadcasts logout, then returns the cookie bridge completion result. Failed cookie
+cleanup keeps a focused Retry sign-out action. Successful cleanup navigates to
+`/account-deleted`, whose confirmation heading receives focus. The public page is
+excluded from indexing. The owner requested removal of the existing-records retention
+sentence from the dialog and confirmation copy.
+
+Verification passed TypeScript, all 160 Node tests and an isolated production build
+with fixture API URLs cleared. Regression coverage includes exact mutation input,
+identity changes, freshness, agreement resets, duplicate submits, conflicts, unknown
+outcomes, cookie cleanup and cross-tab/late-refresh fencing. Actual Chrome checks
+against compiled Nest and disposable MongoDB closed exactly the three owner-approved
+accounts. They covered ordinary success, a lost post-commit response and failed
+cookie cleanup followed by Retry sign-out. A second tab became signed out and stayed
+signed out after reload. Read-only database checks confirmed deleted state, advanced
+auth versions and zero refresh sessions for all three, and login was rejected for each.
+The requested retention sentence was absent in the observed UI.
+
+Automatic approval review rejected a broader destructive API matrix that included
+additional accounts. Step 4 destructive verification used the three approved accounts.
+Step 5 broader role/interface acceptance, coordinated integration and production
+rollout remain pending. Step 4 mobile interaction was unverified. Step 3 records its
+prior 390×844 layout check. Dedicated browser tabs and owned disposable services were
+cleaned up. The protected backend plan remains maintained in its owning worktree.

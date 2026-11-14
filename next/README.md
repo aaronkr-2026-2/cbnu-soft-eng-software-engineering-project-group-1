@@ -46,8 +46,8 @@ the frontend/API URLs must be reachable from their respective browser/server
 contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 
 The account deletion review requires backend Step 2 (`587e5ed`), including
-`accountDeletionReadiness`. Its final Delete account control is disabled until the
-agreement, submission and sign-out flow is delivered. See the
+`accountDeletionReadiness`. Closure requires explicit agreement and a fresh zero-blocker
+check, then confirms deletion and completes browser sign-out. See the
 [frontend account deletion record](../docs/architecture/architecture-next.md#account-deletion-review--november-14-2026).
 
 ## Screens
@@ -67,7 +67,8 @@ agreement, submission and sign-out flow is delivered. See the
 - `/mypage`: authenticated private profile, inline Save/Cancel editing, optional
   current/new/confirm password fields, and square photo cropping/upload/removal.
   USER, DOCTOR and CLINIC accounts can review deletion blockers and cancel permitted
-  bookings/waitlists. Final account deletion awaits agreement and session cleanup.
+  bookings/waitlists, agree to closure and delete their account with sign-out recovery.
+- `/account-deleted`: public confirmation after confirmed closure and browser sign-out.
 - `/book`: clinic, doctor, specialty, visual month calendar and real 30-minute slot
   selection; review and immediate appointment confirmation or waitlist enrollment.
 - `/appointments`: patient-scoped paginated visits/history, status filters,

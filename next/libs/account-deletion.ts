@@ -1,6 +1,8 @@
 import {
   cancelDeletionBlocker,
   deletionReadiness,
+  deleteAccount,
+  AccountDeletionError,
 } from './api/account-deletion';
 import { BookingError } from './api/booking';
 import type {
@@ -11,6 +13,9 @@ import type {
 
 export type DeletionDialogState = {
   status: 'loading' | 'ready' | 'error';
+  outcome: 'idle' | 'submitting' | 'uncertain' | 'deleted';
+  agreement: boolean;
+  checkedAt: number;
   data: DeletionReadiness | null;
   pending: string | null;
   loadingMore: DeletionList | null;
@@ -19,12 +24,16 @@ export type DeletionDialogState = {
 };
 const initial: DeletionDialogState = {
   status: 'loading',
+  outcome: 'idle',
+  agreement: false,
+  checkedAt: 0,
   data: null,
   pending: null,
   loadingMore: null,
   message: '',
   error: '',
 };
+export const DELETION_READINESS_MAX_AGE_MS = 30000;
 export const blockerKey = (row: DeletionBlocker) => `${row.kind}:${row.id}`;
 export function resolutionMessage(reason: string | null) {
   return (
@@ -49,6 +58,7 @@ export class AccountDeletionReview {
   constructor(
     private readonly load = deletionReadiness,
     private readonly cancel = cancelDeletionBlocker,
+    private readonly remove = deleteAccount,
   ) {}
   snapshot = () => this.state;
   subscribe = (listener: () => void) => {
@@ -67,7 +77,11 @@ export class AccountDeletionReview {
     this.request = undefined;
   };
   async refresh(message = '') {
-    if (this.state.pending) return;
+    if (
+      this.state.pending ||
+      ['submitting', 'deleted'].includes(this.state.outcome)
+    )
+      return;
     this.dispose();
     const revision = this.revision;
     const controller = new AbortController();
@@ -75,10 +89,24 @@ export class AccountDeletionReview {
     this.publish({ status: 'loading', loadingMore: null, message, error: '' });
     try {
       const data = await this.load({}, controller.signal);
-      if (revision === this.revision) this.publish({ status: 'ready', data });
+      if (revision === this.revision)
+        this.publish({
+          status: 'ready',
+          data,
+          checkedAt: Date.now(),
+          agreement:
+            this.state.agreement &&
+            data.ready &&
+            this.state.data?.affiliationImpactCount ===
+              data.affiliationImpactCount,
+        });
     } catch (error) {
       if (revision === this.revision)
-        this.publish({ status: 'error', error: this.errorMessage(error) });
+        this.publish({
+          status: 'error',
+          agreement: false,
+          error: this.errorMessage(error),
+        });
     } finally {
       if (revision === this.revision) this.request = undefined;
     }
@@ -87,6 +115,7 @@ export class AccountDeletionReview {
     const data = this.state.data;
     if (
       this.request ||
+      this.state.outcome !== 'idle' ||
       this.state.status !== 'ready' ||
       !data?.[list].nextCursor
     )
@@ -149,6 +178,7 @@ export class AccountDeletionReview {
   async act(row: DeletionBlocker) {
     if (
       this.request ||
+      this.state.outcome !== 'idle' ||
       this.state.status !== 'ready' ||
       row.permittedAction === 'NONE'
     )
@@ -185,6 +215,96 @@ export class AccountDeletionReview {
       this.publish({
         error: [errorMessage, this.state.error].filter(Boolean).join(' '),
       });
+  }
+  agree(value: boolean) {
+    if (
+      this.state.outcome !== 'idle' ||
+      this.state.status !== 'ready' ||
+      this.request
+    )
+      return;
+    this.publish({ agreement: value && this.isReady() });
+  }
+  private isReady(now = Date.now()) {
+    const data = this.state.data;
+    const age = now - this.state.checkedAt;
+    return (
+      this.state.status === 'ready' &&
+      this.state.outcome === 'idle' &&
+      !!data?.ready &&
+      data.appointmentCount === 0 &&
+      data.waitlistCount === 0 &&
+      data.appointments.entries.length === 0 &&
+      data.waitlists.entries.length === 0 &&
+      data.appointments.nextCursor === null &&
+      data.waitlists.nextCursor === null &&
+      age >= 0 &&
+      age < DELETION_READINESS_MAX_AGE_MS
+    );
+  }
+  canDelete() {
+    return !this.request && this.state.agreement && this.isReady();
+  }
+  expire(now = Date.now()) {
+    if (
+      this.state.outcome !== 'idle' ||
+      !this.state.data?.ready ||
+      this.state.status !== 'ready'
+    )
+      return;
+    if (
+      now - this.state.checkedAt >= DELETION_READINESS_MAX_AGE_MS ||
+      now < this.state.checkedAt
+    )
+      this.publish({
+        status: 'error',
+        agreement: false,
+        error:
+          'The commitment check has expired. Refresh before deleting your account.',
+      });
+  }
+  async submit(): Promise<boolean> {
+    if (!this.canDelete()) {
+      this.expire();
+      return false;
+    }
+    const revision = this.revision;
+    const controller = new AbortController();
+    this.request = controller;
+    this.publish({
+      outcome: 'submitting',
+      agreement: false,
+      message: '',
+      error: '',
+    });
+    try {
+      await this.remove(controller.signal);
+      if (revision !== this.revision) return false;
+      this.publish({ outcome: 'deleted', data: null, checkedAt: 0 });
+      return true;
+    } catch (error) {
+      if (revision !== this.revision) return false;
+      if (!(error instanceof AccountDeletionError) || error.uncertain) {
+        this.publish({
+          outcome: 'uncertain',
+          agreement: false,
+          error: '',
+          message:
+            'Account deletion could not be confirmed. Check your current account status. A rejected sign-in or session does not confirm deletion.',
+        });
+      } else {
+        this.publish({ outcome: 'idle', agreement: false });
+        this.request = undefined;
+        await this.refresh();
+        if (revision + 1 === this.revision)
+          this.publish({
+            error: [error.message, this.state.error].filter(Boolean).join(' '),
+          });
+      }
+      return false;
+    } finally {
+      if (revision === this.revision) this.request = undefined;
+    }
   }
   private errorMessage(error: unknown) {
     if (error instanceof BookingError && error.code === 'CONFLICT')
