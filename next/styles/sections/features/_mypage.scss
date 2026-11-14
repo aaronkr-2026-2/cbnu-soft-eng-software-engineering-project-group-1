@@ -106,3 +106,112 @@
     }
   }
 }
+
+.mypage__delete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-top: 1px solid v.$borderColor;
+  padding-top: 1.5rem;
+  p {
+    margin: 0;
+  }
+}
+
+.account-deletion {
+  .MuiDialogTitle-root {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  &__section {
+    margin-top: 1.5rem;
+    h3 {
+      font-size: 1.125rem;
+      margin: 0 0 0.5rem;
+    }
+  }
+  &__list {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+  &__entry {
+    display: grid;
+    gap: 1rem;
+    padding: 1.25rem 0;
+    border-top: 1px solid v.$borderColor;
+    overflow-wrap: anywhere;
+    h4 {
+      margin: 0 0 0.25rem;
+      font-size: 1rem;
+    }
+    p {
+      margin: 0.25rem 0;
+      line-height: 1.6;
+    }
+    > .MuiButton-root {
+      justify-self: start;
+    }
+  }
+  &__status,
+  &__count {
+    color: v.$mutedTextColor;
+  }
+  &__confirmation {
+    padding: 1rem;
+    border: 1px solid v.$borderColor;
+    border-radius: v.$radius;
+  }
+  &__buttons,
+  &__loading {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  &__feedback {
+    margin-top: 1rem;
+  }
+  .MuiDialogActions-root {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+  }
+  @media (max-width: 600px) {
+    .MuiDialog-paper {
+      margin: 1rem;
+      width: calc(100% - 2rem);
+    }
+    .MuiDialogContent-root,
+    .MuiDialogTitle-root {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+    .MuiDialogActions-root {
+      padding: 1rem;
+    }
+    &__buttons .MuiButton-root {
+      flex: 1;
+    }
+  }
+}
+
+.account-deletion__agreement {
+  border-top: 1px solid v.$borderColor;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  p {
+    line-height: 1.6;
+  }
+  .MuiFormControlLabel-root {
+    align-items: flex-start;
+    margin-right: 0;
+  }
+  .MuiCheckbox-root {
+    padding-top: 0;
+  }
+}

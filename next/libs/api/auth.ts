@@ -1,8 +1,14 @@
+import {
+  verificationMessage,
+  type VerificationReason,
+} from '../email-verification-contract';
 import { sessionRequest, SessionError } from './session';
 export class AuthError extends Error {
   constructor(
     message: string,
     readonly usernameTaken = false,
+    readonly verificationReason?: VerificationReason,
+    readonly retryAfterSeconds?: number,
   ) {
     super(message);
   }
@@ -26,6 +32,7 @@ export interface LoginInput {
 }
 
 export interface SignupInput extends LoginInput {
+  emailVerificationToken: string;
   memberType: 'USER';
   memberNick: string;
   memberPhone: string;
@@ -54,14 +61,22 @@ export async function authenticate(
       429: 'Too many attempts. Please wait a moment.',
     };
     const usernameTaken = error instanceof SessionError && error.usernameTaken;
+    const verificationReason =
+      error instanceof SessionError ? error.verificationReason : undefined;
     throw new AuthError(
       usernameTaken
         ? 'Username already taken.'
-        : messages[status] ||
+        : verificationReason
+          ? verificationReason === 'EMAIL_VERIFICATION_INVALID'
+            ? 'Your email verification has expired. Request a new code and verify again.'
+            : verificationMessage(verificationReason)
+          : messages[status] ||
             (mode === 'signup'
               ? 'We could not confirm account creation. Try signing in before submitting again.'
               : 'Sign-in is unavailable. Check your connection and try again.'),
       usernameTaken,
+      verificationReason,
+      error instanceof SessionError ? error.retryAfterSeconds : undefined,
     );
   }
 }

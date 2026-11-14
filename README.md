@@ -134,6 +134,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   URLs. Clinic cards open public clinic-specific doctor previews with View times
   links. The homepage retains local clinic discovery from the first100 public
   doctors. Ratings remain labeled placeholders; combined local browser acceptance passed.
+- **Next.js navigation:** Desktop/mobile My Care appears after sign-in, with
+  Workspace for clinic/doctor accounts. The hero banner and shared footer identify the service
+  as helping people currently in South Korea find clinics and doctors.
 - **Next.js authentication:** `/auth` offers email/password login, patient signup,
   and optional Google popup sign-in. A same-origin session bridge keeps rotating
   refresh tokens in HttpOnly cookies; access tokens stay in memory. Reload restores
@@ -166,7 +169,11 @@ this does not establish deployed integration or enable automatic waitlist bookin
   exact-slot booking, mobile/keyboard interaction and read-outage recovery. IN_APP
   is the configured channel; production worker flags and promotion gate remain unchanged.
 - **Next.js My Page:** `/mypage` provides private profile editing, optional password
-  changes, and image preview/upload/removal. Earlier focused tests and a local
+  changes, and image preview/upload/removal. USER, DOCTOR and CLINIC accounts can
+  review account-deletion commitments with complete counts, paginated lists and
+  permitted cancellation actions. Closure requires explicit agreement and fresh readiness,
+  with confirmed-success navigation, uncertain-response recovery and retryable sign-out.
+  Earlier focused tests and a local
   browser fixture passed; live profile storage/password flows remain unverified.
 
 Update this list whenever a new feature is added. Keep entries aligned with the
@@ -268,6 +275,10 @@ proof enforcement and Next.js patient signup controls are implemented. Release b
 applications together after verification storage/SMTP setup. Local real-inbox/browser
 acceptance passed; see the [email verification plan](backend/EMAIL_VERIFICATION_PLAN.md)
 for release prerequisites and deployment limits.
+proof enforcement and Next.js patient signup controls are implemented. Configure
+verification storage and SMTP before releasing both applications together. Local
+real-inbox/browser acceptance passed; the [email verification plan](backend/EMAIL_VERIFICATION_PLAN.md)
+records release prerequisites and deployment limits.
 
 REST routes have no global prefix. With the example port:
 

@@ -130,6 +130,56 @@
     grid-template-columns: 1fr 1fr;
     gap: 16px;
   }
+  .auth-email-verification {
+    padding: 16px;
+    border: 1px solid v.$borderColor;
+    border-radius: 12px;
+    background: rgba(v.$primary, 0.025);
+    min-width: 0;
+  }
+  .auth-email-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .auth-email-code {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 16px;
+    .MuiButton-root {
+      min-height: 56px;
+      white-space: nowrap;
+    }
+  }
+  .auth-email-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: v.$secondaryColor;
+    font-weight: 600;
+    font-size: 0.875rem;
+  }
+  .auth-email-status,
+  .auth-email-timing {
+    margin: 10px 0 0;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: v.$mutedTextColor;
+  }
+  .auth-email-status.is-error {
+    color: var(--mui-palette-error-main, #b42318);
+  }
+  @media (max-width: 30rem) {
+    .auth-email-code {
+      flex-direction: column;
+    }
+    .auth-email-code .MuiButton-root {
+      min-height: 44px;
+      width: 100%;
+    }
+  }
   .auth-submit {
     margin-top: 4px;
     min-height: 50px;
