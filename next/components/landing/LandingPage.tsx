@@ -130,9 +130,9 @@ export function LandingPage() {
                 <em>starts here.</em>
               </h1>
               <p>
-                Explore clinics. Meet their doctors.
+                Helping people currently in South Korea
                 <br />
-                Take the next step toward a healthier you.
+                find clinics and doctors.
               </p>
               <div className="hero-actions">
                 <Button

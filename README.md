@@ -49,7 +49,7 @@ this does not establish deployed integration or enable automatic waitlist bookin
 - **Member registration and login:** REST signup for USER, DOCTOR, and CLINIC
   accounts with email ownership proof, password hashing, input validation, and JWT access tokens.
   The backend supports verification codes, resend limits and single-use signup proof;
-  Next.js signup integration is pending.
+  Next.js patient signup includes code entry, verification status and resend timing.
 - **Username validation:** Signup and profile username edits accept 6–40 English
   letters, numbers, or `_ # $ % ! & ?`, trim surrounding whitespace, and preserve
   display capitalization. A private lowercase key, unique database index and
@@ -130,6 +130,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   URLs. Clinic cards open public clinic-specific doctor previews with View times
   links. The homepage retains local clinic discovery from the first100 public
   doctors. Ratings remain labeled placeholders; combined local browser acceptance passed.
+- **Next.js navigation:** Desktop/mobile My Care appears after sign-in, with
+  Workspace for clinic/doctor accounts. The hero banner and shared footer identify the service
+  as helping people currently in South Korea find clinics and doctors.
 - **Next.js authentication:** `/auth` offers email/password login, patient signup,
   and optional Google popup sign-in. A same-origin session bridge keeps rotating
   refresh tokens in HttpOnly cookies; access tokens stay in memory. Reload restores
@@ -162,7 +165,11 @@ this does not establish deployed integration or enable automatic waitlist bookin
   exact-slot booking, mobile/keyboard interaction and read-outage recovery. IN_APP
   is the configured channel; production worker flags and promotion gate remain unchanged.
 - **Next.js My Page:** `/mypage` provides private profile editing, optional password
-  changes, and image preview/upload/removal. Earlier focused tests and a local
+  changes, and image preview/upload/removal. USER, DOCTOR and CLINIC accounts can
+  review account-deletion commitments with complete counts, paginated lists and
+  permitted cancellation actions. Closure requires explicit agreement and fresh readiness,
+  with confirmed-success navigation, uncertain-response recovery and retryable sign-out.
+  Earlier focused tests and a local
   browser fixture passed; live profile storage/password flows remain unverified.
 
 Update this list whenever a new feature is added. Keep entries aligned with the
@@ -259,9 +266,10 @@ unexpected database. Production retains the `mongodb+srv://` requirement.
 The Gmail verification-mail provider uses TLS on `smtp.gmail.com:465` and a
 10-second send deadline. Configure its two keys in the environment of the backend
 process, or its working-directory `.env`. Backend request/verify endpoints and signup
-proof enforcement are implemented. Next.js signup integration remains pending in the
-[email verification plan](backend/EMAIL_VERIFICATION_PLAN.md). Release both together;
-the current Next.js signup form cannot satisfy the new required proof field.
+proof enforcement and Next.js patient signup controls are implemented. Configure
+verification storage and SMTP before releasing both applications together. Local
+real-inbox/browser acceptance passed; the [email verification plan](backend/EMAIL_VERIFICATION_PLAN.md)
+records release prerequisites and deployment limits.
 
 REST routes have no global prefix. With the example port:
 
@@ -1527,7 +1535,8 @@ Container startup and production deployment remain unverified.
 
 ## Known limitations
 
-- Next.js signup must adopt the backend email verification endpoints/proof before a coordinated release.
+- Email verification passed local real-Gmail signup/login/refresh acceptance;
+  application-database setup and coordinated deployment remain unverified.
 - Logout/revocation endpoints are not implemented.
 - Swagger response schemas are incomplete.
 - Booking, migration and concurrency are tested against disposable MongoDB;

@@ -57,7 +57,9 @@ export function clearSession() {
   channel?.postMessage('logout');
   // The client transport serializes this after any in-flight refresh, so its
   // late Set-Cookie cannot restore the local session after sign-out.
-  void sessionRequest('logout').catch(() => undefined);
+  return sessionRequest<{ signedOut: boolean }>('logout')
+    .then((result) => result?.signedOut === true)
+    .catch(() => false);
 }
 export function restoreSession(force = false): Promise<Session | null> {
   if (pending) return pending;
@@ -114,11 +116,18 @@ export function initializeSession() {
   }
   void restoreSession();
 }
-export async function getAccessToken() {
+export function currentSessionMemberId() {
+  return session?.member._id ?? null;
+}
+export async function getAccessToken(expectedMemberId?: string) {
   if (!snapshot() || session!.expiresAt - Date.now() < 5000)
     await restoreSession(true);
   const token = snapshot()?.accessToken;
-  if (!token) throw new SessionError(401);
+  if (
+    !token ||
+    (expectedMemberId && snapshot()?.member._id !== expectedMemberId)
+  )
+    throw new SessionError(401);
   return token;
 }
 export function updateSessionMember(

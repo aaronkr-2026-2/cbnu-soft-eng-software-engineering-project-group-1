@@ -1,6 +1,6 @@
 # Next.js architecture
 
-Updated November 5, 2026 for doctor/clinic directory search Steps4–6. Earlier patient booking,
+Updated November 14, 2026 for account deletion confirmation and session cleanup. Earlier email verification, patient booking,
 staff workspace and notification records remain below. This document covers
 the Next application; [backend architecture](architecture-backend.md) owns API,
 persistence, migration, workers and release gates.
@@ -18,6 +18,10 @@ flowchart TD
   Routes[Pages and shared layout] --> Features[Discovery, Auth, Profile, Patient Care, Workspace, Notifications]
   Features --> Transport[libs/api fetch helpers and GraphQL documents]
   Features --> Session[Memory session store]
+  Features --> DeletionReview[AccountDeletionReview dialog state]
+  DeletionReview -->|Scoped readiness and explicit cancellation| Transport
+  Features --> Verification[Per-form email verification state]
+  Verification -->|Fixed email-request and email-verify actions| Bridge
   Session --> Bridge[Next session API bridge]
   Transport -->|Public or bearer GraphQL| Nest[Nest services and guards]
   Bridge -->|Allowlisted auth REST| Nest
@@ -222,16 +226,70 @@ crop from the API. All data is disposable; deployment/intended production storag
 and rewriting legacy images are outside this acceptance.
 
 
+## Email verification signup — FI-08 Step 4, November 13, 2026
+
+`AuthPage` composes `components/auth/EmailVerification.tsx` beside the email field.
+The per-form `EmailVerification` state in `libs/email-verification.ts` is subscribed
+through `use-email-verification.ts`, following the existing username-check pattern.
+It owns challenge/proof deadlines, request identity, messages and cancellation;
+Nest owns email policy, guesses, persistence and atomic proof consumption.
+
+- Send code and Verify email are explicit button actions. Six-digit strings preserve
+  leading zeros; labels, one-time-code autocomplete, numeric input hints, keyboard
+  focus and polite status messages are included. The small-screen panel stacks its
+  controls. Account creation requires both valid proof and username availability.
+- Changing the normalized email or form mode cancels obsolete requests and clears
+  verification. Revisions also reject stale responses from transports that ignore
+  aborts. Request IDs, codes and proof exist only in form memory, with no browser
+  storage, serialized page props, URL fields or cross-tab token broadcasts.
+- Uncertain delivery exposes Retry send using the same UUID v4. A deliberate
+  Send new code/Resend code uses a new UUID and clears prior proof. Existing code
+  entry is retained on failure when a prior challenge may still be usable. Absolute
+  server-derived deadlines drive cooldowns; interval ticks redraw current remaining
+  time and expire proof. Blocked sends do not prevent verification or valid signup.
+- `libs/api/email-verification.ts` uses the existing session transport/timeouts.
+  The bridge adds only `email-request` → `email-verification/request` and
+  `email-verify` → `email-verification/verify`, forwards declared fields, validates
+  response shape/duration/opaque-token bounds and returns only challenge/timing or
+  proof/timing fields. Neither action calls tokenResult or sets session cookies.
+- `email-verification-contract.ts` is a shared public contract without server-only
+  imports. Proxy/session/auth error normalization preserves only known reason/status
+  pairs and finite retry timing clamped to 1–86400 seconds. Provider payloads and
+  arbitrary fields are dropped; no-store, same-origin JSON/header checks and fixed
+  upstream URL are preserved. Signup forwards proof while forcing USER and keeps
+  the existing exact USERNAME_TAKEN/memberNick marker.
+- Correctable signup conflicts preserve unrelated form fields and valid proof.
+  Required/invalid proof from Nest clears email authorization and asks for a fresh
+  code. Ordinary login guidance remains for an uncertain committed signup response.
+  Only completed signup calls the established session store.
+
+The current Nest peer for all proxied clients is Next's server. Their code-request
+and confirmation IP budgets are shared; changing an untrusted forwarded-IP header
+does not grant another budget. Durable email escalation remains backend-owned.
+Configure backend verification storage and SMTP before a coordinated release.
+
+Verification: typecheck, frontend tests and isolated production build results are
+recorded in the Next delivery log. Real Next proxy → compiled Nest → disposable
+replica-set HTTP checks covered field/error contracts, delivery rejection and
+ambiguous-send recovery, expired proof, persisted signup details, login cookies and
+shared upstream IP limits. Native Chrome passed wrong-code correction, email-edit
+invalidation, keyboard code confirmation, username-conflict draft/proof preservation
+and successful signup, plus a 390px layout check. SMTP was stubbed and no application
+database or live provider was used. FI-08 Step 5's real inbox/browser acceptance
+subsequently completed as recorded below. The shared backend plan is preserved under the Next
+worktree's protected-backend rule; this section records Step 4 delivery.
+
 ## Sessions and deployment
 
 ```mermaid
 flowchart LR
   Browser[Browser] -->|Pages and same-origin auth POST| Next[Next server]
   Next -->|HttpOnly refresh and nonce cookies| Browser
-  Next -->|REST login, signup, refresh, Google| API[Nest API]
+  Next -->|REST login, signup, refresh, Google and email codes| API[Nest API]
   Browser -->|GraphQL, bearer access token for private operations| API
   Browser -->|REST username check; Bearer token for own-profile check| API
   API --> DB[(MongoDB replica set)]
+  API -->|SMTP over TLS port 465: verification codes| Gmail[Gmail]
   Browser -->|Optional Identity Services popup| Google[Google Identity]
   API -->|ID token verification| Google
 ```
@@ -415,3 +473,213 @@ remain sanitized. The profile helper recognizes the same allowlisted pair on a
 GraphQL CONFLICT. Both forms show the conflict inline and preserve other drafts.
 Chrome checks against a synthetic API cover the interaction; complete updated
 backend/Google-provider acceptance remains OAuth-fix Step7.
+
+
+## FI-08 Step 5 final acceptance — November 13, 2026
+
+Next `0ebc234` and backend `f117f1f` were clean before verification. Next typecheck,
+125 tests and a final isolated production build without fixture API URLs pass.
+Backend build/full TypeScript/lint and 382 tests (96 unit, 222 API, 46 email
+integration, 18 username integration) pass: 507 tests total. The only lint warning
+is the pre-existing empty backend config file. Existing Google policy remains
+covered automatically; no fresh live Google login was attempted.
+
+After explicit approval for up to two emails, the actual Next signup form requested
+one real Gmail code to the configured sender inbox. The owner supplied the received
+code; keyboard code confirmation, browser signup, sign-out/login and reload-based
+session restoration passed. Read-only disposable MongoDB checks confirmed one
+account, one consumed proof, private email verification time, token rotation and
+unchanged fixed session expiry. No raw code/token/credentials are retained in records.
+
+Fifteen additional actual Next proxy→Nest→disposable MongoDB requests covered
+retry/resend/supersession/binding/replay, signup/login/refresh cookies, expiry and
+definitive/ambiguous delivery failure with stubbed synthetic mail, separately from
+the live sender-inbox flow. Step 4's 390px/error/draft-preservation evidence remains
+applicable. The live run also displayed the corrected countdown without an extra
+second. Password saving was declined, the browser signed out and the dedicated
+tab closed. The owned runner and disposable MongoDB files were removed.
+
+FI-08 is Completed locally. No application-database setup, environment/dependency
+changes, deployment, merge, staging, commit or push occurred. No sprint covers
+November 13. The [shared plan](../../backend/EMAIL_VERIFICATION_PLAN.md#coordinated-release-preparation)
+records coordinated release prerequisites and deployment/proxy/TLS limits.
+
+
+## Account deletion review — November 14, 2026
+
+Account deletion Step 3 is complete locally in the Next worktree. My Page exposes
+Delete account for USER, DOCTOR and CLINIC accounts. It opens
+`components/mypage/AccountDeletionDialog.tsx` while retaining the profile draft.
+The dialog provides appointment/waitlist totals, paginated lists, clinic-local
+dates/statuses, role-appropriate actions and resolution instructions. Clinic
+accounts also see the number of affiliations affected by eventual closure.
+
+`apollo/user/account-deletion.ts` selects only the readiness projection.
+`libs/api/account-deletion.ts` reuses `careRequest`, the existing cancelAppointment
+and leaveWaitlist documents, authenticated token refresh and safe HTTP/GraphQL
+error handling. Queries omit cookies and disable caching. Response validation
+rejects incomplete or contradictory readiness. The UI uses server counts across
+all pages, and a later empty page cannot establish eligibility. Nest owns status,
+time, relationship and cancellation permissions. This frontend requires backend
+Step 2, verified against commit `587e5ed`.
+
+`libs/account-deletion.ts` owns one review state per open dialog. It discards late
+reads on refresh/close, serializes actions, refreshes both lists after every
+cancellation attempt and retains successful server changes if another action
+fails. Uncertain replies trigger a read before another action is offered. Writes
+are never automatically replayed. Pagination has independent cursors, detects
+repeated/incomplete pages, and restarts both lists if counts change. Window focus
+and restored visibility refresh the open dialog. Separate page requests may
+observe different backend snapshots.
+
+MUI supplies modal focus containment, Escape/backdrop dismissal and focus
+restoration. The heading receives initial focus. Inline cancellation confirmation
+explains the action, and focus moves to the content before a canceled row disappears.
+Loading/error feedback and retry controls accompany disabled actions. Closing
+aborts frontend requests and preserves already committed cancellations.
+
+The final Delete account control remains disabled in this delivery, including
+zero-blocker accounts. The ready state explicitly reports that closure is currently
+unavailable. Step 4 will add agreement, deletion submission and confirmed-success
+cookie/session/cross-tab cleanup. Browser closure acceptance, production rollout
+and coordinated branch integration remain later work.
+
+Verification passed TypeScript, all 144 Node tests (17 new transport/state
+regressions), and isolated production builds with fixture URLs cleared in the
+final release build. Nine additional actual frontend-adapter scenarios against
+Nest and owned disposable MongoDB passed for patient pagination, cancellations,
+lost-response reconciliation, doctor permissions, clinic actions/affiliation
+impact and zero blockers. Chrome verified all three roles, 23-record pagination,
+patient booking/waitlist and clinic booking cancellations, draft preservation,
+initial focus, keyboard containment, Escape/trigger focus restoration, error
+feedback and ready/disabled states. The clinic dialog wraps and scrolls at
+390×844. Screen-reader software and final account closure were outside this step's
+browser checks. No sprint covers November 14.
+
+The dedicated browser session was signed out, password saving declined, device
+emulation/DevTools closed and the preview tab closed. The owned preview runner was
+stopped and its MongoDB directory removal verified. Existing development servers
+and protected backend sources were preserved. The backend plan is maintained on
+its own branch, and this section records the frontend Step 3 delivery.
+
+
+## Account deletion confirmation — Step 4, November 14, 2026
+
+Step 4 is complete locally. The Step 3 unavailable-control description above records
+its earlier delivery. The dialog now requires an unchecked explicit agreement and
+complete zero-blocker readiness checked within 30 seconds. This freshness interval
+is a frontend engineering default. Expiry, failed reads, new blockers and changed
+clinic affiliation impact reset agreement. Nest rechecks eligibility during deletion
+and automatically detaches clinic doctor affiliations under the agreed contract.
+
+`apollo/user/account-deletion.ts` adds the existing `updateMember` mutation with
+`memberStatus: DELETED` and `deletionAgreement: true`. The dedicated transport in
+`libs/api/account-deletion.ts` pins the initiating member identity, disables caching,
+omits cookies and applies a 15-second timeout. It confirms success only from the
+expected `requiresLogin` and `imageCleanupPending` fields. Safe conflicts refresh
+both commitment lists. Lost, partial and rejected-session responses preserve an
+uncertain outcome with a status-check action. Mutation replay requires a new user
+request. Session rejection alone never establishes successful closure.
+
+My Page owns the dialog above its session-dependent profile subtree so session loss
+preserves recovery feedback. Submitting and confirmed-cleanup states lock dismissal.
+`clearSession()` synchronously clears memory, fences late refresh responses and
+broadcasts logout, then returns the cookie bridge completion result. Failed cookie
+cleanup keeps a focused Retry sign-out action. Successful cleanup navigates to
+`/account-deleted`, whose confirmation heading receives focus. The public page is
+excluded from indexing. The owner requested removal of the existing-records retention
+sentence from the dialog and confirmation copy.
+
+Verification passed TypeScript, all 160 Node tests and an isolated production build
+with fixture API URLs cleared. Regression coverage includes exact mutation input,
+identity changes, freshness, agreement resets, duplicate submits, conflicts, unknown
+outcomes, cookie cleanup and cross-tab/late-refresh fencing. Actual Chrome checks
+against compiled Nest and disposable MongoDB closed exactly the three owner-approved
+accounts. They covered ordinary success, a lost post-commit response and failed
+cookie cleanup followed by Retry sign-out. A second tab became signed out and stayed
+signed out after reload. Read-only database checks confirmed deleted state, advanced
+auth versions and zero refresh sessions for all three, and login was rejected for each.
+The requested retention sentence was absent in the observed UI.
+
+Automatic approval review rejected a broader destructive API matrix that included
+additional accounts. Step 4 destructive verification used the three approved accounts.
+Step 5 broader role/interface acceptance, coordinated integration and production
+rollout remain pending. Step 4 mobile interaction was unverified. Step 3 records its
+prior 390×844 layout check. Dedicated browser tabs and owned disposable services were
+cleaned up. The protected backend plan remains maintained in its owning worktree.
+
+## Account deletion Step 5 checkpoint — November 14, 2026
+
+Step 5 reused the completed backend account-deletion integration evidence rather than
+repeating its destructive races and retention checks. A fresh owned disposable
+Next-to-Nest fixture confirmed current readiness for patient, doctor, clinic and
+zero-blocker accounts. Patient readiness returned 23 appointments and one waitlist
+with permitted cancellation actions. Doctor rows were read-only, clinic readiness
+reported the expected affiliation impact, and the zero-blocker account was ready.
+Unauthenticated readiness returned `UNAUTHENTICATED`.
+
+The planned desktop/mobile role-interface pass could not run because Chrome changed
+outside the task and its browser host became unavailable before a dedicated local tab
+opened. Step 3 desktop role, pagination, keyboard/focus and 390×844 evidence plus
+Step 4 success, lost-reply and cookie-retry evidence remain recorded above. The
+remaining Step 5 interface pass needs browser availability. Coordinated integration
+and production rollout remain separate release work.
+
+## Account deletion delivery and integration — Step 6, November 14, 2026
+
+Delivery records and integration preparation are complete in the Next worktree.
+Feedback item 6 is delivered locally following the final Step 5 browser acceptance below.
+Issue #10 contains additional feedback with its own acceptance requirements.
+
+| Delivery | Recorded evidence |
+| --- | --- |
+| Backend contract and transactional deletion | Backend `587e5ed`, with 62 deletion integration checks and the recorded supporting suites passing |
+| Commitment review and cancellations | Next `1cb33d9`, with 144 tests and role, pagination, keyboard/focus and 390×844 browser evidence |
+| Agreement, deletion and session completion | Next `3a8a88a`, with 160 tests, typecheck, isolated production build and three approved browser deletion flows |
+| Step 5 checkpoint | Next `16173ba`, reusing earlier checks and recording fresh role-readiness API results and the remaining interface gap |
+
+Integrate backend `587e5ed` and Next `3a8a88a` together, including their prerequisite
+commits. The API must expose `accountDeletionReadiness` and accept deletion-only
+`updateMember` input with `memberStatus: DELETED` and `deletionAgreement: true`.
+Its result must provide `requiresLogin` and `imageCleanupPending`. Clinic deletion
+must detach remaining doctor affiliations under the agreed contract. Existing
+backend booking storage and migration prerequisites continue to apply.
+
+The Next server must serve `/api/session/*` and `/account-deleted`. Configure its
+server API URL and public GraphQL/API URL for the same compatible backend, rebuild
+after public configuration changes, and preserve trusted Host/Origin handling and
+HTTPS cookie settings. The browser must reach the API, and the Next server must
+reach the session endpoints. The recorded isolated build contains no fixture URL.
+
+Before release, verify the combined branch result in its intended environment, including sign-out cookie
+cleanup and recovery feedback. Production configuration and deployment remain
+unverified. Earlier passing tests are reused unless integration changes or a new
+failure justifies another run.
+
+The owning backend plan still records Steps 3–6 as pending. This Next record
+provides the current frontend delivery status under the Next worktree's protected
+backend rule. No sprint covers November 14, so the closed Sprint 05 stays historical.
+The owner handles staging, commits, pushes, integration and release actions.
+
+### Final local acceptance and closure
+
+Steps 5–6 are complete locally. The later Chrome pass supersedes the earlier
+browser-unavailable checkpoint. Existing Step 2 backend, Step 3 role/pagination/
+keyboard and Step 4 deletion/recovery evidence was reused as requested.
+
+The final Chrome pass used the current Next application with compiled backend
+`587e5ed` and owned disposable MongoDB. Patient blockers showed 23 appointments,
+one waitlist, descriptive cancellation labels, initial heading focus and disabled
+agreement/deletion controls. Both blocked and ready dialogs were inspected at
+390×844. Content, warning and agreement text wrapped within the dialog, and footer
+actions remained visible. The ready dialog exposed its unchecked agreement with
+the expected accessible name. Keyboard navigation reached Refresh commitments,
+and Escape restored focus to the Delete account trigger. Password saving was
+declined, the browser signed out, emulation was disabled and the dedicated tab closed.
+
+These checks close the remaining local interface gap. Earlier evidence covers
+doctor/clinic permissions, affiliation impact, pagination, focus containment,
+ordinary deletion, lost replies, cookie cleanup retry and cross-tab sign-out.
+No additional account closure was needed. Accessibility evidence covers native
+browser labels and keyboard behavior. A dedicated screen-reader session and
+production deployment have not been verified.

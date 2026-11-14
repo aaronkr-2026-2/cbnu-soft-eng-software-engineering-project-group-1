@@ -748,3 +748,209 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** The header should show the saved photo, while unsaved crop selections stay in the profile editor.
+
+
+## Email verification signup (FI-08 Step 4) — 2026-11-13
+
+**Tool(s) used:** Codex, source/Git inspection, installed Next.js Pages Router documentation, Yarn/TypeScript/Node tests, Webpack builds, native Chrome computer use and disposable Next/Nest/MongoDB HTTP fixtures.
+
+**What I asked for:** Implement the next email verification step, then stop for my manual commit.
+
+**Pre-planning:** Verified clean next worktree at f117f1f and the committed Step 3 contract. Read the actual signup/session proxy, username-check patterns, owning instructions and MediBridge auth styles. Backend files are protected; no sprint covers November 13.
+
+**Planning:** Keep email verification in one per-form memory state with abort/revision guards. Reuse the same-origin proxy and existing session lifecycle, retaining drafts/proof through correctable username conflicts and recovering uncertain sends with the same UUID.
+
+**Implementation process:** Added Send/Resend/Retry send, six-digit code entry, Verify email, status/focus and deadline-based timing. Extended fixed proxy actions and input/result/error allowlists, required signup proof and retained USER enforcement. Typecheck and 125 Node tests passed (26 added). Isolated production builds passed, including a final build without fixture API URLs. Twenty real proxy→Nest→disposable MongoDB requests checked delivery failures/recovery, expired proof, persistence, login cookies and shared upstream IP budgets. Native Chrome verified wrong-code recovery, email-change invalidation, keyboard confirmation, username-conflict preservation, successful signup and 390px controls. Declined password saving, signed out, restored emulation and closed the dedicated tab. SMTP was stubbed; real Gmail/browser release acceptance is Step 5. Updated READMEs/Next architecture and local session/lessons records; preserved the protected backend plan and closed sprints. No app DB, provider, environment, dependency, backend source, deployment or Git staging/commit/push changes.
+
+**What I kept as-is:** Existing login/Google/session cookie behavior, username checks and conflict marker, backend authority, static public shells and private-data boundaries.
+
+**What I changed or rejected, and why:** Signup starts a session only after proof-backed account creation. A separate Retry send retains an uncertain request ID, while Send new code explicitly starts another action; this prevents an accidental duplicate email after a lost response.
+
+**Something the AI got wrong that I had to catch:** Chrome showed a new deadline as 10m 1s because the last interval tick preceded the response. Codex corrected rendering to use the current clock and added a server-rendered regression test; final 125 tests/build pass (NEXT-013). This was a browser/agent catch, not an error I reported manually.
+
+**One decision I can explain without AI:** Email proof belongs only to the email that was verified. Clearing it on email edits prevents me from accidentally submitting another address with the old proof.
+
+
+## Email verification final acceptance (FI-08 Step 5) — 2026-11-13
+
+**Tool(s) used:** Codex, Git/source inspection, Nest build/TypeScript/oxlint/Jest, disposable MongoDB, Yarn/Node tests, isolated Webpack builds, real Gmail SMTP, native Chrome and read-only session checks.
+
+**What I asked for:** Complete email verification Step 5. I explicitly approved up to two messages to the configured sender inbox and supplied the received test code.
+
+**Pre-planning:** Verified clean backend f117f1f and Next 0ebc234, final contracts, Step 4 evidence and existing automated Google policy. No sprint covers November 13.
+
+**Planning:** Rerun relevant checks and use the actual Next form, compiled Gmail provider and disposable database for real inbox/signup/login/refresh acceptance. Keep production rollout separate.
+
+**Implementation process:** Backend build/full TypeScript/lint and 96 unit/222 API/46 email integration/18 username integration tests pass; Next typecheck/125 tests and final isolated production build pass (507 tests total). Fifteen actual proxy/API requests pass synthetic retry/resend/expiry/binding/replay/signup/login/refresh and rejected/ambiguous delivery recovery. Real Gmail accepted one approved code; the received code verified in Chrome, signup succeeded, ordinary login worked and reload restored the session. Read-only disposable checks confirm one account/consumed proof, actual email verification time, refresh rotation and fixed expiry. Previous Step 4 keyboard/390px/error/draft evidence is retained separately. Marked FI-08 and owning records Completed locally, documented release prerequisites and preserved closed sprints. Browser signed out, password saving declined, dedicated tab closed; runner42830 stopped and disposable MongoDB files verified removed. No application DB, source, environment, dependency, deployment, merge, staging, commit or push changes. Final release build /private/tmp/medconnect-email5-release-xmrb9sd4; sanitized evidence /private/tmp/medconnect-email5-runtime-Zp640V.
+
+**What I kept as-is:** Existing login/Google/session/role behavior, manual Git workflow and application/production data. Fresh live Google acceptance remains outside my previously selected automated scope.
+
+**What I changed or rejected, and why:** Updated stale shared Step 4 status and recorded completed local acceptance separately from unperformed deployment. The initial automatic approval rejection was resolved by my explicit live-mail approval before any real send; only one of two approved emails was used.
+
+**Something the AI got wrong that I had to catch:** No application-code AI error identified. Codex corrected an incomplete temporary build path and reran the correct build successfully. Native browser cleanup briefly lost its window; reconnect confirmed sign-out and the dedicated tab then closed.
+
+**One decision I can explain without AI:** Disposable MongoDB proves real email ownership and signup behavior without creating an account in the application database. Coordinating frontend/backend release keeps signup clients compatible with required proof.
+
+## Patch high severity dependencies — 2026-11-14
+
+**Tool(s) used:** Codex, Git, public npm metadata/advisories, npm/Yarn, TypeScript, Nest/Webpack, oxlint, Jest/Node tests and owned disposable MongoDB.
+
+**What I asked for:** Update the risky dependency versions to patched versions in backend and Next.
+
+**Pre-planning:** Started November 13 from clean backend 89f54b0 and Next 522f158. Inspected dependency paths, package-manager configuration and local lessons. Several Nest packages pin affected dependencies exactly. No sprint covers this work date; closed Sprint 05 is preserved.
+
+**Planning:** Resolve named updates in isolated temporary copies, inspect lockfile changes, use scoped overrides for pinned Nest transitive packages, then install and verify the resulting trees. Keep the existing Nest major/minor versions.
+
+**Implementation process:** Raised Mongoose's declared minimum to ^9.11.4, resolving 9.12.1 with MongoDB 7.8.0. Scoped overrides install Multer 2.5.0, GraphQL Tools utils 12.0.2, backend Undici 6.29.1 and tmp 0.2.7. Updated body-parser to 2.4.0 and brace-expansion copies to 5.0.13/2.1.8. The initial isolated tmp 0.2.6 proposal exposed an additional high advisory, so 0.2.7 was selected before application. Next's single Undici lock entry updates to 8.12.4 with its manifest unchanged. Final audits: backend 0 critical/0 high/19 moderate/4 low, Next recursive audit exit 0 with no findings. Build/full TypeScript, 96 unit, 222 API, 193 booking, 118 directory, 18 username and 46 email integration tests pass; Next typecheck, 125 tests and isolated production build pass (818 tests total). Direct tmp traversal rejection, normal file cleanup and external-editor compatibility checks pass. Lint retains the existing empty config.ts warning; Mongoose emits a new-option deprecation warning in passing integration tests. Test runners own and clean their disposable MongoDB files. Recorded delivery after local midnight November 14. GitHub status follows integration into main; deployment remains unverified.
+
+**What I kept as-is:** Application source, framework versions, API contracts, environment and application data, plus manual staging/commit/push/merge workflow.
+
+**What I changed or rejected, and why:** Used reviewed named dependency updates and scoped overrides instead of broad framework upgrades. The overrides should be revisited when upstream Nest dependency pins adopt patched releases. Updated delivery records in each application's own worktree.
+
+**Something the AI got wrong that I had to catch:** Codex's temporary smoke check compared macOS /var and /private/var paths literally. It corrected the check to compare canonical paths, then the checks passed (B-024). This was an agent catch, not my manual report.
+
+**One decision I can explain without AI:** A patched version must pass a fresh audit as well as our tests: tmp 0.2.6 fixes the original alert but introduces exposure to a separate advisory, so the verified choice is 0.2.7.
+
+
+## Instructor navigation and Korea service feedback — 2026-11-14
+
+**Tool(s) used:** Codex, delegated implementation agent, Git/source inspection, Yarn, TypeScript and Node rendered-markup tests.
+
+**What I asked for:** Hide My Care until login, remove Your Care navigation and state that the service is for people currently in Korea. Account deletion is deferred.
+
+**Pre-planning:** Inspected the Next worktree, session store, PatientGate, shared header/footer, reference Navbar, installed Next Link guide and existing tests. Your care was already removed from the top navbar. No frontend sprint covers November 14.
+
+**Planning:** Use the existing session subscription to conditionally render desktop/mobile care links and place the Korea wording in the shared footer. The local instruction requested Terra 5.6 implementation delegation, which is unavailable, so Codex used the available Terra 6.1 agent.
+
+**Implementation process:** Wrapped both My Care/Workspace links in session checks, removed the remaining Your care footer link and changed the footer tagline to “Helping people currently in South Korea find clinics and doctors.” Added two rendered-markup tests covering signed-out, patient, clinic, doctor, return-to-signed-out menus and footer copy. yarn typecheck, all 127 tests and git diff --check passed. Updated both READMEs and local session context. Browser interaction/visual checks and production build were unrun. Closed sprints were preserved.
+
+**What I kept as-is:** Existing role-specific Workspace routing, session restoration, appointment PatientGate and deferred account deletion.
+
+**What I changed or rejected, and why:** I used the shared footer for the Korea service note so it appears across pages, and removed its remaining Your care link to resolve navigation ambiguity.
+
+**Something the AI got wrong that I had to catch:** Codex initially used a repository-relative test path from the application directory. The write failed before creating a file, and Codex corrected the path. No application-code AI error identified during this task.
+
+**One decision I can explain without AI:** The header already subscribes to session changes, so a session check makes My Care appear after login and disappear after logout using the existing state flow.
+
+
+## Korea service message in hero banner — 2026-11-14
+
+**Tool(s) used:** Codex, source inspection, Yarn/TypeScript and localhost HTTP verification.
+
+**What I asked for:** Add the Korea service message to the hero banner too.
+
+**Pre-planning:** Inspected the existing hero paragraph and current navigation/footer changes in the Next worktree.
+
+**Planning:** Reuse the footer wording in the existing hero description and retain its line break.
+
+**Implementation process:** Updated LandingPage and both READMEs. Typechecking and whitespace checks passed. The running localhost preview returned HTTP 200 with the new message in the hero markup. Browser visual verification is unavailable because the browser host is unavailable. No sprint covers November 14.
+
+**What I kept as-is:** Existing hero layout and actions.
+
+**What I changed or rejected, and why:** Replaced generic hero description with the Korea service message to make the audience clear immediately.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Putting the service location in the hero makes it visible before visitors reach the footer.
+
+
+## Account deletion Step 3 commitment dialog — 2026-11-14
+
+**Tool(s) used:** Codex, local source/reference inspection, Yarn/TypeScript/Node tests, isolated Next builds, disposable Nest/MongoDB fixtures and native Chrome through CUA.
+
+**What I asked for:** Implement Step 3 of the account deletion plan.
+
+**Pre-planning:** Started from clean Next `6cefd3c`, checked backend Step 2 `587e5ed`, current profile/session/care helpers, MediBridge profile reference and the installed Next client-fetching guide. Existing navigation/hero changes were already committed. Next instructions protect backend folders and require stopping after the agreed step.
+
+**Planning:** Add a focused dialog and a per-dialog review controller. Reuse careRequest and the existing cancellation documents. Use complete backend counts with independent list cursors, keep role/time enforcement in Nest, and leave final closure for Step 4.
+
+**Implementation process:** Added readiness DTO/document/adapter, response validation, stale-read/pagination/action state, inline cancellation confirmation and responsive MUI dialog/styles. My Page supports all three eligible roles and retains drafts. TypeScript,144 tests (17 new) and isolated production builds pass. Nine actual frontend-adapter/API/database scenarios pass, including lost replies after committed cancellation. Chrome verified roles, full patient pagination, patient booking/waitlist and clinic booking cancellations, keyboard/focus/Escape, draft retention, errors, ready/disabled feedback and390×844 layout. Final release build clears fixture URLs. Signed out, declined password saving, restored browser controls, closed the dedicated tab, stopped the owned fixture and verified Mongo cleanup. Updated owning/root README, architecture and local session context. No sprint covers November14, and Step4/final closure/deployment remain pending.
+
+**What I kept as-is:** Existing profile/password/image editing and server cancellation/queue rules. Commitment and authentication writes remain owned by Nest.
+
+**What I changed or rejected, and why:** Complete counts determine whether blockers exist. Loading a later empty page cannot establish readiness. Mutations refresh both lists and uncertain outcomes are reconciled through reads, so successful cancellations remain applied without automatic replay.
+
+**Something the AI got wrong that I had to catch:** Tool feedback rejected a Linux-only typing argument on macOS, uppercase modifier spelling and a stale accessibility ID after closing a modal. Focus-then-type, documented key names and fresh accessibility snapshots corrected these verification calls. Native device dimensions required focusing and replacing the numeric field text. Application checks passed.
+
+**One decision I can explain without AI:** After cancellation I refresh appointments and waitlists together, because releasing a booking can change waitlist allocation and account readiness.
+
+
+## Account deletion Step 4 confirmation and session cleanup — 2026-11-14
+
+**Tool(s) used:** Codex, source and MediBridge reference inspection, installed Next documentation, Yarn/TypeScript/Node tests, isolated builds, disposable Nest/MongoDB and native Chrome through CUA.
+
+**What I asked for:** Implement Step 4, close the three named disposable test accounts, and remove “Your existing records will remain stored.”
+
+**Pre-planning:** Started from clean Next `1cb33d9` against backend `587e5ed`. Checked the existing deletion, session and profile entry points, the reference profile and installed client-fetching guide.
+
+**Planning:** Require fresh zero-blocker readiness and explicit agreement, submit the existing mutation once, preserve unknown outcomes across session loss, and await browser cookie cleanup before confirmation navigation.
+
+**Implementation process:** Added mutation transport and identity pinning, agreement/freshness/outcome state, persistent dialog ownership, awaitable sign-out with retry, and the focused public confirmation page. Removed the requested sentence. TypeScript, all160 Node tests and the final isolated production build pass. Chrome verified the three approved accounts through success, lost post-commit reply and failed-cookie-cleanup recovery, plus cross-tab logout/reload. Read-only database checks confirmed exactly three deleted accounts with advanced auth versions and zero refresh sessions. Login failed for each. Release source equality, fixture-free browser bundles, local links and whitespace checks passed. Dedicated tabs and owned fixtures were closed, and disposable Mongo files were removed. Updated both READMEs, Next architecture and local records. Step5 broader role/mobile/integration acceptance and production rollout remain pending. No sprint covers November14.
+
+**What I kept as-is:** Nest owns deletion eligibility, affiliation detachment, account writes and session revocation. Existing profile editing and cancellation contracts remain in use.
+
+**What I changed or rejected, and why:** I chose a30-second frontend readiness lifetime. A dedicated deletion transport preserves uncertain outcomes through authentication errors. Automatic approval review rejected a broader destructive API matrix containing additional accounts, so browser deletion verification used the three explicitly approved accounts.
+
+**Something the AI got wrong that I had to catch:** TypeScript caught the AI's initial use of an unsupported MUI Dialog prop. The implementation now guards onClose using installed component types. No owner-reported application defect was identified.
+
+**One decision I can explain without AI:** A lost deletion reply needs recovery feedback because the account may already be closed, and a rejected session alone cannot establish that outcome.
+
+## Account deletion Step 5 checkpoint — 2026-11-14
+
+**Tool(s) used:** Codex, disposable Next/Nest/MongoDB fixture and native Chrome through CUA.
+
+**What I asked for:** Run Step 5 while reusing tests already completed in earlier steps.
+
+**Pre-planning:** I reviewed the existing backend integration cases and Step 3–4 browser evidence, then selected only remaining live role-readiness checks.
+
+**Planning:** Check patient, doctor, clinic, ready-account and unauthenticated behavior without closing additional accounts.
+
+**Implementation process:** A fresh fixture confirmed patient 23-appointment/one-waitlist blockers with cancellation actions, doctor read-only rows, clinic affiliation impact, ready zero-blocker state and unauthenticated rejection. The owned fixture and MongoDB were removed. Chrome changed outside the task and browser access became unavailable before the dedicated local tab opened, so desktop/mobile role-interface completion remains pending. Existing backend integration evidence continues to cover destructive role, concurrency, Google identity, identifier and retained-history behavior.
+
+**What I kept as-is:** Source code, configuration, dependencies and the previously passing checks.
+
+**What I changed or rejected, and why:** I reused prior automated coverage as requested. Automatic approval review rejected a first read-check command because it also contained deletion of an unapproved synthetic account. That command never ran. I reran a read-only version.
+
+**Something the AI got wrong that I had to catch:** The initial command included an unapproved account deletion while preparing a mixed-input check. Automatic approval review stopped it before execution.
+
+**One decision I can explain without AI:** Role readiness can be verified without closing another account, while the existing isolated backend suite already covers the destructive mutation contract and races.
+
+## Account deletion delivery records and integration preparation — 2026-11-14
+
+**Tool(s) used:** Codex, local Git/source/document inspection, apply_patch and documentation checks.
+
+**What I asked for:** Complete Step 6 of the account deletion plan.
+
+**Pre-planning:** Checked clean Next `16173ba`, backend `587e5ed`, the Step 6 requirements and existing delivery evidence. Step 5 retains a browser interface acceptance gap.
+
+**Planning:** Consolidate delivery commits, API/session compatibility and release prerequisites in the existing Next architecture record, and link it from the owning README.
+
+**Implementation process:** Recorded Steps 2–5 evidence, coordinated backend/Next requirements, route and URL/cookie configuration, remaining acceptance and production limits. Updated the owning README and local continuity record. Documentation whitespace, local links, anchors and commit references checked. Earlier tests and builds were reused for this documentation-only task. No sprint covers November 14.
+
+**What I kept as-is:** The existing implementation and completed test evidence.
+
+**What I changed or rejected, and why:** Feedback item 6 remains awaiting final browser acceptance. The backend plan's older status is explicitly identified in the Next record because the worktree instructions protect backend files.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** The frontend and backend commits must be integrated together because the deletion screen depends on the readiness query and transactional deletion response contract.
+
+## Account deletion final browser acceptance and closure — 2026-11-14
+
+**Tool(s) used:** Codex, disposable Next/Nest/MongoDB fixture, native Chrome through CUA and documentation checks.
+
+**What I asked for:** Finish the Step 5 browser checks and close Step 6.
+
+**Pre-planning:** Reused the completed backend, role-interface and destructive-recovery evidence. Preserved the pending Step 6 documentation edits.
+
+**Planning:** Finish the remaining mobile agreement/layout and keyboard checks, then record local delivery closure.
+
+**Implementation process:** Chrome verified patient blocker counts and disabled agreement/deletion, native accessible action labels, heading focus, blocked and ready390×844 layouts, wrapping, visible footer actions, keyboard navigation and Escape trigger-focus restoration. Earlier role and deletion/recovery checks were reused. Password saving was declined, the browser signed out, emulation disabled and dedicated tab closed. The owned fixture was stopped and its disposable database removed. Documentation checks passed. Steps5–6 and feedback6 are delivered locally. Coordinated integration, production and dedicated screen-reader verification remain later work.
+
+**What I kept as-is:** Existing application behavior and earlier passing test evidence.
+
+**What I changed or rejected, and why:** Updated owning README and architecture closure, preserving earlier unavailable-browser checkpoints as history.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Existing role and destructive-flow evidence can be combined with the final mobile checks without closing more disposable accounts.

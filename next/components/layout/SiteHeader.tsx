@@ -35,9 +35,11 @@ export function SiteHeader() {
         <nav className="desktop-navigation" aria-label="Main navigation">
           <Link href="/clinics">Find a clinic</Link>
           <Link href="/doctors">Find a doctor</Link>
-          <Link href={workspace ? '/workspace' : '/appointments'}>
-            {workspace ? 'Workspace' : 'My Care'}
-          </Link>
+          {session && (
+            <Link href={workspace ? '/workspace' : '/appointments'}>
+              {workspace ? 'Workspace' : 'My Care'}
+            </Link>
+          )}
           {session?.member.memberType === 'USER' && (
             <Link href="/notifications">Notifications</Link>
           )}
@@ -113,12 +115,14 @@ export function SiteHeader() {
               My Page
             </Link>
           )}
-          <Link
-            href={workspace ? '/workspace' : '/appointments'}
-            onClick={() => setMenuOpen(false)}
-          >
-            {workspace ? 'Workspace' : 'My Care'}
-          </Link>
+          {session && (
+            <Link
+              href={workspace ? '/workspace' : '/appointments'}
+              onClick={() => setMenuOpen(false)}
+            >
+              {workspace ? 'Workspace' : 'My Care'}
+            </Link>
+          )}
           {session?.member.memberType === 'USER' && (
             <Link href="/notifications" onClick={() => setMenuOpen(false)}>
               Notifications
