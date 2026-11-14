@@ -622,5 +622,64 @@ The planned desktop/mobile role-interface pass could not run because Chrome chan
 outside the task and its browser host became unavailable before a dedicated local tab
 opened. Step 3 desktop role, pagination, keyboard/focus and 390×844 evidence plus
 Step 4 success, lost-reply and cookie-retry evidence remain recorded above. The
-remaining Step 5 interface pass, coordinated integration and production rollout need
-browser availability.
+remaining Step 5 interface pass needs browser availability. Coordinated integration
+and production rollout remain separate release work.
+
+## Account deletion delivery and integration — Step 6, November 14, 2026
+
+Delivery records and integration preparation are complete in the Next worktree.
+Feedback item 6 is delivered locally following the final Step 5 browser acceptance below.
+Issue #10 contains additional feedback with its own acceptance requirements.
+
+| Delivery | Recorded evidence |
+| --- | --- |
+| Backend contract and transactional deletion | Backend `587e5ed`, with 62 deletion integration checks and the recorded supporting suites passing |
+| Commitment review and cancellations | Next `1cb33d9`, with 144 tests and role, pagination, keyboard/focus and 390×844 browser evidence |
+| Agreement, deletion and session completion | Next `3a8a88a`, with 160 tests, typecheck, isolated production build and three approved browser deletion flows |
+| Step 5 checkpoint | Next `16173ba`, reusing earlier checks and recording fresh role-readiness API results and the remaining interface gap |
+
+Integrate backend `587e5ed` and Next `3a8a88a` together, including their prerequisite
+commits. The API must expose `accountDeletionReadiness` and accept deletion-only
+`updateMember` input with `memberStatus: DELETED` and `deletionAgreement: true`.
+Its result must provide `requiresLogin` and `imageCleanupPending`. Clinic deletion
+must detach remaining doctor affiliations under the agreed contract. Existing
+backend booking storage and migration prerequisites continue to apply.
+
+The Next server must serve `/api/session/*` and `/account-deleted`. Configure its
+server API URL and public GraphQL/API URL for the same compatible backend, rebuild
+after public configuration changes, and preserve trusted Host/Origin handling and
+HTTPS cookie settings. The browser must reach the API, and the Next server must
+reach the session endpoints. The recorded isolated build contains no fixture URL.
+
+Before release, verify the combined branch result in its intended environment, including sign-out cookie
+cleanup and recovery feedback. Production configuration and deployment remain
+unverified. Earlier passing tests are reused unless integration changes or a new
+failure justifies another run.
+
+The owning backend plan still records Steps 3–6 as pending. This Next record
+provides the current frontend delivery status under the Next worktree's protected
+backend rule. No sprint covers November 14, so the closed Sprint 05 stays historical.
+The owner handles staging, commits, pushes, integration and release actions.
+
+### Final local acceptance and closure
+
+Steps 5–6 are complete locally. The later Chrome pass supersedes the earlier
+browser-unavailable checkpoint. Existing Step 2 backend, Step 3 role/pagination/
+keyboard and Step 4 deletion/recovery evidence was reused as requested.
+
+The final Chrome pass used the current Next application with compiled backend
+`587e5ed` and owned disposable MongoDB. Patient blockers showed 23 appointments,
+one waitlist, descriptive cancellation labels, initial heading focus and disabled
+agreement/deletion controls. Both blocked and ready dialogs were inspected at
+390×844. Content, warning and agreement text wrapped within the dialog, and footer
+actions remained visible. The ready dialog exposed its unchecked agreement with
+the expected accessible name. Keyboard navigation reached Refresh commitments,
+and Escape restored focus to the Delete account trigger. Password saving was
+declined, the browser signed out, emulation was disabled and the dedicated tab closed.
+
+These checks close the remaining local interface gap. Earlier evidence covers
+doctor/clinic permissions, affiliation impact, pagination, focus containment,
+ordinary deletion, lost replies, cookie cleanup retry and cross-tab sign-out.
+No additional account closure was needed. Accessibility evidence covers native
+browser labels and keyboard behavior. A dedicated screen-reader session and
+production deployment have not been verified.

@@ -914,3 +914,43 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** The initial command included an unapproved account deletion while preparing a mixed-input check. Automatic approval review stopped it before execution.
 
 **One decision I can explain without AI:** Role readiness can be verified without closing another account, while the existing isolated backend suite already covers the destructive mutation contract and races.
+
+## Account deletion delivery records and integration preparation — 2026-11-14
+
+**Tool(s) used:** Codex, local Git/source/document inspection, apply_patch and documentation checks.
+
+**What I asked for:** Complete Step 6 of the account deletion plan.
+
+**Pre-planning:** Checked clean Next `16173ba`, backend `587e5ed`, the Step 6 requirements and existing delivery evidence. Step 5 retains a browser interface acceptance gap.
+
+**Planning:** Consolidate delivery commits, API/session compatibility and release prerequisites in the existing Next architecture record, and link it from the owning README.
+
+**Implementation process:** Recorded Steps 2–5 evidence, coordinated backend/Next requirements, route and URL/cookie configuration, remaining acceptance and production limits. Updated the owning README and local continuity record. Documentation whitespace, local links, anchors and commit references checked. Earlier tests and builds were reused for this documentation-only task. No sprint covers November 14.
+
+**What I kept as-is:** The existing implementation and completed test evidence.
+
+**What I changed or rejected, and why:** Feedback item 6 remains awaiting final browser acceptance. The backend plan's older status is explicitly identified in the Next record because the worktree instructions protect backend files.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** The frontend and backend commits must be integrated together because the deletion screen depends on the readiness query and transactional deletion response contract.
+
+## Account deletion final browser acceptance and closure — 2026-11-14
+
+**Tool(s) used:** Codex, disposable Next/Nest/MongoDB fixture, native Chrome through CUA and documentation checks.
+
+**What I asked for:** Finish the Step 5 browser checks and close Step 6.
+
+**Pre-planning:** Reused the completed backend, role-interface and destructive-recovery evidence. Preserved the pending Step 6 documentation edits.
+
+**Planning:** Finish the remaining mobile agreement/layout and keyboard checks, then record local delivery closure.
+
+**Implementation process:** Chrome verified patient blocker counts and disabled agreement/deletion, native accessible action labels, heading focus, blocked and ready390×844 layouts, wrapping, visible footer actions, keyboard navigation and Escape trigger-focus restoration. Earlier role and deletion/recovery checks were reused. Password saving was declined, the browser signed out, emulation disabled and dedicated tab closed. The owned fixture was stopped and its disposable database removed. Documentation checks passed. Steps5–6 and feedback6 are delivered locally. Coordinated integration, production and dedicated screen-reader verification remain later work.
+
+**What I kept as-is:** Existing application behavior and earlier passing test evidence.
+
+**What I changed or rejected, and why:** Updated owning README and architecture closure, preserving earlier unavailable-browser checkpoints as history.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Existing role and destructive-flow evidence can be combined with the final mobile checks without closing more disposable accounts.

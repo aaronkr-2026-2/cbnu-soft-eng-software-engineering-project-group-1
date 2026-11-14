@@ -48,7 +48,10 @@ contexts. Preserve the public Host/Origin through a trusted reverse proxy.
 The account deletion review requires backend Step 2 (`587e5ed`), including
 `accountDeletionReadiness`. Closure requires explicit agreement and a fresh zero-blocker
 check, then confirms deletion and completes browser sign-out. See the
-[frontend account deletion record](../docs/architecture/architecture-next.md#account-deletion-review--november-14-2026).
+[frontend account deletion record](../docs/architecture/architecture-next.md#account-deletion-review--november-14-2026)
+and [integration requirements](../docs/architecture/architecture-next.md#account-deletion-delivery-and-integration--step-6-november-14-2026).
+Local Step 5 desktop/mobile acceptance and Step 6 delivery records are complete.
+Coordinated branch integration and production deployment remain pending.
 
 ## Screens
 
