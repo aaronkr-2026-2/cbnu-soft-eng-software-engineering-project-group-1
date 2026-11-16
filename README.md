@@ -225,6 +225,8 @@ For an existing database, follow the report/review/backup procedure instead. Sta
 rejects missing or incomplete username enforcement; watch mode does not run migrations.
 Email registration also requires the explicit [verification storage setup](backend/EMAIL_VERIFICATION_PLAN.md#storage-setup-and-operations);
 missing indexes or replica-set support return a safe 503 for verification/signup.
+Password recovery currently has [contracts and optional storage tooling only](backend/PASSWORD_RECOVERY_PLAN.md#storage-setup-and-operations--step-1-tooling-only);
+its public endpoints, email worker and Next screens remain pending.
 
 Start the backend from `backend/`:
 

@@ -646,6 +646,33 @@ The required signup field is a compatibility change: deploy with the implemented
 Next.js Step 4 form/proxy work (`0ebc234`). Full API/recovery details and operator setup are in the
 [email verification plan](../../backend/EMAIL_VERIFICATION_PLAN.md).
 
+### Password recovery foundations — FI-03 Step 1, November 16, 2026
+
+Recovery DTOs, policy helpers and managed storage are implemented; public endpoints,
+worker delivery, atomic password reset and Next recovery screens remain pending.
+`email-send-policy.ts` and `email-rate-limit.ts` now supply both verification and
+recovery helpers: existing verification behavior is preserved. Recovery uses the
+same 60-second spacing, initial-send/group-of-three 1/3/5/24-hour escalation and
+24-hour inactivity reset, but separate persisted counters. Peer-IP budgets remain
+10 request/30 confirmation calls per minute/process; Next remains the upstream peer.
+
+`backend/src/schemas/password-recovery.model.ts` defines native strict validators
+and indexes for separate recovery limits, request jobs, current member-token slots
+and token-free confirmation intents. Unique email/request pairs and token digests
+provide durable identities; member `_id` permits one current token slot. Jobs have
+due/lease/cleanup indexes; limit rows have no TTL. Schema readiness checks require
+replica-set transactions and exact validators/indexes, without startup DDL.
+`member:recovery:storage -- --check` is read-only; explicit `--apply` manages storage.
+Neither command was run against an application database during this task.
+
+Link helpers generate 32 random bytes, SHA-256 digests and fixed trusted-origin
+fragment links with a ten-minute lifetime. The digest identifies a link, not its
+visitor; opening a page does not consume recovery credentials. Consumption/session
+revocation is still Step 3 work. Lazy `PASSWORD_RESET_WEB_ORIGIN` validation requires
+HTTPS except explicit development loopback and is not wired into active routes.
+Contracts, setup limits and local test evidence are in the
+[recovery plan](../../backend/PASSWORD_RECOVERY_PLAN.md).
+
 ## Clinic and doctor cities
 
 As of 2026-10-18, clinic signup requires `location` from MediBridge's ten-value
