@@ -30,7 +30,10 @@ import {
 import { UploadStorageModule } from '../upload/upload-storage.module.js';
 import { getMongoUri } from '../../database/database.config.js';
 import { PasswordRecoveryService } from '../auth/password-recovery.service.js';
-import { recoveryRequestRateLimit } from '../auth/password-recovery-policy.js';
+import {
+  recoveryRequestRateLimit,
+  recoveryResetRateLimit,
+} from '../auth/password-recovery-policy.js';
 
 const mongoUri = getMongoUri();
 
@@ -83,6 +86,10 @@ const mongoUri = getMongoUri();
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer.apply(recoveryResetRateLimit()).forRoutes({
+      path: 'member/password-recovery/reset',
+      method: RequestMethod.POST,
+    });
     consumer.apply(recoveryRequestRateLimit()).forRoutes({
       path: 'member/password-recovery/request',
       method: RequestMethod.POST,

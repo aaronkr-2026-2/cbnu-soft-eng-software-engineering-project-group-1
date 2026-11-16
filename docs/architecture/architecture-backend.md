@@ -82,7 +82,7 @@ flowchart TD
   Upload -->|Node filesystem streams: image bytes| Images
   REST -->|In-process request: appointment Bearer token| Guard
   Guard -->|In-process call: verify token and load principal| Member
-  REST -->|In-process calls: signup, login, refresh| Member
+  REST -->|In-process calls: signup, login, refresh, reset| Member
   GQL -->|In-process call: public profile ID| Member
   GQL -->|In-process call: own-account update input and principal| Member
   Member -->|In-process call: claim new image and delete previous owned file after save| Upload
@@ -96,8 +96,9 @@ flowchart TD
   Verify -->|MongoDB transactions: send limits, challenges and member callback| DB
   Verify -->|In-process call after reservation commit: email and code| Mail
   REST -->|In-process call: neutral password recovery request| Recover
-  Recover -->|MongoDB transactions: admission, limits, jobs and token digests| DB
-  Recover -->|Worker after reservation commit: recovery email| Mail
+  Member -->|Consume reset with credential-write callback in one transaction| Recover
+  Recover -->|MongoDB transactions: admission, limits, jobs, token digests and confirmation| DB
+  Recover -->|Worker after reservation commit: recovery/confirmation email| Mail
   Mail -->|SMTP over TLS: verification/recovery email| Gmail
   Member -->|In-process calls: deletion and affiliation transactions| Coordination
   Member -->|In-process call: account-scoped blocker snapshot| DeletionCheck
@@ -650,14 +651,15 @@ The required signup field is a compatibility change: deploy with the implemented
 Next.js Step 4 form/proxy work (`0ebc234`). Full API/recovery details and operator setup are in the
 [email verification plan](../../backend/EMAIL_VERIFICATION_PLAN.md).
 
-### Password recovery — FI-03 Steps 1–2, November 16, 2026
+### Password recovery — FI-03 Steps 1–3, November 17, 2026
 
 `MemberController` exposes `POST /member/password-recovery/request` through scoped
 DTO validation, no-store/no-referrer headers and a ten-per-minute peer-IP limiter.
 `PasswordRecoveryService` persists neutral requests with opaque idempotency before
 account lookup or SMTP. Disabled/unavailable recovery returns a sanitized 503;
 accepted requests return only 202 `{ accepted: true }`, never delivery/account state.
-No password-reset endpoint or Next recovery screen exists yet.
+`POST /member/password-recovery/reset` delegates to MemberService and a separate
+30/minute peer limiter. No Next recovery screen exists yet.
 
 The service owns separate native recovery limits/jobs/current-token/confirmation
 collections and a singleton admission guard in `password-recovery.model.ts`. Guard
@@ -680,13 +682,31 @@ reactivating old links. Lookup/credential writes remain behind the Nest API.
 
 `EmailDeliveryService` now shares its existing bounded TLS/Gmail transport with reset
 and token-free password-changed HTML/plain-text templates and CID logo. Confirmation
-intent creation/processing remains Step 3 with atomic password reset/session revocation.
+intents now commit with reset. `PasswordRecoveryService.consumeReset` checks the
+indexed token digest/current account before hashing, hashes outside retrying
+transactions through a MemberService callback, then atomically rechecks/consumes
+the token, invokes MemberService's conditional password/authVersion/__v/session
+writes, cancels queued/leased resends, coordinates durable send limits and inserts
+a deterministic token-free confirmation intent. The callback preserves member/session
+write ownership without a service dependency cycle. Missing/null legacy versions are
+zero; deleted/inactive/provider/email/version changes cannot be bypassed. Success
+returns only `{ passwordChanged: true }` without creating a session/cookie.
+
+The worker alternates link/confirmation priority. `password-recovery-confirmation.ts`
+claims one confirmation intent atomically with a 30-second lease, sends outside any
+password transaction and fences finalization by lease ID. Definitive failures retry
+at most three times with 60/120-second backoff before the 24-hour deadline. Unknown
+outcomes and abandoned leases become FAILED/uncertain without automatic duplicate
+mail; stale callbacks cannot overwrite terminal state. Confirmation failure leaves
+a committed password reset intact. Lost commit results stay ambiguous (safe 503);
+replay cannot consume the link again. Real disposable AppModule checks cover
+simultaneous reset and login/refresh/profile/password/deletion races.
 Only aggregate process-local counts and generic worker-failure messages are exposed;
 no email, token or provider payload is logged. Opening a link does not consume it.
 
 `PASSWORD_RECOVERY_ENABLED` defaults off. Enabling requires ready replica-set storage,
 validated `PASSWORD_RESET_WEB_ORIGIN` and existing private SMTP configuration. Keep it
-off until the reset endpoint, Next screens and combined acceptance are complete.
+off until Next screens and combined acceptance are complete.
 The IP limiter still sees Next as peer; production needs verified trusted-proxy guest
 limits, with no trust in arbitrary forwarded headers. No application DB migration,
 proxy/deployment change or live recovery email was performed. Local stubbed-provider

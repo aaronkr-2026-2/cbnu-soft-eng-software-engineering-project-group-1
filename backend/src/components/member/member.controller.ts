@@ -50,6 +50,7 @@ import {
 } from '../auth/password-recovery-error.js';
 import {
   RecoveryRequestDto,
+  RecoveryResetDto,
   RecoveryValidationPipe,
 } from '../../libs/dto/member/password-recovery.dto.js';
 
@@ -166,6 +167,21 @@ export class MemberController {
     if (!this.passwordRecovery)
       throw recoveryError(503, 'PASSWORD_RECOVERY_UNAVAILABLE');
     return this.passwordRecovery.request(input as RecoveryRequestDto);
+  }
+
+  @Post('password-recovery/reset')
+  @ApiOperation({
+    summary: 'Consume a reset link and revoke existing sessions',
+  })
+  @ApiBody({ type: RecoveryResetDto })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @UseFilters(RecoveryErrorFilter)
+  resetPassword(
+    @Body(new RecoveryValidationPipe(RecoveryResetDto)) input: unknown,
+  ) {
+    return this.memberService.resetPassword(input as RecoveryResetDto);
   }
 
   @Post('email-verification/request')

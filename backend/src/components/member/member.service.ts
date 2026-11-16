@@ -69,6 +69,10 @@ import { AccountDeletionException } from '../booking/account-deletion-error.js';
 import { AccountDeletionPageInput } from '../../libs/dto/member/account-deletion.input.js';
 import type { AccountDeletionEntry } from '../../libs/dto/member/member.js';
 import { AppointmentStatus } from '../../libs/enum/appointment.enum.js';
+import { PasswordRecoveryService } from '../auth/password-recovery.service.js';
+import { recoveryError } from '../auth/password-recovery-error.js';
+import type { RecoveryResetDto } from '../../libs/dto/member/password-recovery.dto.js';
+import { length as validLength } from 'class-validator';
 
 const REFRESH_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
 const tokenHash = (token: string) =>
@@ -90,6 +94,7 @@ export class MemberService implements OnModuleInit {
     @Optional() private readonly coordination?: BookingCoordinationService,
     @Optional()
     private readonly deletionCommitments?: AccountDeletionCommitmentService,
+    @Optional() private readonly recovery?: PasswordRecoveryService,
   ) {}
 
   async onModuleInit() {
@@ -119,7 +124,9 @@ export class MemberService implements OnModuleInit {
     if (!isValidUsername(memberNick))
       return { status: 'INVALID', available: false };
     if (!this.members)
-      throw new ServiceUnavailableException('Username availability is unavailable');
+      throw new ServiceUnavailableException(
+        'Username availability is unavailable',
+      );
     try {
       const row = await this.members
         .findOne({ memberNickNormalized: normalizeUsername(memberNick) })
@@ -130,7 +137,9 @@ export class MemberService implements OnModuleInit {
         !row || (!!principal && String(row._id) === String(principal._id));
       return { status: available ? 'AVAILABLE' : 'TAKEN', available };
     } catch {
-      throw new ServiceUnavailableException('Username availability is unavailable');
+      throw new ServiceUnavailableException(
+        'Username availability is unavailable',
+      );
     }
   }
 
@@ -699,13 +708,18 @@ export class MemberService implements OnModuleInit {
         rows.map((row) => {
           let permittedAction = 'NONE';
           let resolutionReason: string | null = null;
-          if (typeof row.version !== 'string' || !row.version || row.status === AppointmentStatus.PENDING)
+          if (
+            typeof row.version !== 'string' ||
+            !row.version ||
+            row.status === AppointmentStatus.PENDING
+          )
             resolutionReason = 'LEGACY_RESOLUTION_REQUIRED';
           else if (kind === 'WAITLIST') {
             if (principal.memberType === MemberType.USER)
               permittedAction = 'CANCEL_WAITLIST';
             else resolutionReason = 'CONTACT_PATIENT';
-          } else if (row.startsAt <= asOf) resolutionReason = 'VISIT_IN_PROGRESS';
+          } else if (row.startsAt <= asOf)
+            resolutionReason = 'VISIT_IN_PROGRESS';
           else if (principal.memberType === MemberType.DOCTOR)
             resolutionReason = 'CONTACT_PATIENT_OR_CLINIC';
           else permittedAction = 'CANCEL_BOOKING';
@@ -1144,6 +1158,48 @@ export class MemberService implements OnModuleInit {
       throw error;
     }
     return this.issueTokens(member);
+  }
+
+  async resetPassword(input: RecoveryResetDto) {
+    if (
+      typeof input.newPassword !== 'string' ||
+      !validLength(input.newPassword, 8, 100) ||
+      input.newPassword !== input.confirmPassword ||
+      typeof input.token !== 'string'
+    )
+      throw recoveryError(400, 'INVALID_REQUEST');
+    if (!this.recovery)
+      throw recoveryError(503, 'PASSWORD_RECOVERY_UNAVAILABLE');
+    const { members, sessions } = this.models();
+    return this.recovery.consumeReset(
+      input.token,
+      () => hashPassword(input.newPassword),
+      async (record, encoded, session) => {
+        const changed = await members.updateOne(
+          {
+            _id: record._id,
+            memberEmail: record.email,
+            authProvider: AuthProvider.EMAIL,
+            memberStatus: MemberStatus.ACTIVE,
+            deletedAt: null,
+            $expr: {
+              $eq: [{ $ifNull: ['$authVersion', 0] }, record.authVersion],
+            },
+          },
+          {
+            $set: {
+              memberPassword: encoded,
+              authVersion: record.authVersion + 1,
+            },
+            $inc: { __v: 1 },
+          },
+          { session, runValidators: true, context: 'query' },
+        );
+        if (changed.modifiedCount !== 1) return false;
+        await sessions.deleteMany({ memberId: record._id }, { session });
+        return true;
+      },
+    );
   }
 
   async login(input: LoginDto): Promise<MemberAuthResponse> {

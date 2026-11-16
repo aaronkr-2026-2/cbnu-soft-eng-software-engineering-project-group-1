@@ -58,6 +58,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   A rate-limited [availability API](docs/architecture/architecture-backend.md#username-availability)
   supports signup and profile editing; checks do not reserve usernames.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
+- **Password recovery backend:** Email reset requests, ten-minute single-use links,
+  atomic password/session invalidation and queued confirmation emails. Default off
+  pending Next screens and combined acceptance; see the [recovery plan](backend/PASSWORD_RECOVERY_PLAN.md).
 - **Member editing:** Authenticated GraphQL `updateMember` edits your profile/contact
   fields, changes passwords with current-password verification and confirmation, and
   saves uploaded profile images. Password changes invalidate existing sessions;
@@ -225,9 +228,9 @@ For an existing database, follow the report/review/backup procedure instead. Sta
 rejects missing or incomplete username enforcement; watch mode does not run migrations.
 Email registration also requires the explicit [verification storage setup](backend/EMAIL_VERIFICATION_PLAN.md#storage-setup-and-operations);
 missing indexes or replica-set support return a safe 503 for verification/signup.
-Password recovery has [backend request delivery and storage tooling](backend/PASSWORD_RECOVERY_PLAN.md#storage-setup-and-operations),
-default off behind `PASSWORD_RECOVERY_ENABLED`. Keep it disabled until password-reset
-execution and the Next recovery screens are delivered and accepted; setup and trusted
+Password recovery has [backend reset and storage tooling](backend/PASSWORD_RECOVERY_PLAN.md#storage-setup-and-operations),
+default off behind `PASSWORD_RECOVERY_ENABLED`. Keep it disabled until the Next
+recovery screens and combined flow are delivered and accepted; setup and trusted
 proxy requirements are in the linked plan.
 
 Start the backend from `backend/`:

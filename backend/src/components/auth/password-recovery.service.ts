@@ -1,5 +1,6 @@
 import {
   Injectable,
+  HttpException,
   Logger,
   Optional,
   type OnModuleInit,
@@ -14,6 +15,7 @@ import {
   RECOVERY_LIMITS,
   RECOVERY_REQUESTS,
   RECOVERY_TOKENS,
+  RECOVERY_CONFIRMATIONS,
   assertPasswordRecoveryStorage,
 } from '../../schemas/password-recovery.model.js';
 import type { MemberEntity } from '../../libs/types/member.types.js';
@@ -22,6 +24,8 @@ import type {
   RecoveryRequest,
   RecoverySendLimit,
   RecoveryToken,
+  RecoveryConfirmation,
+  RecoveryResetResult,
 } from '../../libs/types/password-recovery.types.js';
 import type { RecoveryRequestDto } from '../../libs/dto/member/password-recovery.dto.js';
 import { AuthProvider, MemberStatus } from '../../libs/enum/member.enum.js';
@@ -42,7 +46,9 @@ import {
   newRecoveryToken,
   recoveryTokenHash,
   recoveryWebOrigin,
+  RECOVERY_TOKEN_PATTERN,
 } from './password-recovery-policy.js';
+import { deliverRecoveryConfirmation } from './password-recovery-confirmation.js';
 
 const unavailable = () => recoveryError(503, 'PASSWORD_RECOVERY_UNAVAILABLE');
 const accepted = (): RecoveryAccepted => ({ accepted: true });
@@ -51,6 +57,7 @@ type Storage = {
   limits: Collection<RecoverySendLimit>;
   requests: Collection<RecoveryRequest>;
   tokens: Collection<RecoveryToken>;
+  confirmations: Collection<RecoveryConfirmation>;
 };
 type Outcome = 'ACCEPTED' | 'AMBIGUOUS' | 'REJECTED';
 
@@ -69,7 +76,10 @@ export class PasswordRecoveryService
     ambiguous: 0,
     rejected: 0,
     failures: 0,
+    confirmationSent: 0,
+    confirmationFailed: 0,
   };
+  private preferConfirmation = true;
 
   constructor(
     private readonly delivery: EmailDeliveryService,
@@ -105,6 +115,9 @@ export class PasswordRecoveryService
       limits: db.collection<RecoverySendLimit>(RECOVERY_LIMITS),
       requests: db.collection<RecoveryRequest>(RECOVERY_REQUESTS),
       tokens: db.collection<RecoveryToken>(RECOVERY_TOKENS),
+      confirmations: db.collection<RecoveryConfirmation>(
+        RECOVERY_CONFIRMATIONS,
+      ),
     };
   }
 
@@ -260,6 +273,106 @@ export class PasswordRecoveryService
     }
   }
 
+  // The callback boundary keeps member/session writes with their owning feature.
+  // Hash once outside retrying transactions, only after cheap token/account checks.
+  async consumeReset(
+    token: string,
+    preparePassword: () => Promise<string>,
+    replaceCredentials: (
+      record: RecoveryToken,
+      encoded: string,
+      session: ClientSession,
+    ) => Promise<boolean>,
+  ): Promise<RecoveryResetResult> {
+    const invalid = () => recoveryError(400, 'PASSWORD_RECOVERY_INVALID');
+    try {
+      const storage = await this.storage();
+      if (!RECOVERY_TOKEN_PATTERN.test(token)) throw invalid();
+      const digest = recoveryTokenHash(token);
+      const current = () => ({
+        tokenHash: digest,
+        consumedAt: { $exists: false },
+        expiresAt: { $gt: this.now() },
+      });
+      const initial = await storage.tokens.findOne(current());
+      if (
+        !initial ||
+        !(await this.members!.exists({
+          _id: initial._id,
+          memberEmail: initial.email,
+          authProvider: AuthProvider.EMAIL,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+          $expr: {
+            $eq: [{ $ifNull: ['$authVersion', 0] }, initial.authVersion],
+          },
+        }))
+      )
+        throw invalid();
+      const encoded = await preparePassword();
+      return await this.transaction(async (session) => {
+        const now = this.now();
+        const record = await storage.tokens.findOne(current(), { session });
+        if (!record) throw invalid();
+        const consumed = await storage.tokens.updateOne(
+          { _id: record._id, ...current(), generation: record.generation },
+          { $set: { consumedAt: now } },
+          { session },
+        );
+        if (
+          consumed.modifiedCount !== 1 ||
+          !(await replaceCredentials(record, encoded, session))
+        )
+          throw invalid();
+        const limit = await storage.limits.findOne(
+          { _id: record.email },
+          { session },
+        );
+        if (limit?.pending) {
+          const pending = await storage.requests.findOne(
+            { _id: limit.pending.id, state: 'LEASED' },
+            { session },
+          );
+          // A link can be used after SMTP acceptance but before worker finalization.
+          // Count that send once before canceling the lease, preserving resend policy.
+          if (pending)
+            countSend(limit, new Date(Math.min(+now, +pending.lease!.until)));
+          delete limit.pending;
+          await this.saveLimit(storage, limit, session);
+        }
+        await storage.requests.updateMany(
+          { email: record.email, state: { $in: ['QUEUED', 'LEASED'] } },
+          { $set: { state: 'CANCELED' }, $unset: { lease: '' } },
+          { session },
+        );
+        await storage.confirmations.insertOne(
+          {
+            _id: record.generation,
+            memberId: record._id,
+            email: record.email,
+            state: 'QUEUED',
+            attempts: 0,
+            createdAt: now,
+            nextAttemptAt: now,
+            expiresAt: new Date(+now + DAY),
+            cleanupAt: new Date(+now + RECOVERY_RETENTION),
+          },
+          { session },
+        );
+        return { passwordChanged: true };
+      });
+    } catch (error) {
+      if (
+        error instanceof HttpException &&
+        (error.getResponse() as { reason?: string })?.reason ===
+          'PASSWORD_RECOVERY_INVALID'
+      )
+        throw invalid();
+      // A final unknown commit outcome stays ambiguous; never claim a rollback.
+      throw unavailable();
+    }
+  }
+
   private async claim(storage: Storage) {
     return this.transaction(async (session) => {
       const now = this.now();
@@ -397,6 +510,19 @@ export class PasswordRecoveryService
 
   private async processOne() {
     const storage = await this.storage();
+    const confirm = async () => {
+      const result = await deliverRecoveryConfirmation(
+        storage.confirmations,
+        this.delivery,
+        () => this.now(),
+      );
+      if (result === 'SENT') this.metrics.confirmationSent++;
+      if (result === 'FAILED') this.metrics.confirmationFailed++;
+      return result !== null;
+    };
+    const first = this.preferConfirmation;
+    this.preferConfirmation = !first;
+    if (first && (await confirm())) return;
     const now = this.now();
     // Inactivity resets this policy after 24 hours, so obsolete rows can be reclaimed
     // without losing an active block/reservation. Native delete filters fence races.
@@ -417,7 +543,10 @@ export class PasswordRecoveryService
       return;
     }
     const claim = await this.claim(storage);
-    if (!claim) return;
+    if (!claim) {
+      if (!first) await confirm();
+      return;
+    }
     let outcome: Outcome = 'ACCEPTED';
     try {
       await this.delivery.sendRecoveryLink(claim.job.email, claim.token);

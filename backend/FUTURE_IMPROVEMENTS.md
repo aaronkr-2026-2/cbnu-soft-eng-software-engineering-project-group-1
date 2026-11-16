@@ -70,15 +70,15 @@ the FI-06 rescheduling workflow remain deferred. No implementation is complete.
 ### FI-03 — Forgot-password recovery
 
 The [dedicated plan](PASSWORD_RECOVERY_PLAN.md) defines five backend/Next steps.
-Steps 1–2 completed locally November 16, 2026: contracts/storage, neutral asynchronous
-request admission, durable separate send limits, Gmail templates and a generation-
-fenced delivery worker. The owner selected ten-minute links and FI-08's resend rules.
-Recovery defaults off pending the reset endpoint and Next flow. Build/full TypeScript,
-127 unit, 222 API, 46 email-verification and 41 recovery integration checks pass
-(436 total); lint retains only the existing config.ts warning. Integration mail is
-stubbed. Steps 3–5, live recovery inbox acceptance, application database setup and
-production deployment remain pending. Existing authenticated password changes do
-not satisfy account recovery.
+Steps 1–2 completed locally November 16; Step 3 completed November 17, 2026:
+backend request delivery, ten-minute single-use reset, atomic password/session
+invalidation and token-free confirmation delivery are implemented. Recovery retains
+FI-08's selected resend rules with separate counters and remains default off.
+Build/full TypeScript, 127 unit, 222 API, 71 recovery, 62 deletion and 46 email
+verification checks pass (528 total); lint retains only the existing config.ts warning.
+The email regression suite passed an isolated rerun after a parallel run stalled;
+provider delivery is stubbed. Steps 4–5 (Next screens/combined acceptance), live
+recovery inbox checks, application database setup and deployment remain pending.
 
 ### FI-04 — Add to personal calendar
 

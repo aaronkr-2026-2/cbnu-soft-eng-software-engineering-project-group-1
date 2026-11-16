@@ -2,13 +2,13 @@
 
 Date: November 16, 2026 (Asia/Seoul)
 
-Status: **In progress. Steps 1–2 completed locally November 16, 2026.** Contracts,
-storage, neutral request admission, durable limits, Gmail templates and the recovery
-worker are implemented and verified. Recovery defaults off behind
-`PASSWORD_RECOVERY_ENABLED`. The owner selected a ten-minute link and existing
-email-verification limiter rules. Steps 3–5 remain pending: password-reset execution,
-confirmation-intent delivery and Next recovery screens are not implemented. Live
-recovery email, application database setup and deployment are unperformed.
+Status: **In progress. Steps 1–2 completed November 16; Step 3 completed locally
+November 17, 2026 (Asia/Seoul).** Backend request delivery, atomic reset/session
+invalidation and confirmation-intent delivery are implemented and verified.
+Recovery remains default off behind `PASSWORD_RECOVERY_ENABLED`. Ten-minute links
+and the selected email-verification send rules are unchanged. Steps 4–5 (Next UI
+and combined acceptance) remain pending. No live recovery email, application
+database setup or production activation/deployment has been performed.
 
 Roadmap: [Future improvements](FUTURE_IMPROVEMENTS.md).
 
@@ -244,8 +244,8 @@ separately. These are engineering caps, not measured production throughput claim
 
 The shared Gmail transport preserves verification delivery semantics. Reset and
 password-changed templates include the CID logo, escaped HTML and plain text.
-Confirmation rendering/delivery methods exist; confirmation job creation/processing
-remains Step 3 alongside successful reset. Process-local metrics expose only queued
+Confirmation rendering/delivery methods were delivered in Step 2; Step 3 now
+implements confirmation job creation/processing alongside successful reset. Process-local metrics expose only queued
 admissions, finalized attempt outcomes and worker failure counts.
 
 **Actual checks:** build/full TypeScript, 127 unit, 222 API, 46 email-verification
@@ -275,6 +275,58 @@ Check template escaping and URL rejection; FI-08 mail/verification regressions p
 **Commit:** `feat(backend): deliver password recovery links through Gmail`
 
 ### Step 3 — Implement atomic reset and session invalidation
+
+**Completed locally November 17, 2026; started November 16 (Asia/Seoul).** The real
+`POST /member/password-recovery/reset` route validates matching 8–100-character
+passwords, applies a separate 30/minute peer-IP budget before route work and returns
+only `{ passwordChanged: true }` on success, with no authentication tokens/cookies.
+Invalid token shapes/digests, expiry, consumption, supersession and account/provider/
+email/version ineligibility are rejected before scrypt. Hashing occurs once outside
+retrying transactions; expiry and current generation are checked again inside.
+
+`PasswordRecoveryService.consumeReset` owns one transaction covering conditional
+consumption, MemberService's credential-write callback, outstanding request/lease
+cancellation, durable limit coordination and a deterministic token-free confirmation
+intent. MemberService conditionally writes only an ACTIVE/nondeleted EMAIL member
+matching ID/email/authVersion, sets the scrypt hash and next authVersion, increments
+`__v` and deletes every member session in the same transaction. Legacy absent/null
+versions are treated as zero. Concurrent profile, login, refresh, authenticated
+password change and account deletion serialize through existing member writes;
+reset cannot restore a deleted account. `emailVerifiedAt` is not changed.
+
+When reset races a still-finalizing link email, its leased send allowance is counted
+once before cancellation; the late SMTP callback cannot reactivate it. Queued resends
+are canceled and cannot mint another token after the same reset transaction commits.
+New requests admitted after commit remain legitimate new recovery attempts.
+
+`password-recovery-confirmation.ts` uses atomic claims and lease-generation fences.
+The existing worker alternates priority between link and confirmation jobs so both
+make progress. Confirmation work expires after 24 hours; definitive failures retry
+at most three times with 60/120-second backoff. Unknown SMTP outcomes or abandoned
+leases end as FAILED (possibly delivered, not automatically repeated); stale callbacks
+cannot mark them SENT. Confirmation failure never rolls back an already committed
+password change. Metrics add only aggregate sent/failed counters. No schema/DDL change
+was required beyond Step 2 storage.
+
+**Actual checks:** build/full TypeScript, 127 unit, 222 API, 71 recovery integration,
+62 account-deletion and 46 email-verification tests passed (528 total). Lint has only
+the existing empty config.ts warning; passing integrations emit existing Mongoose
+new-option deprecation notices. Real AppModule/disposable-Mongo tests prove one
+concurrent winner, full rollback on confirmation persistence failure, replay/expiry/
+version/email/provider/status rejection before hashing, legacy versions, queued/leased
+resend cancellation, old password/access/refresh rejection, new-password login, real
+login/refresh/profile/password/deletion races, and confirmation delivery/failure/
+expiry/claim recovery. A synthetic commit-result failure after actual commit returns
+safe 503; replay rejects rather than changing the password again. Real module IP
+limiting and malformed/oversized/extra-field rejection run before hashing.
+
+The first draft used an unavailable class-validator helper; build/TypeScript caught
+it and the installed public `length` helper fixed it. The final build asset watcher
+passed outside its sandbox restriction. One parallel email-verification run stalled
+without a result; its verified owned runner was stopped through its cleanup handler,
+then all 46 tests passed alone. Cause is unconfirmed; no application defect is claimed.
+All email is stubbed, disposable fixtures were cleaned, and application data/environment,
+Next code, deployment and Git staging/commits were not changed.
 
 **Place:** backend recovery service, `MemberService`, controller and focused tests.
 
@@ -368,16 +420,19 @@ Capacity rejection is an availability condition, not account-existence evidence.
 Review volume/provider limits before production activation.
 
 `PASSWORD_RECOVERY_ENABLED` accepts only `true`/`false` and defaults off. Keep it off
-until Steps 3–5 and coordinated release are complete: emailed links currently target
+until Steps 4–5 and coordinated release are complete: emailed links currently target
 a Next screen that is not implemented. When enabled, startup checks database/storage,
 trusted `PASSWORD_RESET_WEB_ORIGIN` and existing backend-only `GOOGLE_SMTP_USER` /
 `GOOGLE_SMTP` configuration before starting the worker. Disabled recovery preserves
 no-database startup and returns safe 503 from the request route. No environment
 file, origin, flag or credential was changed by this task.
 
-The worker handles one job at a time with a one-second pause between iterations;
+The worker handles one job at a time, alternating link/confirmation priority,
+with a one-second pause between iterations;
 SMTP timeouts affect throughput. Shutdown waits for the owned in-flight attempt.
-Restart recovers expired leases as ambiguous without automatic duplicate mail.
+Restart recovers expired link leases as ambiguous and confirmation leases as
+FAILED/uncertain without automatically duplicating email. Confirmation retry uses
+at most three attempts within 24 hours; only definitive delivery failures retry.
 Configuration changes normally require restart; pausing prevents new claims, while
 already-started SMTP can finish. `getMetrics()` exposes process-local aggregate
 counters without emails/tokens/provider payloads; no public metrics route is added.
@@ -386,14 +441,16 @@ The peer-IP limiter sees Next's upstream server for proxied traffic. Configure a
 verify guest IP limits at the trusted reverse proxy before broad production use;
 never trust arbitrary forwarded-IP headers. No deployable proxy configuration was
 found in this backend checkout, and no hosting/proxy settings were changed/verified.
-Reset submission limits and token lookup before password hashing belong to Step 3.
+Reset submissions now have their own 30/minute peer budget and cheap token/account
+checks before hashing. Trusted per-guest proxy enforcement remains a release prerequisite.
 
 ## Current verification and next action
 
-Steps 1–2 are complete locally. Application database setup, live recovery SMTP/inbox
-delivery, Next UI and end-to-end recovery remain unperformed. No sprint covers
-November 16; closed Sprint 05 is preserved. Step 1 is committed as `0691c95`.
-Stop after Step 2 for the owner's manual commit; Step 3 is next when requested.
+Backend Steps 1–3 are complete locally. Live recovery SMTP/inbox delivery, Next UI
+and end-to-end browser recovery remain unperformed. No sprint covers November 17;
+closed Sprint 05 is preserved. Step 1 is committed as `0691c95`, Step 2 as `e1fe0e4`.
+Stop after Step 3 for the owner's manual commit. Step 4 belongs to the Next worktree
+and begins when requested; leave recovery disabled until coordinated acceptance.
 
-Suggested Step 2 commit:
-`feat(backend): deliver password recovery links through Gmail`.
+Suggested Step 3 commit:
+`feat(backend): reset passwords and revoke existing sessions`.
