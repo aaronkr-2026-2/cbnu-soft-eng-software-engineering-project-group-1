@@ -52,6 +52,7 @@ flowchart TD
   Member[MemberService]
   Google[GoogleAuthService]
   Verify[EmailVerificationService]
+  Recover[PasswordRecoveryService - default off]
   Mail[EmailDeliveryService]
   Gmail[Gmail SMTP]
   Provider[Google Identity Services and signing keys]
@@ -94,7 +95,10 @@ flowchart TD
   Member -->|In-process call: consume proof and create member in one transaction| Verify
   Verify -->|MongoDB transactions: send limits, challenges and member callback| DB
   Verify -->|In-process call after reservation commit: email and code| Mail
-  Mail -->|SMTP over TLS: branded verification email| Gmail
+  REST -->|In-process call: neutral password recovery request| Recover
+  Recover -->|MongoDB transactions: admission, limits, jobs and token digests| DB
+  Recover -->|Worker after reservation commit: recovery email| Mail
+  Mail -->|SMTP over TLS: verification/recovery email| Gmail
   Member -->|In-process calls: deletion and affiliation transactions| Coordination
   Member -->|In-process call: account-scoped blocker snapshot| DeletionCheck
   DeletionCheck -->|MongoDB aggregation: appointments, waitlists and cleanup cutoffs| Models
@@ -572,7 +576,7 @@ Here, shared services include reusable in-process capabilities and external prov
 | Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. New email/password signup requires email ownership proof. Historical accounts retain login/refresh without backfilled verification timestamps. |
 | Google sign-in | Backend and Next.js callback implemented; live provider completion unverified | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
 | Telegram identity | Schema support only | `telegramId` exists; no implemented Telegram login flow. |
-| Email delivery | Backend signup verification implemented; Next.js integration and local live combined acceptance complete | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
+| Email delivery | Signup verification locally accepted; recovery request delivery implemented, default off | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
 | External medical, pharmacy, maps, or payment APIs | No implemented integration found | No outbound business HTTP client/service found in backend source. Do not present these as existing capabilities. |
 | Logging | Implemented internally | FileLogger writes JSON lines to `LOG_FILE` or `logs/medconnect.log`; LoggingInterceptor records transport execution metadata. No hosted log service is configured in this code. |
@@ -646,31 +650,47 @@ The required signup field is a compatibility change: deploy with the implemented
 Next.js Step 4 form/proxy work (`0ebc234`). Full API/recovery details and operator setup are in the
 [email verification plan](../../backend/EMAIL_VERIFICATION_PLAN.md).
 
-### Password recovery foundations — FI-03 Step 1, November 16, 2026
+### Password recovery — FI-03 Steps 1–2, November 16, 2026
 
-Recovery DTOs, policy helpers and managed storage are implemented; public endpoints,
-worker delivery, atomic password reset and Next recovery screens remain pending.
-`email-send-policy.ts` and `email-rate-limit.ts` now supply both verification and
-recovery helpers: existing verification behavior is preserved. Recovery uses the
-same 60-second spacing, initial-send/group-of-three 1/3/5/24-hour escalation and
-24-hour inactivity reset, but separate persisted counters. Peer-IP budgets remain
-10 request/30 confirmation calls per minute/process; Next remains the upstream peer.
+`MemberController` exposes `POST /member/password-recovery/request` through scoped
+DTO validation, no-store/no-referrer headers and a ten-per-minute peer-IP limiter.
+`PasswordRecoveryService` persists neutral requests with opaque idempotency before
+account lookup or SMTP. Disabled/unavailable recovery returns a sanitized 503;
+accepted requests return only 202 `{ accepted: true }`, never delivery/account state.
+No password-reset endpoint or Next recovery screen exists yet.
 
-`backend/src/schemas/password-recovery.model.ts` defines native strict validators
-and indexes for separate recovery limits, request jobs, current member-token slots
-and token-free confirmation intents. Unique email/request pairs and token digests
-provide durable identities; member `_id` permits one current token slot. Jobs have
-due/lease/cleanup indexes; limit rows have no TTL. Schema readiness checks require
-replica-set transactions and exact validators/indexes, without startup DDL.
-`member:recovery:storage -- --check` is read-only; explicit `--apply` manages storage.
-Neither command was run against an application database during this task.
+The service owns separate native recovery limits/jobs/current-token/confirmation
+collections and a singleton admission guard in `password-recovery.model.ts`. Guard
+writes serialize indexed capacity checks across processes: 10,000 retained email-limit
+rows and 20,000 retained request jobs. Jobs have unique email/request IDs, leases,
+due indexes and cleanup TTL; token digests are unique with one member-ID slot.
+Limits have no TTL; the worker reclaims only fully inactive, unblocked/unreserved
+rows after 24 hours. Explicit `member:recovery:storage -- --apply` manages schema,
+indexes and the guard; `--check` verifies readiness. There is no startup DDL.
 
-Link helpers generate 32 random bytes, SHA-256 digests and fixed trusted-origin
-fragment links with a ten-minute lifetime. The digest identifies a link, not its
-visitor; opening a page does not consume recovery credentials. Consumption/session
-revocation is still Step 3 work. Lazy `PASSWORD_RESET_WEB_ORIGIN` validation requires
-HTTPS except explicit development loopback and is not wired into active routes.
-Contracts, setup limits and local test evidence are in the
+Shared email policy preserves FI-08's initial send, 60-second spacing, three-resend
+groups and 1/3/5/24-hour escalation/inactivity reset. Recovery counters are separate.
+A bounded nonoverlapping Nest worker reads eligible ACTIVE/nondeleted EMAIL members,
+writes a random-token digest/email/authVersion generation and claims a 30-second
+lease in a transaction, then calls Gmail outside the transaction. The link deadline
+is the original ten-minute request deadline. Definitive failures retry at most three
+times with at least 60-second spacing; uncertain/expired-lease outcomes count once
+and are not automatically resent. Generation fencing prevents stale callbacks from
+reactivating old links. Lookup/credential writes remain behind the Nest API.
+
+`EmailDeliveryService` now shares its existing bounded TLS/Gmail transport with reset
+and token-free password-changed HTML/plain-text templates and CID logo. Confirmation
+intent creation/processing remains Step 3 with atomic password reset/session revocation.
+Only aggregate process-local counts and generic worker-failure messages are exposed;
+no email, token or provider payload is logged. Opening a link does not consume it.
+
+`PASSWORD_RECOVERY_ENABLED` defaults off. Enabling requires ready replica-set storage,
+validated `PASSWORD_RESET_WEB_ORIGIN` and existing private SMTP configuration. Keep it
+off until the reset endpoint, Next screens and combined acceptance are complete.
+The IP limiter still sees Next as peer; production needs verified trusted-proxy guest
+limits, with no trust in arbitrary forwarded headers. No application DB migration,
+proxy/deployment change or live recovery email was performed. Local stubbed-provider
+checks and remaining release requirements are in the
 [recovery plan](../../backend/PASSWORD_RECOVERY_PLAN.md).
 
 ## Clinic and doctor cities
@@ -1007,7 +1027,7 @@ flowchart LR
   API -->|Node filesystem streams: public image files| Images
   API -->|HTTP GET /uploads: public image bytes| React
   API -->|HTTPS: retrieve Google public signing keys| Google
-  API -->|SMTP over TLS port 465: verification mail| Gmail
+  API -->|SMTP over TLS port 465: verification/recovery mail| Gmail
 ```
 
 No live deployment was inspected. Browser/backend HTTP transport is shown as implemented/recorded; a production TLS terminator is not established by repository code. The local Compose file proposes a Node 24.12.0 container, PORT_API mapping, and external Docker network, but its npm working directory is inconsistent with the repository. It is not shown as a verified running container. Google public-key retrieval is wired in backend code; live provider calls were not verified. Email providers, batch processes, queues, and hosted monitoring are not deployed components established by this source inspection.

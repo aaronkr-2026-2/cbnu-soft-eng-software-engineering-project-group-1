@@ -6,6 +6,7 @@ export const RECOVERY_LIMITS = 'member_recovery_send_limits';
 export const RECOVERY_REQUESTS = 'member_recovery_requests';
 export const RECOVERY_TOKENS = 'member_recovery_tokens';
 export const RECOVERY_CONFIRMATIONS = 'member_recovery_confirmations';
+export const RECOVERY_ADMISSION = 'member_recovery_admission';
 
 const date = { bsonType: 'date' };
 const opaque = { bsonType: 'string', pattern: '^[A-Za-z0-9_-]{43}$' };
@@ -64,6 +65,13 @@ const definitions: {
   indexes: IndexDescription[];
 }[] = [
   {
+    name: RECOVERY_ADMISSION,
+    validator: {
+      $jsonSchema: object({ _id: { enum: ['global'] }, version: integer() }),
+    },
+    indexes: [],
+  },
+  {
     name: RECOVERY_LIMITS,
     validator: {
       $jsonSchema: object(
@@ -91,7 +99,9 @@ const definitions: {
       ),
     },
     // Escalation must survive cleanup of requests/tokens. No rate-state TTL.
-    indexes: [],
+    indexes: [
+      { key: { lastSendAttemptAt: 1 }, name: 'recovery_limit_activity' },
+    ],
   },
   {
     name: RECOVERY_REQUESTS,
@@ -241,6 +251,13 @@ export async function setupPasswordRecoveryStorage(db: Db) {
     if (definition.indexes.length)
       await db.collection(definition.name).createIndexes(definition.indexes);
   }
+  await db
+    .collection<{ _id: string; version: number }>(RECOVERY_ADMISSION)
+    .updateOne(
+      { _id: 'global' },
+      { $setOnInsert: { version: 0 } },
+      { upsert: true },
+    );
   await assertPasswordRecoveryStorage(db);
 }
 
@@ -276,4 +293,10 @@ export async function assertPasswordRecoveryStorage(db: Db) {
         throw new Error('Password recovery indexes are not ready');
     }
   }
+  if (
+    !(await db
+      .collection<{ _id: string }>(RECOVERY_ADMISSION)
+      .findOne({ _id: 'global' }))
+  )
+    throw new Error('Password recovery admission guard is not ready');
 }

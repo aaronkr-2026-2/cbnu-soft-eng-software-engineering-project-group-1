@@ -29,6 +29,8 @@ import {
 
 import { UploadStorageModule } from '../upload/upload-storage.module.js';
 import { getMongoUri } from '../../database/database.config.js';
+import { PasswordRecoveryService } from '../auth/password-recovery.service.js';
+import { recoveryRequestRateLimit } from '../auth/password-recovery-policy.js';
 
 const mongoUri = getMongoUri();
 
@@ -75,11 +77,16 @@ const mongoUri = getMongoUri();
     GoogleAuthService,
     EmailDeliveryService,
     EmailVerificationService,
+    PasswordRecoveryService,
   ],
   exports: [MemberService, MemberAccessGuard],
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer.apply(recoveryRequestRateLimit()).forRoutes({
+      path: 'member/password-recovery/request',
+      method: RequestMethod.POST,
+    });
     consumer
       .apply(emailVerificationRateLimit(EMAIL_REQUEST_IP_LIMIT))
       .forRoutes({

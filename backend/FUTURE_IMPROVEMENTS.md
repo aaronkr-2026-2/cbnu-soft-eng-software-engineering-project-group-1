@@ -69,17 +69,16 @@ the FI-06 rescheduling workflow remain deferred. No implementation is complete.
 
 ### FI-03 — Forgot-password recovery
 
-The [dedicated plan](PASSWORD_RECOVERY_PLAN.md) proposes five implementation steps
-across backend and Next.js: contracts/storage, Gmail request delivery, atomic reset,
-Next recovery screens and combined acceptance/operations. Step 1 completed locally
-November 16, 2026: recovery contracts/storage and shared email policy/limiter helpers
-are implemented. The owner selected ten-minute single-use links and FI-08's resend
-rules, with separate recovery counters. Build/full TypeScript, 122 unit, 222 API,
-46 email-verification and 23 recovery integration checks pass. Lint retains only
-the existing config.ts warning. Steps 2–5 remain pending; no recovery endpoints,
-worker, Next screens, application database setup or live recovery email are active.
-The contract retains neutral request responses and revocation of all sessions after reset.
-Existing authenticated password changes do not satisfy account recovery.
+The [dedicated plan](PASSWORD_RECOVERY_PLAN.md) defines five backend/Next steps.
+Steps 1–2 completed locally November 16, 2026: contracts/storage, neutral asynchronous
+request admission, durable separate send limits, Gmail templates and a generation-
+fenced delivery worker. The owner selected ten-minute links and FI-08's resend rules.
+Recovery defaults off pending the reset endpoint and Next flow. Build/full TypeScript,
+127 unit, 222 API, 46 email-verification and 41 recovery integration checks pass
+(436 total); lint retains only the existing config.ts warning. Integration mail is
+stubbed. Steps 3–5, live recovery inbox acceptance, application database setup and
+production deployment remain pending. Existing authenticated password changes do
+not satisfy account recovery.
 
 ### FI-04 — Add to personal calendar
 

@@ -3,7 +3,7 @@
   "rootDir": ".",
   "moduleNameMapper": { "^(.+\\/.*)\\.js$": "$1" },
   "testEnvironment": "node",
-  "testRegex": "password-recovery.integration-spec.ts$",
+  "testRegex": "password-recovery(?:-delivery)?.integration-spec.ts$",
   "testTimeout": 30000,
   "transform": { "^.+\\.(t|j)s$": "ts-jest" }
 }

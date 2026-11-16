@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import nodemailer from 'nodemailer';
+import { passwordRecoveryEmail } from './recovery-email.js';
 import {
   EmailDeliveryException,
   EmailDeliveryService,
@@ -8,12 +9,14 @@ import {
 describe('EmailDeliveryService', () => {
   const originalUser = process.env.GOOGLE_SMTP_USER;
   const originalPassword = process.env.GOOGLE_SMTP;
+  const originalOrigin = process.env.PASSWORD_RESET_WEB_ORIGIN;
   const service = new EmailDeliveryService();
   const sendMail = jest.fn();
   const close = jest.fn();
   let createTransport: jest.SpyInstance;
 
   beforeEach(() => {
+    process.env.PASSWORD_RESET_WEB_ORIGIN = 'https://medconnect.example';
     process.env.GOOGLE_SMTP_USER = 'project@example.com';
     process.env.GOOGLE_SMTP = 'abcd efgh ijkl mnop';
     sendMail.mockReset().mockResolvedValue({
@@ -30,6 +33,9 @@ describe('EmailDeliveryService', () => {
   });
 
   afterEach(() => {
+    if (originalOrigin === undefined)
+      delete process.env.PASSWORD_RESET_WEB_ORIGIN;
+    else process.env.PASSWORD_RESET_WEB_ORIGIN = originalOrigin;
     jest.restoreAllMocks();
     jest.useRealTimers();
     if (originalUser === undefined) delete process.env.GOOGLE_SMTP_USER;
@@ -172,5 +178,58 @@ describe('EmailDeliveryService', () => {
     expect(sendMail).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('delivers a branded ten-minute recovery link through the same transport', async () => {
+    const token = 'a'.repeat(43);
+    await service.sendRecoveryLink(' PATIENT@EXAMPLE.COM ', token);
+    expect(sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: 'Reset your password — MedConnect',
+        text: expect.stringContaining(
+          `https://medconnect.example/reset-password#token=${token}`,
+        ),
+        html: expect.stringContaining('10 minutes after your request'),
+        envelope: { from: 'project@example.com', to: ['patient@example.com'] },
+      }),
+    );
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends password-change confirmation without any reset token or password', async () => {
+    await service.sendPasswordChanged('patient@example.com');
+    const body = sendMail.mock.calls[0][0];
+    expect(body.text).toContain('https://medconnect.example/auth');
+    expect(body.text).toContain('sessions were invalidated');
+    expect(body.html).not.toContain('#token=');
+  });
+
+  it('escapes HTML attributes and text in the recovery template', () => {
+    const body = passwordRecoveryEmail('https://example.test/?a="<tag>&b=\'');
+    expect(body.html).toContain('&quot;&lt;tag&gt;&amp;b=&#39;');
+    expect(body.html).not.toContain('<tag>');
+  });
+
+  it('rejects untrusted reset origins and malformed tokens before transport creation', async () => {
+    await expect(
+      service.sendRecoveryLink('patient@example.com', 'invalid'),
+    ).rejects.toThrow('Invalid recovery token');
+    process.env.PASSWORD_RESET_WEB_ORIGIN =
+      'https://user:password@evil.example';
+    await expect(
+      service.sendRecoveryLink('patient@example.com', 'a'.repeat(43)),
+    ).rejects.toThrow('origin is unavailable');
+    expect(createTransport).not.toHaveBeenCalled();
+  });
+
+  it('preserves ambiguous delivery classification for recovery and hides provider payloads', async () => {
+    sendMail.mockRejectedValue({
+      code: 'ETIMEDOUT',
+      message: 'private-provider-payload',
+    });
+    await expect(
+      service.sendRecoveryLink('patient@example.com', 'a'.repeat(43)),
+    ).rejects.toMatchObject({ deliveryOutcome: 'UNKNOWN' });
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });

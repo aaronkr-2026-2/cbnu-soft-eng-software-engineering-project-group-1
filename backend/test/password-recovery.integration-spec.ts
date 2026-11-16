@@ -12,6 +12,7 @@ import {
   RECOVERY_REQUESTS,
   RECOVERY_TOKENS,
   RECOVERY_CONFIRMATIONS,
+  RECOVERY_ADMISSION,
 } from '../src/schemas/password-recovery.model.js';
 import {
   RECOVERY_LIFETIME,
@@ -115,7 +116,7 @@ describe('Recovery storage foundations on disposable MongoDB', () => {
     ).toBe(0);
     expect(
       (await db().collection(RECOVERY_LIMITS).indexes()).map((row) => row.name),
-    ).toEqual(['_id_']);
+    ).toEqual(['_id_', 'recovery_limit_activity']);
   });
 
   it('fails closed on a missing collection without recreating it during check', async () => {
@@ -156,6 +157,17 @@ describe('Recovery storage foundations on disposable MongoDB', () => {
       collMod: RECOVERY_TOKENS,
       index: { name: 'recovery_cleanup_ttl', expireAfterSeconds: 0 },
     });
+    await assertPasswordRecoveryStorage(db());
+  });
+
+  it('requires the shared admission guard and restores it only through explicit setup', async () => {
+    await db()
+      .collection<{ _id: string }>(RECOVERY_ADMISSION)
+      .deleteOne({ _id: 'global' });
+    await expect(assertPasswordRecoveryStorage(db())).rejects.toThrow(
+      'admission guard is not ready',
+    );
+    await setupPasswordRecoveryStorage(db());
     await assertPasswordRecoveryStorage(db());
   });
 

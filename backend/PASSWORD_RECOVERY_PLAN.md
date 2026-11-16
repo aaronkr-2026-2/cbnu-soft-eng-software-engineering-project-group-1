@@ -2,12 +2,13 @@
 
 Date: November 16, 2026 (Asia/Seoul)
 
-Status: **In progress. Step 1 completed locally November 16, 2026.** Contracts,
-shared policy/limiter helpers and explicitly managed recovery storage are implemented
-and verified. The owner selected a ten-minute link and the existing email-verification
-rate-limiter policy. Other contract details below are Step 1 engineering decisions.
-Steps 2–5 remain pending: no public recovery endpoints, email worker or Next recovery
-screens are active. Live email, application database setup and deployment are unperformed.
+Status: **In progress. Steps 1–2 completed locally November 16, 2026.** Contracts,
+storage, neutral request admission, durable limits, Gmail templates and the recovery
+worker are implemented and verified. Recovery defaults off behind
+`PASSWORD_RECOVERY_ENABLED`. The owner selected a ten-minute link and existing
+email-verification limiter rules. Steps 3–5 remain pending: password-reset execution,
+confirmation-intent delivery and Next recovery screens are not implemented. Live
+recovery email, application database setup and deployment are unperformed.
 
 Roadmap: [Future improvements](FUTURE_IMPROVEMENTS.md).
 
@@ -35,7 +36,8 @@ Paths are relative to their worktree roots. Backend application paths begin with
 
 - `backend/src/components/auth/email-delivery.service.ts` sends FI-08 verification
   codes through Gmail/Nodemailer with bounded TLS/SMTP timeouts and sanitized
-  NOT_SENT/REJECTED/UNKNOWN outcomes. It has no reset-link delivery method.
+  NOT_SENT/REJECTED/UNKNOWN outcomes. Step 2 adds reset-link/password-changed methods
+  using the same transport. Prior live Gmail evidence covers verification only.
 - `backend/src/components/auth/member-password.ts` owns scrypt hashing and password
   checking. Signup and authenticated password updates use an 8–100-character new
   password policy; recovery should reuse it, without trimming passwords.
@@ -146,13 +148,17 @@ Paths are relative to their worktree roots. Backend application paths begin with
   in worker memory and persist its digest before SMTP. Recheck current eligibility
   when reserving. Use at most three delivery attempts within the original ten-minute
   request window, with bounded backoff and no expiry extension.
-- Retry proven NOT_SENT failures within that budget. UNKNOWN outcomes are terminal
-  for automatic retry: retain the potentially delivered token until expiry and let
-  the user request another link after cooldown. A crash/expired lease may reclaim
-  with a fresh token generation; it must invalidate the unrecoverable prior digest.
-  A late old email may arrive, but its superseded link cannot reset the account.
-  Fence stale completions; never let them reactivate a superseded digest. Do not
-  persist raw tokens to make SMTP retry convenient or promise exactly-once email.
+- Retry definitive NOT_SENT/REJECTED failures within that budget, with at least
+  60 seconds before another attempt. UNKNOWN outcomes are terminal: retain the
+  potentially delivered token until expiry and let the user request another link
+  after cooldown. An expired lease is finalized once as AMBIGUOUS at its original
+  deadline, matching FI-08. Do not resend automatically after a crash: the worker
+  cannot know whether SMTP accepted the prior message. A new deliberate request
+  replaces the current digest when reserved. Definitive failure removes that
+  attempt's digest; a retry uses a fresh generation. Slot replacement supersedes
+  the earlier link even if the new delivery later fails. Fence stale completions;
+  never reactivate superseded digests or persist raw tokens for retry convenience.
+  SMTP does not provide an exactly-once delivery guarantee.
 - MemberService exposes the credential-write operation; recovery service owns token
   and send policy. Use a transaction callback/narrow interface modeled on FI-08 to
   share one MongoDB session without a circular service dependency.
@@ -220,6 +226,38 @@ email. No recovery endpoint is registered and no Next files were edited.
 **Commit:** `feat(backend): define password recovery contracts and storage`
 
 ### Step 2 — Implement requests, Gmail templates and delivery worker
+
+**Completed locally November 16, 2026.** `PasswordRecoveryService` owns admission,
+separate durable counters, generation-fenced claims/finalization and a nonoverlapping
+shutdown-aware worker. The public request path applies the shared ten-per-minute
+peer limiter before DTO validation and returns only 202 `{ accepted: true }` after
+persistence. Eligibility lookup and SMTP run exclusively in the worker. Unknown,
+Google and deleted accounts receive no email; virtual sends apply the same quota
+policy without exposing eligibility or cooldown through the response.
+
+A singleton admission guard serializes bounded indexed counts across processes:
+at most 10,000 retained email-limit rows and 20,000 retained request jobs. Capacity
+exhaustion returns safe 503 for every address before address lookup, including
+idempotent retries. Worker cleanup reclaims one fully inactive, unblocked,
+unreserved limit row per iteration after 24 hours; request TTL frees job capacity
+separately. These are engineering caps, not measured production throughput claims.
+
+The shared Gmail transport preserves verification delivery semantics. Reset and
+password-changed templates include the CID logo, escaped HTML and plain text.
+Confirmation rendering/delivery methods exist; confirmation job creation/processing
+remains Step 3 alongside successful reset. Process-local metrics expose only queued
+admissions, finalized attempt outcomes and worker failure counts.
+
+**Actual checks:** build/full TypeScript, 127 unit, 222 API, 46 email-verification
+and 41 recovery integration tests passed (436 total). Lint retains only the existing
+empty config.ts warning. Tests cover actual controller responses/headers before
+member lookup or SMTP; a broad admission latency comparison (not constant-time
+proof); concurrent duplicate/distinct-address admission; caps; role/provider/status
+rules; spacing/escalation; definitive/unknown failures; retry bounds; expiry; lease
+restart; stale callbacks; superseding generations; no-database/configuration failure;
+timer execution and shutdown. Integration SMTP and unit Nodemailer are stubbed.
+The build asset-watcher restriction cleared on an authorized rerun. No application
+database setup or live email was performed.
 
 **Place:** backend `MemberController`/`MemberModule`, new recovery service/worker,
 existing `EmailDeliveryService` and dedicated reset/confirmation templates.
@@ -299,7 +337,7 @@ In progress until backend, Next and agreed combined acceptance are complete.
 `docs(backend): document password recovery operation and completion`; separate
 `test(next)`/`docs(next)` commits only for actual changes in that worktree.
 
-## Storage setup and operations — Step 1 tooling only
+## Storage setup and operations
 
 From `.worktrees/backend/backend/`, after building:
 
@@ -316,24 +354,46 @@ incompatible existing rows. The CLI follows existing backend MongoDB configurati
 tests invoke it against disposable URIs without loading `.env`.
 
 Collections are `member_recovery_send_limits`, `member_recovery_requests`,
-`member_recovery_tokens` and `member_recovery_confirmations`. Request/confirmation
-jobs have due/lease indexes and 24-hour cleanup retention; tokens have a unique
-digest and one `_id` slot per member. Separate send-limit rows have no TTL so token
-cleanup cannot erase escalation. Global admission/storage bounds are Step 2 work.
-Readiness checks require replica-set/sharded transactions, simple collation, strict
-native validators and exact managed uniqueness/TTL settings. Application startup
-does not run DDL. Future recovery handlers must check readiness before use.
+`member_recovery_tokens`, `member_recovery_confirmations` and
+`member_recovery_admission`. The last collection has a seeded `global` capacity
+guard. Step 2 adds that guard and the limit-activity index; a Step 1 target needs
+explicit reviewed `--apply` before enabling Step 2. Request/confirmation jobs have
+due/lease indexes and 24-hour cleanup retention; tokens have a unique digest and one
+member-ID slot. Limit rows have no TTL; cleanup requires full 24-hour inactivity,
+no active block and no reservation. It cannot erase active escalation state.
 
-`PASSWORD_RESET_WEB_ORIGIN` parsing/link generation is available as a lazy helper;
-no active endpoint uses it yet. No origin or SMTP credentials are added by this task.
+Readiness requires replica-set/sharded transactions, simple collation, strict native
+validators, exact managed indexes and the admission guard. Startup never runs DDL.
+Capacity rejection is an availability condition, not account-existence evidence.
+Review volume/provider limits before production activation.
+
+`PASSWORD_RECOVERY_ENABLED` accepts only `true`/`false` and defaults off. Keep it off
+until Steps 3–5 and coordinated release are complete: emailed links currently target
+a Next screen that is not implemented. When enabled, startup checks database/storage,
+trusted `PASSWORD_RESET_WEB_ORIGIN` and existing backend-only `GOOGLE_SMTP_USER` /
+`GOOGLE_SMTP` configuration before starting the worker. Disabled recovery preserves
+no-database startup and returns safe 503 from the request route. No environment
+file, origin, flag or credential was changed by this task.
+
+The worker handles one job at a time with a one-second pause between iterations;
+SMTP timeouts affect throughput. Shutdown waits for the owned in-flight attempt.
+Restart recovers expired leases as ambiguous without automatic duplicate mail.
+Configuration changes normally require restart; pausing prevents new claims, while
+already-started SMTP can finish. `getMetrics()` exposes process-local aggregate
+counters without emails/tokens/provider payloads; no public metrics route is added.
+
+The peer-IP limiter sees Next's upstream server for proxied traffic. Configure and
+verify guest IP limits at the trusted reverse proxy before broad production use;
+never trust arbitrary forwarded-IP headers. No deployable proxy configuration was
+found in this backend checkout, and no hosting/proxy settings were changed/verified.
+Reset submission limits and token lookup before password hashing belong to Step 3.
 
 ## Current verification and next action
 
-Step 1 is complete locally. Source policy extraction, DTOs, token/link helpers,
-storage CLI, native constraints and dedicated tests are implemented and verified
-as recorded above. Application database setup, SMTP, Next UI and end-to-end recovery
-remain unperformed. No sprint covers November 16; closed Sprint 05 is preserved.
-Next action is Step 2 when requested, after the owner's manual Step 1 commit.
+Steps 1–2 are complete locally. Application database setup, live recovery SMTP/inbox
+delivery, Next UI and end-to-end recovery remain unperformed. No sprint covers
+November 16; closed Sprint 05 is preserved. Step 1 is committed as `0691c95`.
+Stop after Step 2 for the owner's manual commit; Step 3 is next when requested.
 
-Suggested Step 1 commit:
-`feat(backend): define password recovery contracts and storage`.
+Suggested Step 2 commit:
+`feat(backend): deliver password recovery links through Gmail`.

@@ -225,8 +225,10 @@ For an existing database, follow the report/review/backup procedure instead. Sta
 rejects missing or incomplete username enforcement; watch mode does not run migrations.
 Email registration also requires the explicit [verification storage setup](backend/EMAIL_VERIFICATION_PLAN.md#storage-setup-and-operations);
 missing indexes or replica-set support return a safe 503 for verification/signup.
-Password recovery currently has [contracts and optional storage tooling only](backend/PASSWORD_RECOVERY_PLAN.md#storage-setup-and-operations--step-1-tooling-only);
-its public endpoints, email worker and Next screens remain pending.
+Password recovery has [backend request delivery and storage tooling](backend/PASSWORD_RECOVERY_PLAN.md#storage-setup-and-operations),
+default off behind `PASSWORD_RECOVERY_ENABLED`. Keep it disabled until password-reset
+execution and the Next recovery screens are delivered and accepted; setup and trusted
+proxy requirements are in the linked plan.
 
 Start the backend from `backend/`:
 
