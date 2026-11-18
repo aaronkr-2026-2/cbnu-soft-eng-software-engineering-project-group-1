@@ -659,7 +659,9 @@ DTO validation, no-store/no-referrer headers and a ten-per-minute peer-IP limite
 account lookup or SMTP. Disabled/unavailable recovery returns a sanitized 503;
 accepted requests return only 202 `{ accepted: true }`, never delivery/account state.
 `POST /member/password-recovery/reset` delegates to MemberService and a separate
-30/minute peer limiter. No Next recovery screen exists yet.
+30/minute peer limiter. Next recovery screens/proxy are implemented on branch
+`next` (`6e1ca6a`); the combined production Next → Nest AppModule → disposable
+MongoDB automated lifecycle passed November 19 (stubbed provider).
 
 The service owns separate native recovery limits/jobs/current-token/confirmation
 collections and a singleton admission guard in `password-recovery.model.ts`. Guard
@@ -706,11 +708,12 @@ no email, token or provider payload is logged. Opening a link does not consume i
 
 `PASSWORD_RECOVERY_ENABLED` defaults off. Enabling requires ready replica-set storage,
 validated `PASSWORD_RESET_WEB_ORIGIN` and existing private SMTP configuration. Keep it
-off until Next screens and combined acceptance are complete.
+off until production prerequisites and coordinated release are complete.
 The IP limiter still sees Next as peer; production needs verified trusted-proxy guest
 limits, with no trust in arbitrary forwarded headers. No application DB migration,
-proxy/deployment change or live recovery email was performed. Local stubbed-provider
-checks and remaining release requirements are in the
+proxy/deployment change was performed. Live recovery acceptance is recorded below. Local stubbed-provider
+checks, the repeatable combined acceptance command, monitoring/retention and
+rollout/rollback procedures are in the
 [recovery plan](../../backend/PASSWORD_RECOVERY_PLAN.md).
 
 ## Clinic and doctor cities
@@ -1195,3 +1198,20 @@ November 14 local verification passed build/full TypeScript, 96 unit, 222 API,
 62 account-deletion, 193 booking/worker, 46 email and 18 username/Google identity
 checks. The database suites use owned disposable MongoDB processes. Lint retains
 its existing empty config.ts warning. These results cover backend/API behavior.
+
+
+### FI-03 final local acceptance — November 19, 2026
+
+Step 5 completes local recovery acceptance. Fresh 549 backend/167 Next tests pass,
+including the actual production Next proxy, normal Nest AppModule/validation and
+owned disposable MongoDB lifecycle with stub email and timer-worker replacement.
+The owner approved at most two real Gmail messages; one selected recipient received
+the reset link and confirmation and confirmed reset/sign-in worked. Sanitized fixture
+state confirms exactly two sends, committed reset, old access rejection and a
+post-reset session. Native Chrome request submission and visible confirmation email
+were observed; password entry/submission was handed to the owner. Prior Next Step4
+390px/desktop/keyboard evidence is retained. A separate post-sign-in reload visual
+check was inconclusive (blank native surface despite HTTP200), and is not reported
+as passed. Test tabs/processes and disposable Mongo files were cleaned. Production
+storage/proxy/TLS/capacity, integration and deployment remain unverified; recovery
+stays default off. Detailed operator procedures and evidence are in the recovery plan.

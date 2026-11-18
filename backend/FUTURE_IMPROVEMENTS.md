@@ -31,7 +31,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | ----- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------- | ------------- | ----------------------------------------------------------- | ----------------- |
 | FI-01 | Better doctor/clinic search                | Find doctors and clinics by name, city and specialty, with pagination, sorting, shareable URLs and autocomplete | Medium         | **Completed** | [Directory search plan](DIRECTORY_SEARCH_PLAN.md)           | November 5, 2026  |
 | FI-02 | Appointment reminders                      | Notify patients before upcoming visits, starting with in-app reminders and considering email later              | Medium         | **Planned**   | [Appointment reminders plan](APPOINTMENT_REMINDERS_PLAN.md) | —                 |
-| FI-03 | Forgot-password recovery                   | Recover email/password account access through an expiring, single-use reset link                                | Medium         | **In progress**   | [Password recovery plan](PASSWORD_RECOVERY_PLAN.md)         | —                 |
+| FI-03 | Forgot-password recovery                   | Recover email/password account access through an expiring, single-use reset link                                | Medium         | **Completed**   | [Password recovery plan](PASSWORD_RECOVERY_PLAN.md)         | November 19, 2026 |
 | FI-04 | Add to personal calendar                   | Add a one-time appointment event through a checkbox before booking or a button after booking                    | Small          | **Backlog**   | Not created                                                 | —                 |
 | FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                                 | —                 |
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                                 | —                 |
@@ -69,16 +69,20 @@ the FI-06 rescheduling workflow remain deferred. No implementation is complete.
 
 ### FI-03 — Forgot-password recovery
 
-The [dedicated plan](PASSWORD_RECOVERY_PLAN.md) defines five backend/Next steps.
-Steps 1–2 completed locally November 16; Step 3 completed November 17, 2026:
-backend request delivery, ten-minute single-use reset, atomic password/session
-invalidation and token-free confirmation delivery are implemented. Recovery retains
-FI-08's selected resend rules with separate counters and remains default off.
-Build/full TypeScript, 127 unit, 222 API, 71 recovery, 62 deletion and 46 email
-verification checks pass (528 total); lint retains only the existing config.ts warning.
-The email regression suite passed an isolated rerun after a parallel run stalled;
-provider delivery is stubbed. Steps 4–5 (Next screens/combined acceptance), live
-recovery inbox checks, application database setup and deployment remain pending.
+**Completed locally November 19, 2026.** The [dedicated plan](PASSWORD_RECOVERY_PLAN.md)
+records backend Steps 1–3 (`2ece2a2`), Next Step 4 (`6e1ca6a`) and combined Step 5.
+Fresh backend build/full TypeScript, 549 backend tests and Next typecheck/167 tests/
+isolated build pass (716 total); lint retains the existing config.ts warning.
+Real production Next HTTP proxy → Nest AppModule → disposable MongoDB tests cover
+request/reset/login, timer delivery and worker replacement alongside the recovery
+race suites. The owner confirmed the authorized live Gmail reset link and
+password-changed email both arrived and reset/sign-in worked; fixture state confirms
+committed reset, old access rejection and a new session. Exactly two emails were sent
+to one selected recipient. Owned processes and disposable database files were cleaned.
+Operations document storage, retention/retry/ownership, monitoring, shared-proxy
+capacity and coordinated rollout/rollback. Recovery stays default off pending
+production target setup, trusted guest-IP/TLS/capacity verification and coordinated
+integration/deployment; local completion does not claim production activation.
 
 ### FI-04 — Add to personal calendar
 

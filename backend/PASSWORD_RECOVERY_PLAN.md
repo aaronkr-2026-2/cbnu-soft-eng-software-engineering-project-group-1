@@ -2,13 +2,12 @@
 
 Date: November 16, 2026 (Asia/Seoul)
 
-Status: **In progress. Steps 1–2 completed November 16; Step 3 completed locally
-November 17, 2026 (Asia/Seoul).** Backend request delivery, atomic reset/session
-invalidation and confirmation-intent delivery are implemented and verified.
-Recovery remains default off behind `PASSWORD_RECOVERY_ENABLED`. Ten-minute links
-and the selected email-verification send rules are unchanged. Steps 4–5 (Next UI
-and combined acceptance) remain pending. No live recovery email, application
-database setup or production activation/deployment has been performed.
+Status: **Completed locally November 19, 2026 (Asia/Seoul).** Backend Steps 1–3
+are implemented on `2ece2a2`; Next Step 4 is committed as `6e1ca6a`; Step 5 combined
+automated and authorized live Gmail/browser acceptance passed. The owner confirmed
+receipt of both emails and a working reset/sign-in flow. Recovery remains default off
+outside the disposable fixture. Production target setup, guest-IP/TLS/capacity checks,
+coordinated integration and deployment remain release prerequisites.
 
 Roadmap: [Future improvements](FUTURE_IMPROVEMENTS.md).
 
@@ -345,6 +344,11 @@ outcome and confirmation-mail failure independently of password success.
 
 ### Step 4 — Add the Next recovery flow
 
+**Completed locally November 19 on Next `6e1ca6a`.** Typecheck, 167 tests and
+isolated production build passed. Native Chrome desktop/390×844/keyboard checks
+used a synthetic upstream; Step 5 below adds actual Nest/Mongo/Gmail acceptance.
+
+
 **Place:** Next `AuthPage.tsx`, new focused recovery components, public Pages Router
 routes `/forgot-password` and `/reset-password`, API helpers/session proxy and tests.
 
@@ -362,6 +366,37 @@ and isolated production build. Existing email signup and Google sign-in pass.
 **Commit:** `feat(next): add forgot-password and reset-password flows`
 
 ### Step 5 — Combined acceptance, operations and roadmap completion
+
+**November 19 checkpoint:** Added `test/jest-recovery-acceptance.json` and
+`test/password-recovery-acceptance.integration-spec.ts`, selected explicitly by
+`test/run-booking-integration.cjs --recovery-acceptance <isolated-built-next-dir>`.
+The runner owns its replica/standalone mongod processes and temporary directories;
+it never loads `.env`. The acceptance profile clears inherited MongoDB/SMTP settings.
+The fixture injects stub email into the real Nest AppModule, uses production-equivalent
+DTO validation and real MongoDB transactions, and launches the actual production Next
+server/API route with only its loopback API URL. It does not exercise main.ts's file
+logger, Swagger or bootstrap environment loading.
+
+Three combined tests pass: private recovery GET headers and proxy origin/field gates;
+neutral/idempotent admission while stub SMTP is deliberately blocked, timer-driven
+link delivery, concurrent reset with exactly one winner, expired refresh-cookie
+clearing, zero prior sessions, old access/refresh/password rejection, fresh login and
+token-free confirmation; shutdown/new worker instance resumes a durable queued link
+without duplicating the completed confirmation. Existing recovery suites independently
+cover abandoned leases/two instances/stale callbacks, expiry equality, rollback,
+supersession, unknown commit and login/refresh/profile/password/deletion races.
+This restart check replaces a service instance; it is not a process-kill test.
+
+Fresh checks: backend build/full TypeScript, 127 unit, 222 API, 71 recovery,
+46 email verification, 62 account-deletion, 18 username/Google identity and 3 combined
+tests pass; Next typecheck, 167 tests and isolated production build pass (716 tests).
+Lint retains the existing empty config.ts warning. Initial sandbox asset-watch and
+local socket restrictions cleared on rerun with local execution permission. Mongoose
+new-option deprecation and the expected upload-limit rejection appear in passing suites.
+Combined suite completed in about six seconds on this machine. Its 12-second polling
+and 15-second request timeouts are test bounds, not a latency/throughput SLA. Blocked
+SMTP proves response-path independence; no production timing equivalence is claimed.
+
 
 **Place:** backend disposable tests and shared plan/roadmap; Next browser/tests and
 owning documentation. Extend `test/run-booking-integration.cjs` with focused recovery
@@ -420,8 +455,8 @@ Capacity rejection is an availability condition, not account-existence evidence.
 Review volume/provider limits before production activation.
 
 `PASSWORD_RECOVERY_ENABLED` accepts only `true`/`false` and defaults off. Keep it off
-until Steps 4–5 and coordinated release are complete: emailed links currently target
-a Next screen that is not implemented. When enabled, startup checks database/storage,
+until combined acceptance and coordinated release are complete. Next screens are
+implemented separately on branch `next`; backend and Next commits must be released together. When enabled, startup checks database/storage,
 trusted `PASSWORD_RESET_WEB_ORIGIN` and existing backend-only `GOOGLE_SMTP_USER` /
 `GOOGLE_SMTP` configuration before starting the worker. Disabled recovery preserves
 no-database startup and returns safe 503 from the request route. No environment
@@ -444,13 +479,71 @@ found in this backend checkout, and no hosting/proxy settings were changed/verif
 Reset submissions now have their own 30/minute peer budget and cheap token/account
 checks before hashing. Trusted per-guest proxy enforcement remains a release prerequisite.
 
+## Rollout, monitoring and rollback
+
+1. Select and back up the intended database, review existing rows, then build and run
+   the explicit storage CLI `--check`/reviewed `--apply` procedure above. Confirm a
+   writable replica set, strict validators, exact indexes and seeded admission guard.
+   Application startup performs no DDL. No application target was selected here.
+2. Release the backend and Next commits together. Set private `PASSWORD_RESET_WEB_ORIGIN`
+   to the exact trusted public Next HTTPS origin; keep SMTP credentials backend-only.
+   Next needs its server-side `API_URL`; no recovery secret belongs in `NEXT_PUBLIC_*`.
+   Keep `PASSWORD_RECOVERY_ENABLED=false` until storage, inbox acceptance and trusted
+   upstream per-guest request/reset protection have been verified.
+3. Verify trusted proxy enforcement and shared Next-to-Nest capacity under expected
+   load before broad activation. Nest intentionally sees the Next peer: 10 requests
+   and 30 reset submissions/minute are shared by traffic from that peer. No forwarded
+   header is trusted. The one-at-a-time worker and bounded SMTP timeouts constrain
+   throughput; a full 10-second attempt approaches six jobs/minute before overhead.
+   This is a design estimate, not a measured capacity. Watch queue age against the
+   ten-minute link deadline rather than increasing admission caps blindly.
+4. Enable on the selected environment and restart Nest. Check readiness and a small
+   authorized smoke flow before expanding traffic. Every enabled Nest process owns
+   a nonoverlapping local worker; native claims/generation fences coordinate instances.
+   Shutdown waits for the in-flight send. TTL removes jobs/tokens/confirmations after
+   24 hours; limits need worker reclamation after full inactivity with no block/lease.
+5. Inspect `getMetrics()` privately for aggregate queued/accepted/ambiguous/rejected/
+   failure and confirmation sent/failed counts (process-local; reset at restart).
+   No public metrics endpoint exists. Use aggregate database state counts and oldest
+   queued/leased age for backlog/capacity checks. Alert on sustained failures, exhausted
+   admission capacity, stuck leases or queue ages approaching expiry. Do not export
+   email keys, bodies, token digests/raw tokens, passwords, headers or provider errors.
+6. Roll back by setting the recovery flag false and restarting every Nest instance;
+   disable the UI entry in a coordinated frontend rollback if necessary. In-flight
+   SMTP may still finish, and queued jobs remain durable until expiry/cleanup. The
+   flag disables request/reset/worker work; it does not undo passwords already reset,
+   restore revoked sessions or recall email. Preserve storage and review indexes;
+   do not drop collections as a rollback shortcut. Re-enable only after readiness and
+   origin/proxy checks; expired jobs/links do not acquire a new lifetime.
+
 ## Current verification and next action
 
-Backend Steps 1–3 are complete locally. Live recovery SMTP/inbox delivery, Next UI
-and end-to-end browser recovery remain unperformed. No sprint covers November 17;
-closed Sprint 05 is preserved. Step 1 is committed as `0691c95`, Step 2 as `e1fe0e4`.
-Stop after Step 3 for the owner's manual commit. Step 4 belongs to the Next worktree
-and begins when requested; leave recovery disabled until coordinated acceptance.
+**Step 5 and FI-03 are complete locally, November 19, 2026.** The owner explicitly
+approved a maximum of two live emails. One selected recipient received one real
+Gmail reset link and one password-changed confirmation; the second supplied address
+was unused. Native Chrome submitted the request by keyboard and showed neutral
+acceptance. The owner opened the email link, entered/submitted the new temporary
+password through the required credential handoff, signed in and confirmed both
+emails arrived and the flow worked. The agent did not obtain the new password.
+The sanitized fixture state independently confirms exactly two sends, committed
+reset/authVersion change, rejection of the old access token and one post-reset session.
+The confirmation was also visible in Gmail. Earlier Step 4 desktop/mobile/keyboard
+checks and the fresh 716 automated checks above supply the remaining local evidence.
+A separate native reload visual check could not confirm page rendering (blank Chrome
+surface while loopback HTTP returned 200); it is not counted as a passed reload check.
 
-Suggested Step 3 commit:
-`feat(backend): reset passwords and revoke existing sessions`.
+Owned test tabs were closed; the mailbox tab was left open. The identity-verified
+runner, Next/Nest children and both mongod processes stopped, and their disposable
+Mongo directory was verified removed. Sanitized aggregate evidence remains at
+`/private/tmp/medconnect-recovery5-live-state.json`; the env-free isolated build is
+`/private/tmp/medconnect-recovery5-release-jj75pih6/next`. No production/application
+database, environment file, dependency, production flag or deployment was changed.
+No sprint covers November 19; closed Sprint 05 is preserved.
+
+Production guest-IP/TLS/capacity, target storage setup, deployment and coordinated
+branch integration remain unverified release work. Keep recovery default off until
+those release prerequisites are satisfied. Git staging, commits, pushes and merges
+remain manual.
+
+Suggested backend commit: `test(backend): verify combined password recovery acceptance`.
+Suggested Next documentation commit: `docs(next): complete password recovery acceptance`.
