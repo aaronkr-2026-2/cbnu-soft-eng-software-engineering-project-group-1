@@ -58,6 +58,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   A rate-limited [availability API](docs/architecture/architecture-backend.md#username-availability)
   supports signup and profile editing; checks do not reserve usernames.
 - **Session refresh:** Rotating refresh tokens with expiry and reuse rejection.
+- **Password recovery backend:** Email reset requests, ten-minute single-use links,
+  atomic password/session invalidation and queued confirmation emails. Default off
+  pending production prerequisites and coordinated release; see the [recovery plan](backend/PASSWORD_RECOVERY_PLAN.md).
 - **Member editing:** Authenticated GraphQL `updateMember` edits your profile/contact
   fields, changes passwords with current-password verification and confirmation, and
   saves uploaded profile images. Password changes invalidate existing sessions;
@@ -225,6 +228,10 @@ For an existing database, follow the report/review/backup procedure instead. Sta
 rejects missing or incomplete username enforcement; watch mode does not run migrations.
 Email registration also requires the explicit [verification storage setup](backend/EMAIL_VERIFICATION_PLAN.md#storage-setup-and-operations);
 missing indexes or replica-set support return a safe 503 for verification/signup.
+Password recovery has [backend reset and storage tooling](backend/PASSWORD_RECOVERY_PLAN.md#storage-setup-and-operations),
+default off behind `PASSWORD_RECOVERY_ENABLED`. Keep it disabled until the Next
+production prerequisites and coordinated release are ready; setup and trusted
+proxy requirements are in the linked plan.
 
 Start the backend from `backend/`:
 
@@ -316,6 +323,9 @@ npm run test:booking:integration # Disposable real MongoDB concurrency tests
 npm run test:username:integration # Disposable username migration and uniqueness checks
 npm run test:email:integration # Disposable email policy, delivery recovery and signup races
 npm run test:account-deletion:integration # Disposable deletion blockers, rollback and races
+npm run test:recovery:integration # Disposable reset/delivery/storage and concurrency checks
+# After building an isolated Next copy without .env files:
+node test/run-booking-integration.cjs --recovery-acceptance /absolute/path/to/built-next
 npm run test:cov     # Unit-test coverage
 ```
 

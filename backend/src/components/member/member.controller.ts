@@ -43,6 +43,16 @@ import {
 } from '../../libs/dto/member/email-verification.dto.js';
 import { MemberService } from './member.service.js';
 import type { MemberAuthResponse } from '../../libs/types/member.types.js';
+import { PasswordRecoveryService } from '../auth/password-recovery.service.js';
+import {
+  RecoveryErrorFilter,
+  recoveryError,
+} from '../auth/password-recovery-error.js';
+import {
+  RecoveryRequestDto,
+  RecoveryResetDto,
+  RecoveryValidationPipe,
+} from '../../libs/dto/member/password-recovery.dto.js';
 
 @Controller('member')
 @ApiTags('Member')
@@ -51,6 +61,7 @@ export class MemberController {
     private readonly memberService: MemberService,
     private readonly googleAuth: GoogleAuthService,
     @Optional() private readonly emailVerification?: EmailVerificationService,
+    @Optional() private readonly passwordRecovery?: PasswordRecoveryService,
   ) {}
 
   @Post('username/availability')
@@ -138,6 +149,39 @@ export class MemberController {
     );
     response.clearCookie(cookie.name, cookie.options);
     return result;
+  }
+
+  @Post('password-recovery/request')
+  @ApiOperation({
+    summary:
+      'Request a password reset link without revealing account existence',
+  })
+  @ApiBody({ type: RecoveryRequestDto })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Header('Cache-Control', 'no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @UseFilters(RecoveryErrorFilter)
+  requestPasswordRecovery(
+    @Body(new RecoveryValidationPipe(RecoveryRequestDto)) input: unknown,
+  ) {
+    if (!this.passwordRecovery)
+      throw recoveryError(503, 'PASSWORD_RECOVERY_UNAVAILABLE');
+    return this.passwordRecovery.request(input as RecoveryRequestDto);
+  }
+
+  @Post('password-recovery/reset')
+  @ApiOperation({
+    summary: 'Consume a reset link and revoke existing sessions',
+  })
+  @ApiBody({ type: RecoveryResetDto })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @UseFilters(RecoveryErrorFilter)
+  resetPassword(
+    @Body(new RecoveryValidationPipe(RecoveryResetDto)) input: unknown,
+  ) {
+    return this.memberService.resetPassword(input as RecoveryResetDto);
   }
 
   @Post('email-verification/request')

@@ -2,7 +2,12 @@
 const { spawn } = require('node:child_process');
 const { mkdtemp, mkdir, rm } = require('node:fs/promises');
 const { tmpdir } = require('node:os');
-const { join } = require('node:path');
+const { join, resolve } = require('node:path');
+const acceptance = process.argv[2] === '--recovery-acceptance';
+const nextApp =
+  acceptance && process.argv[3] ? resolve(process.argv[3]) : undefined;
+if (acceptance && !nextApp)
+  throw new Error('Pass an isolated, built Next application directory');
 const { createServer } = require('node:net');
 const { setTimeout: delay } = require('node:timers/promises');
 const { MongoClient } = require('mongodb');
@@ -117,7 +122,9 @@ async function main() {
       '--experimental-vm-modules',
       require.resolve('jest/bin/jest'),
       '--config',
-      process.argv[2] || './test/jest-booking.json',
+      acceptance
+        ? './test/jest-recovery-acceptance.json'
+        : process.argv[2] || './test/jest-booking.json',
       '--runInBand',
     ],
     {
@@ -128,6 +135,15 @@ async function main() {
         BOOKING_TEST_URI: replica,
         BOOKING_TEST_STANDALONE_URI: standalone,
         BOOKING_TEST_DISPOSABLE: '1',
+        ...(acceptance
+          ? {
+              RECOVERY_NEXT_APP: nextApp,
+              MONGO_URI: '',
+              GOOGLE_SMTP: '',
+              GOOGLE_SMTP_USER: '',
+              PASSWORD_RECOVERY_ENABLED: 'false',
+            }
+          : {}),
       },
     },
   );

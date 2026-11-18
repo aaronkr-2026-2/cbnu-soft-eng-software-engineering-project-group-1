@@ -9,6 +9,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EmailDeliveryOutcome } from '../../libs/types/email-delivery.types.js';
 import { verificationEmail } from './verification-email.js';
+import {
+  passwordRecoveryEmail,
+  passwordChangedEmail,
+} from './recovery-email.js';
+import { recoveryLink, recoveryWebOrigin } from './password-recovery-policy.js';
 
 export class EmailDeliveryException extends ServiceUnavailableException {
   constructor(readonly deliveryOutcome: EmailDeliveryOutcome) {
@@ -27,6 +32,25 @@ export class EmailDeliveryService {
     if (recipient.length > 254 || !isEmail(recipient) || !/^\d{6}$/.test(code))
       throw new BadRequestException('Invalid verification email data');
 
+    return this.send(recipient, verificationEmail(code));
+  }
+
+  async sendRecoveryLink(email: string, token: string): Promise<void> {
+    return this.send(email, passwordRecoveryEmail(recoveryLink(token)));
+  }
+
+  async sendPasswordChanged(email: string): Promise<void> {
+    return this.send(
+      email,
+      passwordChangedEmail(`${recoveryWebOrigin()}/auth`),
+    );
+  }
+
+  assertConfigured(): void {
+    this.configuration();
+  }
+
+  private configuration() {
     // Read lazily so unrelated features can start without SMTP credentials.
     const user = process.env.GOOGLE_SMTP_USER?.trim();
     const pass = process.env.GOOGLE_SMTP?.replace(/\s/g, '');
@@ -37,6 +61,17 @@ export class EmailDeliveryService {
       !/^[a-zA-Z0-9]{16}$/.test(pass ?? '')
     )
       throw new EmailDeliveryException('NOT_SENT');
+    return { user, pass: pass! };
+  }
+
+  private async send(
+    email: string,
+    template: ReturnType<typeof verificationEmail>,
+  ) {
+    const recipient = email.trim().toLowerCase();
+    if (recipient.length > 254 || !isEmail(recipient))
+      throw new BadRequestException('Invalid email data');
+    const { user, pass } = this.configuration();
 
     const controller = new AbortController();
     const deadline = setTimeout(() => controller.abort(), 10_000);
@@ -61,7 +96,7 @@ export class EmailDeliveryService {
           from: { name: 'MedConnect', address: user },
           to: { name: '', address: recipient },
           envelope: { from: user, to: [recipient] },
-          ...verificationEmail(code),
+          ...template,
           attachments: [
             {
               filename: 'medconnect-logo.png',

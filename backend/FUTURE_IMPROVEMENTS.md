@@ -27,16 +27,16 @@ production deployment.
 Sizes are preliminary relative estimates, not commitments. Ordering reflects the
 initial recommendation; choose the next item explicitly before creating its plan.
 
-| ID    | Improvement                                | Outcome                                                                                                         | Estimated size | Status        | Detailed plan                                     | Completed on     |
-| ----- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------- | ------------- | ------------------------------------------------- | ---------------- |
-| FI-01 | Better doctor/clinic search                | Find doctors and clinics by name, city and specialty, with pagination, sorting, shareable URLs and autocomplete | Medium         | **Completed** | [Directory search plan](DIRECTORY_SEARCH_PLAN.md) | November 5, 2026 |
-| FI-02 | Appointment reminders                      | Notify patients before upcoming visits, starting with in-app reminders and considering email later              | Medium         | **Planned**   | [Appointment reminders plan](APPOINTMENT_REMINDERS_PLAN.md) | —                |
-| FI-03 | Forgot-password recovery                   | Recover email/password account access through an expiring, single-use reset link                                | Medium         | **Backlog**   | Not created                                       | —                |
-| FI-04 | Add to personal calendar                   | Add a one-time appointment event through a checkbox before booking or a button after booking                    | Small          | **Backlog**   | Not created                                       | —                |
-| FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                       | —                |
-| FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                       | —                |
-| FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`     | November 5, 2026 |
-| FI-08 | Email verification                        | Verify email ownership with an expiring code before creating a new email/password account                      | Medium         | **Completed** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md) | November 13, 2026 |
+| ID    | Improvement                                | Outcome                                                                                                         | Estimated size | Status        | Detailed plan                                               | Completed on      |
+| ----- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------- | ------------- | ----------------------------------------------------------- | ----------------- |
+| FI-01 | Better doctor/clinic search                | Find doctors and clinics by name, city and specialty, with pagination, sorting, shareable URLs and autocomplete | Medium         | **Completed** | [Directory search plan](DIRECTORY_SEARCH_PLAN.md)           | November 5, 2026  |
+| FI-02 | Appointment reminders                      | Notify patients before upcoming visits, starting with in-app reminders and considering email later              | Medium         | **Planned**   | [Appointment reminders plan](APPOINTMENT_REMINDERS_PLAN.md) | —                 |
+| FI-03 | Forgot-password recovery                   | Recover email/password account access through an expiring, single-use reset link                                | Medium         | **Completed**   | [Password recovery plan](PASSWORD_RECOVERY_PLAN.md)         | November 19, 2026 |
+| FI-04 | Add to personal calendar                   | Add a one-time appointment event through a checkbox before booking or a button after booking                    | Small          | **Backlog**   | Not created                                                 | —                 |
+| FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                                 | —                 |
+| FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                                 | —                 |
+| FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`               | November 5, 2026  |
+| FI-08 | Email verification                         | Verify email ownership with an expiring code before creating a new email/password account                       | Medium         | **Completed** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md)       | November 13, 2026 |
 
 ## Scope notes for future plans
 
@@ -69,10 +69,20 @@ the FI-06 rescheduling workflow remain deferred. No implementation is complete.
 
 ### FI-03 — Forgot-password recovery
 
-Support email/password accounts with expiring, single-use recovery links. Define
-the delivery channel, neutral account-existence responses, request limits, reset
-token storage and session invalidation before implementation. Existing authenticated
-password changes do not satisfy account recovery.
+**Completed locally November 19, 2026.** The [dedicated plan](PASSWORD_RECOVERY_PLAN.md)
+records backend Steps 1–3 (`2ece2a2`), Next Step 4 (`6e1ca6a`) and combined Step 5.
+Fresh backend build/full TypeScript, 549 backend tests and Next typecheck/167 tests/
+isolated build pass (716 total); lint retains the existing config.ts warning.
+Real production Next HTTP proxy → Nest AppModule → disposable MongoDB tests cover
+request/reset/login, timer delivery and worker replacement alongside the recovery
+race suites. The owner confirmed the authorized live Gmail reset link and
+password-changed email both arrived and reset/sign-in worked; fixture state confirms
+committed reset, old access rejection and a new session. Exactly two emails were sent
+to one selected recipient. Owned processes and disposable database files were cleaned.
+Operations document storage, retention/retry/ownership, monitoring, shared-proxy
+capacity and coordinated rollout/rollback. Recovery stays default off pending
+production target setup, trusted guest-IP/TLS/capacity verification and coordinated
+integration/deployment; local completion does not claim production activation.
 
 ### FI-04 — Add to personal calendar
 
@@ -130,7 +140,7 @@ Lint has the pre-existing config.ts warning. Disposable data only; production
 storage/deployment,legacy rewriting and additional image-editing features remain out
 of scope. Commits remain manual and separate for backend/Next.
 
-### FI-08 — Email verification — Completed
+### FI-08 — Email verification — COMPLETED
 
 The [dedicated plan](EMAIL_VERIFICATION_PLAN.md) defines five steps covering policy
 and API agreement, Gmail delivery, backend enforcement, Next.js signup and combined
@@ -185,3 +195,8 @@ This item is separate from FI-03 password recovery and FI-02 reminders.
 
 - FI-07 — Completed locally November 5, 2026; cropper,API upload and card evidence
   are recorded above and in the Next branch plan.
+
+- FI-08 — Completed locally November 13, 2026; automated checks, combined
+  browser/API acceptance and real Gmail verification/signup/login/refresh evidence
+  are recorded above and in the [email verification plan](EMAIL_VERIFICATION_PLAN.md).
+  Application database setup and coordinated production deployment remain unperformed.

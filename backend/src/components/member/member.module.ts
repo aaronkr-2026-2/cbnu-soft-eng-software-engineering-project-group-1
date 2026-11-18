@@ -22,9 +22,18 @@ import { GoogleAuthService } from '../auth/google-auth.service.js';
 import { EmailVerificationService } from '../auth/email-verification.service.js';
 import { emailVerificationRateLimit } from '../auth/email-verification-rate-limit.js';
 import { EmailDeliveryService } from '../auth/email-delivery.service.js';
+import {
+  EMAIL_REQUEST_IP_LIMIT,
+  EMAIL_CONFIRM_IP_LIMIT,
+} from '../auth/email-send-policy.js';
 
 import { UploadStorageModule } from '../upload/upload-storage.module.js';
 import { getMongoUri } from '../../database/database.config.js';
+import { PasswordRecoveryService } from '../auth/password-recovery.service.js';
+import {
+  recoveryRequestRateLimit,
+  recoveryResetRateLimit,
+} from '../auth/password-recovery-policy.js';
 
 const mongoUri = getMongoUri();
 
@@ -71,19 +80,28 @@ const mongoUri = getMongoUri();
     GoogleAuthService,
     EmailDeliveryService,
     EmailVerificationService,
+    PasswordRecoveryService,
   ],
   exports: [MemberService, MemberAccessGuard],
 })
 export class MemberModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer.apply(recoveryResetRateLimit()).forRoutes({
+      path: 'member/password-recovery/reset',
+      method: RequestMethod.POST,
+    });
+    consumer.apply(recoveryRequestRateLimit()).forRoutes({
+      path: 'member/password-recovery/request',
+      method: RequestMethod.POST,
+    });
     consumer
-      .apply(emailVerificationRateLimit(10))
+      .apply(emailVerificationRateLimit(EMAIL_REQUEST_IP_LIMIT))
       .forRoutes({
         path: 'member/email-verification/request',
         method: RequestMethod.POST,
       });
     consumer
-      .apply(emailVerificationRateLimit(30))
+      .apply(emailVerificationRateLimit(EMAIL_CONFIRM_IP_LIMIT))
       .forRoutes({
         path: 'member/email-verification/verify',
         method: RequestMethod.POST,
