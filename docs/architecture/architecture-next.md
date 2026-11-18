@@ -683,3 +683,75 @@ ordinary deletion, lost replies, cookie cleanup retry and cross-tab sign-out.
 No additional account closure was needed. Accessibility evidence covers native
 browser labels and keyboard behavior. A dedicated screen-reader session and
 production deployment have not been verified.
+
+
+## Password recovery — FI-03 Step 4, November 19, 2026
+
+Step 4 completed locally November 19, 2026, including native Chrome desktop/mobile/
+keyboard acceptance against a synthetic upstream. The browser connector host remains
+unavailable, but native app access worked. FI-03 remains In progress: real Nest/DB/
+email combined acceptance is Step 5. The backend plan remains historical here under
+the protected-folder instruction.
+
+`/forgot-password` and `/reset-password` use standalone Pages Router composition,
+MUI/PasswordField controls and server-set no-store/no-referrer headers. `_app` skips
+session initialization on these routes; no Google/analytics scripts are rendered.
+The reset page captures the strict fragment token in a ref and removes the fragment
+and query via replaceState before validation. Reload requires reopening the email.
+No token/password is persisted in browser storage or serialized page props.
+
+RecoveryPage sends fixed JSON actions through the existing session proxy's Origin,
+custom-header and content-type gate. The recovery-specific helper rejects extra
+fields and bounds passwords/email/UUID/token formats before upstream work. It uses
+only fixed Nest recovery paths, no forwarded cookies/authorization, no caching and
+no redirects. Success and errors are allowlisted; provider payloads are discarded.
+Email request retries retain one UUID; deliberate resend/email edits start another.
+The UI prevents duplicate submits, preserves useful drafts on failures, distinguishes
+invalid links and ambiguous outcomes, and offers a new-link/sign-in path.
+
+A successful reset proxy response clears the refresh cookie and refresh cache;
+clearSession invalidates local state/broadcasts logout and serializes cookie cleanup
+behind pending refreshes. Failure to confirm cleanup offers a cleanup-only retry,
+never a second reset. Request actions issue no auth cookies/tokens. Native/parser
+errors receive generic messages, with no raw provider data reflected in the UI.
+
+November 19 checks: typecheck and 167 Node tests pass, production build passes,
+and loopback GETs verify both pages return HTTP200, no-store/no-referrer and expected
+server headings. The preview process was stopped. These are source/mock/HTTP checks,
+not interactive browser or live Nest/email acceptance. Earlier interrupted November17
+checks passed 165 tests/build; the resumed review added cleanup retry and safe errors.
+Backend enforcement was delivered separately on branch backend; Step5 must verify
+combined flow, fresh login/reload, real approved inbox delivery, mobile/keyboard and
+trusted per-guest proxy limits before feature activation. No environment/provider,
+backend/Vite files, dependencies, staging/commit/push or deployment were changed.
+No sprint covers November19; closed sprint history is preserved.
+
+Final isolated build also passed without environment files; recovery source matches
+`/private/tmp/fi03-next-release-td59f65g/next`. The initial browser gap is closed by the native Chrome checks below; real-stack
+acceptance remains Step 5.
+
+
+### Step 4 final native Chrome acceptance — November 19
+
+Native app access worked despite the unavailable browser connector. A dedicated tab
+used the isolated production build at loopback port54442 and a synthetic upstream
+at54441 that discarded request bodies. No account, database, email or credential
+write existed in that fixture. Desktop and390×844 mobile screens fit their controls,
+headings, feedback and navigation. Keyboard submission verified neutral request
+success, unavailable/retry feedback and retained email. Reset preview verified token
+removal, reload requiring reopening, labeled controls, matching-password validation,
+invalid-link disabling and simulated completion with local sign-out cleanup. Password
+saving was declined. A DevTools eval/CSP issue was visible with origin uninvestigated;
+no policy was relaxed and no clean-console claim is made.
+
+Browser testing found a same-tab fragment-only navigation bug: a newly opened email
+link did not remount the page, leaving the new token uncaptured. RecoveryPage now
+listens for hashchange and reloads into fresh component state; replaceState itself
+emits no hashchange. Native Chrome verified a second fragment link is removed and
+the controls re-enable. The fixed source matches the isolated release snapshot;
+typecheck,167 tests and its production build pass. Unit/proxy tests and the browser
+preview do not establish real session revocation or email receipt; those remain
+Step5. Emulation was turned off, DevTools and the owned tab closed, and both preview
+processes stopped. No backend/Vite/env/dependency or Git commit/push changes.
+
+Suggested manual commit: `feat(next): add forgot-password and reset-password flows`.

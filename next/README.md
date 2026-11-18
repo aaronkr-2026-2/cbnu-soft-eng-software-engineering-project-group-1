@@ -387,3 +387,11 @@ pending Step 12 statements. No new sprint, commit or push was created.
 - [Sprint 04](SPRINT_04.md): October 23–29 integration preparation and recorded evidence gap.
 - [Sprint 05](SPRINT_05.md): October 30–November 5 booking, notifications, usernames, directories and square photos; closed November 5 with release checks carried forward.
 - [AI collaboration log](AI_LOG.md): implementation decisions and recorded verification.
+
+
+Password recovery screens are implemented at `/forgot-password` and `/reset-password`
+with same-origin Nest proxy actions and local sign-out cleanup. The backend recovery
+flag should remain off until browser and combined email/API acceptance pass. Desktop,
+mobile and keyboard checks passed against a synthetic upstream; real Nest/database/
+email combined acceptance remains pending;
+see the [Next architecture record](../docs/architecture/architecture-next.md#password-recovery--fi-03-step-4-november-19-2026).
