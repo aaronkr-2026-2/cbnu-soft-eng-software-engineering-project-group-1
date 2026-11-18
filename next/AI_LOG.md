@@ -980,3 +980,18 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **What I changed or rejected, and why:** Reload on hashchange ensures a new email link in an already-open tab gets fresh state and prompt URL removal. No CSP weakening was applied; a visible DevTools eval issue has uninvestigated origin and no clean-console claim is made.
 **Something the AI got wrong that I had to catch:** Codex initially captured the token only on mount; native Chrome exposed the same-tab fragment case. Codex corrected it and verified it in the browser (NEXT-017). This was an agent catch, not my manual correction.
 **One decision I can explain without AI:** A synthetic success response can verify the interface and its cleanup navigation, while only real backend/database acceptance can prove that a password changed and old sessions stopped working.
+
+## Password recovery combined acceptance documentation — 2026-11-19
+
+**Tool(s) used:** Codex, shell/Python, Yarn/TypeScript/Node tests, isolated Next production build; backend-owned real combined fixture and native Chrome.
+**What I asked for:** Password recovery Step 5 combined acceptance and operations.
+**Pre-planning:** Step4 was committed on Next6e1ca6a; backend2ece2a2 supplied request/reset/worker enforcement.
+**Planning:** Build Next without .env files, exercise its actual HTTP proxy against normal Nest AppModule/disposable MongoDB, and keep live email recipient/budget explicit.
+**Implementation process:** Updated owning README/architecture with three passing real combined tests, fresh typecheck167tests/production build and release prerequisites. Backend549 tests plus Next167 pass (716 total). Live inbox/reset/sign-in handoff remains pending; one approved reset email accepted by SMTP. Existing Step4 synthetic desktop/mobile/keyboard evidence remains distinct from real-stack acceptance.
+**What I kept as-is:** Next code, auth/session boundaries, backend default-off policy, environment/dependencies, and manual commit workflow.
+**What I changed or rejected, and why:** Corrected the outdated claim that real Nest/database integration was entirely pending; live inbox/browser and production deployment remain separate.
+**Something the AI got wrong that I had to catch:** No AI error identified in these Next documentation changes; backend fixture corrections are recorded in the backend log.
+**One decision I can explain without AI:** Run the production Next route itself: helper mocks alone cannot establish the cookie/header behavior of a deployed Next server.
+
+
+**Final acceptance update:** The owner confirmed both messages arrived and reset/sign-in worked. Aggregate fixture evidence confirms two sends, committed reset, old access rejection and one new session. Native Chrome displayed the confirmation; credential entry was performed by the owner. Test tabs, preview/Nest/Next/mongod processes and disposable Mongo directory were cleaned. The separate reload visual check was inconclusive and is not counted passed. README/architecture close FI-03 local acceptance, retaining the production prerequisites/default-off policy. No new code or tests changed after the 716-test verification.

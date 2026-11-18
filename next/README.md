@@ -391,7 +391,9 @@ pending Step 12 statements. No new sprint, commit or push was created.
 
 Password recovery screens are implemented at `/forgot-password` and `/reset-password`
 with same-origin Nest proxy actions and local sign-out cleanup. The backend recovery
-flag should remain off until browser and combined email/API acceptance pass. Desktop,
-mobile and keyboard checks passed against a synthetic upstream; real Nest/database/
-email combined acceptance remains pending;
+flag should remain off until production prerequisites and coordinated release are ready. Desktop,
+mobile and keyboard checks passed against a synthetic upstream; actual production
+Next proxy → Nest → disposable MongoDB lifecycle tests now pass with stubbed email.
+Live Gmail/browser acceptance passed: the owner confirmed reset/sign-in and receipt
+of both emails. Owned disposable fixtures were cleaned;
 see the [Next architecture record](../docs/architecture/architecture-next.md#password-recovery--fi-03-step-4-november-19-2026).
