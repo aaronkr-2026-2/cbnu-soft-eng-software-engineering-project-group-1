@@ -360,6 +360,7 @@ export function AuthPage() {
                     fullWidth
                   />
                 )}
+                {!signup && <a href="/forgot-password">Forgot password?</a>}
                 <PasswordField
                   key={`${mode}-password`}
                   id="password"

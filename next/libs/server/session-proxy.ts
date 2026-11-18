@@ -1,3 +1,4 @@
+import { recoveryProxy } from './recovery-proxy';
 import {
   emailChallenge,
   emailProof,
@@ -145,6 +146,7 @@ async function refresh(token: string) {
 export async function sessionProxy(req: NextApiRequest, res: NextApiResponse) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Referrer-Policy', 'no-referrer');
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
     res.status(405).end();
@@ -170,6 +172,11 @@ export async function sessionProxy(req: NextApiRequest, res: NextApiResponse) {
   }
   const action = req.query.action;
   const body = req.body ?? {};
+  if (action === 'password-request' || action === 'password-reset') {
+    try { await recoveryProxy(req, res, baseUrl()); } catch { res.status(503).json({ reason: 'PASSWORD_RECOVERY_UNAVAILABLE' }); }
+    if (action === 'password-reset' && res.statusCode === 200) refreshes.clear();
+    return;
+  }
   if (action === 'logout') {
     res.setHeader('Set-Cookie', [
       cookie(refreshName(), '', 0),

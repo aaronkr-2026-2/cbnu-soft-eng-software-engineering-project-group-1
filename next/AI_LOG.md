@@ -954,3 +954,44 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** Existing role and destructive-flow evidence can be combined with the final mobile checks without closing more disposable accounts.
+
+
+## FI-03 recovery screens and proxy — 2026-11-19
+
+**Tool(s) used:** Codex, Git/source inspection, TypeScript/Yarn/Node tests, Next production build, loopback HTTP checks and CUA availability inventory.
+**What I asked for:** Implement Step4, then continue from the interrupted browser check.
+**Pre-planning:** Retained existing Nov17 edits and 165-test/build evidence. Reviewed Next instructions, session lifecycle, Pages Router/layout and backend contracts. Browser host was unavailable and the earlier native Chrome call was interrupted.
+**Planning:** Reuse PasswordField, existing origin-gated proxy and clearSession; keep token only in memory and remove URL fragment immediately. Keep acceptance limits explicit and protected backend files untouched.
+**Implementation process:** Added forgot/reset routes and controls, strict request/result/error proxy allowlists, UUID retry identity, token capture and no-store/no-referrer response headers, sign-in entry and session-init exclusion. Resumed review added generic network/parser errors, cleanup-only retry after unconfirmed cookie clearing, and refresh-cache clearing only after confirmed reset. Typecheck and 167 tests passed; final worktree and isolated production builds passed, with source equality checked against /private/tmp/fi03-next-release-td59f65g/next (environment files excluded). Two loopback GET header/heading checks passed; the final cache-success condition also passed typecheck and all167 tests. CUA still reports browser host unavailable; interactive desktop/mobile/keyboard and live email/API checks remain incomplete. No sprint covers Nov19. Preview stopped; no live emails, resets or application database operations.
+**What I kept as-is:** Backend enforcement, ten-minute link policy, separate send/IP rules, existing authentication/session APIs, dependencies, environment and manual Git workflow.
+**What I changed or rejected, and why:** A failed cleanup needs its own retry rather than replaying a committed password reset. Backend plan changes are deferred because Next instructions protect backend folders. Marked Step4 pending interactive acceptance rather than claiming completion from tests/build alone.
+**Something the AI got wrong that I had to catch:** Codex's initial screen ignored clearSession's false cleanup result and exposed arbitrary native error messages. Source review caught both; cleanup now reports/retries safely and network/parser errors use generic messages. This was an agent catch, not my manual correction.
+**One decision I can explain without AI:** The reset token should disappear from the address bar and remain only in memory, so reload asks for the email link instead of recovering a bearer credential from browser storage.
+
+
+## FI-03 Step4 browser acceptance and completion — 2026-11-19
+
+**Tool(s) used:** Codex, native Chrome/CUA, isolated Next production build, loopback response stub, TypeScript/Yarn/Node tests and Git/source checks.
+**What I asked for:** Do what is needed to finish the pending Step4 acceptance.
+**Pre-planning:** Reused the implemented screens/proxy,167-test/build evidence and protected-folder constraints. The browser connector was unavailable, but a bounded native Chrome app call succeeded.
+**Planning:** Use a dedicated tab and a loopback stub with no accounts, persistence, email or credential writes, distinguishing UI simulation from Step5 combined acceptance.
+**Implementation process:** Verified desktop/390x844 mobile controls and feedback, keyboard submission, neutral request response, unavailable/retry with retained email, reset fragment removal/reload, mismatch/invalid-link disabling and simulated completion/sign-out cleanup. Native testing found a fragment-only same-tab link bug; added hashchange reload with listener cleanup and confirmed the fix. Typecheck,167tests and isolated production build passed after the fix; recovery source matches the release snapshot. Password saving declined; emulation disabled, DevTools/owned tab closed and both preview processes stopped. Updated owning architecture/README/session/bug records. Step4 is locally complete; actual Nest/DB/email/session integration is Step5. No sprint covers November19.
+**What I kept as-is:** Backend enforcement, ten-minute lifetime, SMTP/provider configuration, application data, dependencies and manual Git workflow. Protected backend files and shared plan remain untouched.
+**What I changed or rejected, and why:** Reload on hashchange ensures a new email link in an already-open tab gets fresh state and prompt URL removal. No CSP weakening was applied; a visible DevTools eval issue has uninvestigated origin and no clean-console claim is made.
+**Something the AI got wrong that I had to catch:** Codex initially captured the token only on mount; native Chrome exposed the same-tab fragment case. Codex corrected it and verified it in the browser (NEXT-017). This was an agent catch, not my manual correction.
+**One decision I can explain without AI:** A synthetic success response can verify the interface and its cleanup navigation, while only real backend/database acceptance can prove that a password changed and old sessions stopped working.
+
+## Password recovery combined acceptance documentation — 2026-11-19
+
+**Tool(s) used:** Codex, shell/Python, Yarn/TypeScript/Node tests, isolated Next production build; backend-owned real combined fixture and native Chrome.
+**What I asked for:** Password recovery Step 5 combined acceptance and operations.
+**Pre-planning:** Step4 was committed on Next6e1ca6a; backend2ece2a2 supplied request/reset/worker enforcement.
+**Planning:** Build Next without .env files, exercise its actual HTTP proxy against normal Nest AppModule/disposable MongoDB, and keep live email recipient/budget explicit.
+**Implementation process:** Updated owning README/architecture with three passing real combined tests, fresh typecheck167tests/production build and release prerequisites. Backend549 tests plus Next167 pass (716 total). Live inbox/reset/sign-in handoff remains pending; one approved reset email accepted by SMTP. Existing Step4 synthetic desktop/mobile/keyboard evidence remains distinct from real-stack acceptance.
+**What I kept as-is:** Next code, auth/session boundaries, backend default-off policy, environment/dependencies, and manual commit workflow.
+**What I changed or rejected, and why:** Corrected the outdated claim that real Nest/database integration was entirely pending; live inbox/browser and production deployment remain separate.
+**Something the AI got wrong that I had to catch:** No AI error identified in these Next documentation changes; backend fixture corrections are recorded in the backend log.
+**One decision I can explain without AI:** Run the production Next route itself: helper mocks alone cannot establish the cookie/header behavior of a deployed Next server.
+
+
+**Final acceptance update:** The owner confirmed both messages arrived and reset/sign-in worked. Aggregate fixture evidence confirms two sends, committed reset, old access rejection and one new session. Native Chrome displayed the confirmation; credential entry was performed by the owner. Test tabs, preview/Nest/Next/mongod processes and disposable Mongo directory were cleaned. The separate reload visual check was inconclusive and is not counted passed. README/architecture close FI-03 local acceptance, retaining the production prerequisites/default-off policy. No new code or tests changed after the 716-test verification.

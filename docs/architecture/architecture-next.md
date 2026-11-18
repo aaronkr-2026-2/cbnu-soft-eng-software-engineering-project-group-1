@@ -683,3 +683,123 @@ ordinary deletion, lost replies, cookie cleanup retry and cross-tab sign-out.
 No additional account closure was needed. Accessibility evidence covers native
 browser labels and keyboard behavior. A dedicated screen-reader session and
 production deployment have not been verified.
+
+
+## Password recovery — FI-03 Step 4, November 19, 2026
+
+Step 4 completed locally November 19, 2026, including native Chrome desktop/mobile/
+keyboard acceptance against a synthetic upstream. The browser connector host remains
+unavailable, but native app access worked. FI-03 remains In progress: real Nest/DB/
+email combined acceptance is Step 5. The backend plan remains historical here under
+the protected-folder instruction.
+
+`/forgot-password` and `/reset-password` use standalone Pages Router composition,
+MUI/PasswordField controls and server-set no-store/no-referrer headers. `_app` skips
+session initialization on these routes; no Google/analytics scripts are rendered.
+The reset page captures the strict fragment token in a ref and removes the fragment
+and query via replaceState before validation. Reload requires reopening the email.
+No token/password is persisted in browser storage or serialized page props.
+
+RecoveryPage sends fixed JSON actions through the existing session proxy's Origin,
+custom-header and content-type gate. The recovery-specific helper rejects extra
+fields and bounds passwords/email/UUID/token formats before upstream work. It uses
+only fixed Nest recovery paths, no forwarded cookies/authorization, no caching and
+no redirects. Success and errors are allowlisted; provider payloads are discarded.
+Email request retries retain one UUID; deliberate resend/email edits start another.
+The UI prevents duplicate submits, preserves useful drafts on failures, distinguishes
+invalid links and ambiguous outcomes, and offers a new-link/sign-in path.
+
+A successful reset proxy response clears the refresh cookie and refresh cache;
+clearSession invalidates local state/broadcasts logout and serializes cookie cleanup
+behind pending refreshes. Failure to confirm cleanup offers a cleanup-only retry,
+never a second reset. Request actions issue no auth cookies/tokens. Native/parser
+errors receive generic messages, with no raw provider data reflected in the UI.
+
+November 19 checks: typecheck and 167 Node tests pass, production build passes,
+and loopback GETs verify both pages return HTTP200, no-store/no-referrer and expected
+server headings. The preview process was stopped. These are source/mock/HTTP checks,
+not interactive browser or live Nest/email acceptance. Earlier interrupted November17
+checks passed 165 tests/build; the resumed review added cleanup retry and safe errors.
+Backend enforcement was delivered separately on branch backend; Step5 must verify
+combined flow, fresh login/reload, real approved inbox delivery, mobile/keyboard and
+trusted per-guest proxy limits before feature activation. No environment/provider,
+backend/Vite files, dependencies, staging/commit/push or deployment were changed.
+No sprint covers November19; closed sprint history is preserved.
+
+Final isolated build also passed without environment files; recovery source matches
+`/private/tmp/fi03-next-release-td59f65g/next`. The initial browser gap is closed by the native Chrome checks below; real-stack
+acceptance remains Step 5.
+
+
+### Step 4 final native Chrome acceptance — November 19
+
+Native app access worked despite the unavailable browser connector. A dedicated tab
+used the isolated production build at loopback port54442 and a synthetic upstream
+at54441 that discarded request bodies. No account, database, email or credential
+write existed in that fixture. Desktop and390×844 mobile screens fit their controls,
+headings, feedback and navigation. Keyboard submission verified neutral request
+success, unavailable/retry feedback and retained email. Reset preview verified token
+removal, reload requiring reopening, labeled controls, matching-password validation,
+invalid-link disabling and simulated completion with local sign-out cleanup. Password
+saving was declined. A DevTools eval/CSP issue was visible with origin uninvestigated;
+no policy was relaxed and no clean-console claim is made.
+
+Browser testing found a same-tab fragment-only navigation bug: a newly opened email
+link did not remount the page, leaving the new token uncaptured. RecoveryPage now
+listens for hashchange and reloads into fresh component state; replaceState itself
+emits no hashchange. Native Chrome verified a second fragment link is removed and
+the controls re-enable. The fixed source matches the isolated release snapshot;
+typecheck,167 tests and its production build pass. Unit/proxy tests and the browser
+preview do not establish real session revocation or email receipt; those remain
+Step5. Emulation was turned off, DevTools and the owned tab closed, and both preview
+processes stopped. No backend/Vite/env/dependency or Git commit/push changes.
+
+Suggested manual commit: `feat(next): add forgot-password and reset-password flows`.
+
+
+### Step 5 combined acceptance checkpoint — November 19, 2026
+
+Backend `2ece2a2` and Next `6e1ca6a` were checked together using a fresh isolated
+production Next build without environment files. The backend's explicit
+`node test/run-booking-integration.cjs --recovery-acceptance <built-next-dir>` profile
+owns disposable MongoDB and injects stub email into the normal Nest AppModule with
+production-equivalent validation. Three combined tests pass through the actual Next
+HTTP route: recovery page privacy headers/proxy Origin/field gates; neutral duplicate
+admission while SMTP is blocked, timer delivery, exactly one concurrent reset winner,
+refresh-cookie expiry, all old credential/session rejection, fresh login and token-free
+confirmation; a replacement worker resumes queued work without duplicating completed
+confirmation. This is a service-instance restart, not a process-kill test. Production
+bootstrap file logging/Swagger/env loading and deployed proxy/TLS/capacity are outside
+that fixture. Queue polling/request deadlines are test limits, not a throughput SLA.
+
+Fresh Next typecheck, all 167 tests and isolated production build pass. Backend's
+549 tests and Next's 167 pass (716 total). Existing frontend session cleanup and
+Step 4 synthetic desktop/390px/keyboard evidence remain valid; live Nest/Gmail/browser
+acceptance is currently underway with an explicit recipient and two-message cap.
+Only one reset-link message has been accepted by SMTP at this checkpoint. Recovery
+remains default off outside the fixture; coordinated release requires ready storage,
+trusted public HTTPS reset origin and upstream per-guest limits because Nest sees
+Next as the shared peer. Rollout/monitoring/rollback ownership is documented in the
+backend recovery plan. No environment/dependency/deployment/Git changes were made.
+
+
+### Step 5 final local acceptance — November 19, 2026
+
+The owner confirmed both authorized Gmail messages arrived and the recovery link,
+password reset and subsequent sign-in worked. The capped live fixture sent exactly
+two emails to one selected recipient. Its aggregate state independently confirms a
+committed reset, old access-token rejection and one new session. Native Chrome
+keyboard request submission and the confirmation email were observed; the owner
+performed the credential-entry/submission handoff. The agent did not obtain the new
+password. A separate reload visual observation was inconclusive (blank browser
+surface despite loopback HTTP200) and is not claimed as passed. Earlier Step4
+synthetic desktop/390px/keyboard checks and fresh167 frontend/549 backend tests supply
+the remaining recorded local evidence. No additional narrow-mobile real-stack run
+or dedicated screen-reader session is claimed.
+
+FI-03 and Step5 are complete locally. Both test tabs were closed, leaving the mailbox
+open. The identity-verified runner, Nest/Next and both mongod children stopped; owned
+disposable Mongo files were verified removed. Production guest-IP/TLS/capacity,
+application storage setup, coordinated branch integration and deployment remain
+release prerequisites; recovery stays default off. No Next source, configuration,
+dependency or production data was changed. Staging/commits/pushes remain manual.
