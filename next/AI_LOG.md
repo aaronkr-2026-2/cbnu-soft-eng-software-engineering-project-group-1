@@ -995,3 +995,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 
 
 **Final acceptance update:** The owner confirmed both messages arrived and reset/sign-in worked. Aggregate fixture evidence confirms two sends, committed reset, old access rejection and one new session. Native Chrome displayed the confirmation; credential entry was performed by the owner. Test tabs, preview/Nest/Next/mongod processes and disposable Mongo directory were cleaned. The separate reload visual check was inconclusive and is not counted passed. README/architecture close FI-03 local acceptance, retaining the production prerequisites/default-off policy. No new code or tests changed after the 716-test verification.
+
+
+## Standard booking hours — 2026-11-19
+
+**Tool(s) used:** Codex, shell, Yarn/TypeScript and existing Node tests.
+
+**What I asked for:** Working hours 09:00–17:00 with lunch 12:00–13:30.
+
+**Pre-planning:** Empty slot list was shown for an approved synthetic doctor. The existing UI described days with no saved hours as closed.
+
+**Planning:** Explain the backend standard-hour policy in patient booking and clinic replacement forms.
+
+**Implementation process:** Updated BookPage, TeamSchedules and README copy. yarn typecheck and all167tests passed. Browser host unavailable; no new visual or deployed acceptance claim. No sprint covers this date.
+
+**What I kept as-is:** Existing API clients, forms, confirmation flow and authorization.
+
+**What I changed or rejected, and why:** Empty weekly replacement now describes restoring default hours, matching the separate backend change.
+
+**Something the AI got wrong that I had to catch:** The initial diagnosis assumed the clinic should configure hours manually; I clarified standard hours were intended.
+
+**One decision I can explain without AI:** The backend owns slot rules; the frontend displays their meaning.

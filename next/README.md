@@ -265,6 +265,9 @@ Clinic controls use `myClinicDoctors` (first 100 active records), pending applic
 approve/reject, and complete weekly/date override replacement mutations. The API
 has no saved-hours read query, so schedule forms are explicitly blank replacement
 drafts, require acknowledgement/review, and never imply they loaded current hours.
+Default weekday hours are 09:00–12:00 and 13:30–17:00 in clinic time when no
+weekly schedule is saved. Configured schedules can narrow these windows; lunch,
+evenings, and weekends remain closed. Clearing weekly hours restores the default.
 Weekday split intervals, half-hour boundaries, custom hours, full/partial closures,
 and clearing overrides are supported. Weekend custom hours cannot reopen a date. A public effective-slots preview helps inspect
 the result; Nest protects working hours needed by bookings/waitlists.

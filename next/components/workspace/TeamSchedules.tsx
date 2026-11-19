@@ -221,9 +221,10 @@ export function TeamSchedules({
       <fieldset disabled={locked || !doctor} className="care-card">
         <legend>Weekly hours · {zone}</legend>
         <p>
-          Dates without weekly intervals are closed unless custom date hours
-          apply on weekdays. Saturdays and Sundays are always closed. Multiple
-          intervals per weekday are supported.
+          Default hours are Monday–Friday, 9:00 AM–5:00 PM, with lunch from
+          12:00–1:30 PM. Saved weekly hours and custom date hours must fit within
+          these working windows. Once weekly hours are configured, omitted
+          weekdays are closed. Multiple intervals per weekday are supported.
         </p>
         {weekly.map((row, index) => (
           <div className="workspace-interval" key={index}>
@@ -286,7 +287,7 @@ export function TeamSchedules({
             onChange={(event) => setWeeklyAck(event.target.checked)}
           />
           This draft is the complete replacement weekly schedule
-          {weekly.length ? '' : '; no weekly working hours will remain'}.
+          {weekly.length ? '' : '; standard weekday hours will be restored'}.
         </label>
         <Button
           variant="contained"
@@ -310,7 +311,9 @@ export function TeamSchedules({
                       ))}
                     </ul>
                   ) : (
-                    <p>Clear all weekly working hours.</p>
+                    <p>
+                      Clear saved weekly hours and restore standard weekday hours.
+                    </p>
                   )}
                   <p>
                     This replaces the whole weekly schedule. Existing
