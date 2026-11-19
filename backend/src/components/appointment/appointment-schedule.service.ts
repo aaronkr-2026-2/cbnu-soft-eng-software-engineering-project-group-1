@@ -183,7 +183,7 @@ export class AppointmentScheduleService {
         +slot.startsAt > now &&
         slotFitsSchedule(
           slot,
-          weekly.filter((row) => row.weekday === slot.weekday),
+          weekly,
           overrides.filter((row) => row.date === slot.date),
         ),
     );
@@ -300,13 +300,7 @@ export class AppointmentScheduleService {
       const overrides = changedDate
         ? replacements
         : existing.filter((row) => row.date === slot.date);
-      if (
-        !slotFitsSchedule(
-          slot,
-          weekly.filter((row) => row.weekday === slot.weekday),
-          overrides,
-        )
-      )
+      if (!slotFitsSchedule(slot, weekly, overrides))
         throw new ConflictException(
           'Resolve existing bookings or waitlists before removing their working hours',
         );

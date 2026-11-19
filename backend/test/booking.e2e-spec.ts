@@ -273,9 +273,28 @@ describe('POST /appointment/bookAppointment', () => {
     memberRows[0].memberStatus = 'SUSPENDED';
     await book().expect(400);
   });
-  it('rejects missing availability and slots that do not fit the complete interval', async () => {
+  it('uses standard working hours when no weekly availability is configured', async () => {
     weekly = [];
-    await book().expect(409);
+    await book().expect(201);
+  });
+  it.each([510, 720, 750, 780, 1020])(
+    'rejects booking outside standard hours at clinic-local minute %s',
+    async (minute) => {
+      weekly = [];
+      const startsAt = new Date(+start + (minute - 600) * 60_000).toISOString();
+      await book({ startsAt }).expect(409);
+      expect(appointments).toHaveLength(0);
+    },
+  );
+  it.each([540, 690, 810, 990])(
+    'accepts default booking at clinic-local boundary minute %s',
+    async (minute) => {
+      weekly = [];
+      const startsAt = new Date(+start + (minute - 600) * 60_000).toISOString();
+      await book({ startsAt }).expect(201);
+    },
+  );
+  it('rejects slots that do not fit the complete configured interval', async () => {
     weekly = [
       { doctorId, clinicId, weekday, startMinute: 540, endMinute: 600 },
     ];
@@ -370,7 +389,9 @@ describe('POST /appointment/bookAppointment', () => {
     role = MemberType.CLINIC;
     expect((await gqlBook()).body.errors[0].extensions.code).toBe('FORBIDDEN');
     role = MemberType.USER;
-    weekly = [];
+    weekly = [
+      { doctorId, clinicId, weekday, startMinute: 540, endMinute: 600 },
+    ];
     expect((await gqlBook()).body.errors[0].extensions.code).toBe('CONFLICT');
     expect(appointments).toHaveLength(0);
   });

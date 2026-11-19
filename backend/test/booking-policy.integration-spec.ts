@@ -1134,6 +1134,35 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     },
   );
 
+  it('offers and books standard hours without a saved weekly schedule', async () => {
+    await connection
+      .db!.collection('doctor_availability')
+      .deleteMany({ doctorId: doctor });
+    const response = await slots();
+    expect(response.body.errors).toBeUndefined();
+    const rows = response.body.data.getAvailableSlots;
+    expect(rows).toHaveLength(13);
+    // The fixture clinic is Asia/Seoul; start is 10:00 local.
+    expect(rows.map((row: { startsAt: string }) => row.startsAt)).toEqual(
+      [-60, -30, 0, 30, 60, 90, 210, 240, 270, 300, 330, 360, 390].map(
+        (minutes) => at(minutes).toISOString(),
+      ),
+    );
+    await rest({ startsAt: at(120).toISOString() }).expect(409);
+    await rest({ startsAt: at(180).toISOString() }).expect(409);
+    await rest({ startsAt: at(420).toISOString() }).expect(409);
+    await rest({ startsAt: at(210).toISOString() }).expect(201);
+  });
+
+  it('keeps an omitted weekday closed in a configured weekly schedule', async () => {
+    expect(
+      (await setWeekly([{ weekday: 2, startMinute: 540, endMinute: 720 }])).body
+        .errors,
+    ).toBeUndefined();
+    expect((await slots()).body.data.getAvailableSlots).toEqual([]);
+    await rest().expect(409);
+  });
+
   it('preserves legacy weekend appointments while correcting the weekday schedule', async () => {
     await seed(legacy({ startsAt: at(5 * 1440), endsAt: at(5 * 1440 + 30) }));
     expect(
@@ -1143,10 +1172,10 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     expect(
       await connection.db!.collection('appointments').countDocuments(),
     ).toBe(1);
-    expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(13);
   });
 
-  it('onboards a doctor and configures 14 split-shift slots entirely through APIs', async () => {
+  it('onboards a doctor and configures 13 split-shift slots entirely through APIs', async () => {
     const email = 'schedule-doctor@example.test';
     const challenge = await request(app.getHttpServer()).post('/member/email-verification/request').send({ memberEmail: email, requestId: randomUUID() }).expect(200);
     const verified = await request(app.getHttpServer()).post('/member/email-verification/verify').send({ memberEmail: email, challengeId: challenge.body.challengeId, code: delivered.get(email) }).expect(200);
@@ -1178,17 +1207,18 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       { id: doctorId },
     );
     expect(review.body.data.reviewDoctorAffiliation).toBe('APPROVED');
+    expect((await slots({ doctorId })).body.data.getAvailableSlots).toHaveLength(13);
     const configured = await setWeekly(
       [
         { weekday, startMinute: 540, endMinute: 720 },
-        { weekday, startMinute: 780, endMinute: 1020 },
+        { weekday, startMinute: 810, endMinute: 1020 },
       ],
       doctorId,
     );
     expect(configured.body.errors).toBeUndefined();
     const response = await slots({ doctorId });
     expect(response.body.errors).toBeUndefined();
-    expect(response.body.data.getAvailableSlots).toHaveLength(14);
+    expect(response.body.data.getAvailableSlots).toHaveLength(13);
     expect(
       response.body.data.getAvailableSlots.every(
         (row: { state: string }) => row.state === 'AVAILABLE',
@@ -1249,7 +1279,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       expect((await setWeekly(intervals)).body.errors[0].extensions.code).toBe(
         'BAD_USER_INPUT',
       );
-      expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+      expect((await slots()).body.data.getAvailableSlots).toHaveLength(13);
     },
   );
 
@@ -1261,14 +1291,14 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         ])
       ).body.errors,
     ).toBeUndefined();
-    expect((await slots()).body.data.getAvailableSlots).toHaveLength(2);
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(1);
     await rest().expect(409);
     expect(
       (await setOverrides([{ type: 'UNAVAILABLE' }])).body.errors,
     ).toBeUndefined();
     expect((await slots()).body.data.getAvailableSlots).toEqual([]);
     expect((await setOverrides([])).body.errors).toBeUndefined();
-    expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(13);
     await rest().expect(201);
   });
 
@@ -1286,7 +1316,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
     expect((await slots()).body.data.getAvailableSlots).toHaveLength(5);
     expect(
       (await slots({ doctorId: String(doctor2) })).body.data.getAvailableSlots,
-    ).toHaveLength(18);
+    ).toHaveLength(13);
     await rest().expect(409);
   });
 
@@ -1329,7 +1359,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       (await setOverrides([{ type: 'UNAVAILABLE' }])).body.errors[0].extensions
         .code,
     ).toBe('CONFLICT');
-    expect((await slots()).body.data.getAvailableSlots).toHaveLength(18);
+    expect((await slots()).body.data.getAvailableSlots).toHaveLength(13);
     const waitingStart = at(24 * 60);
     await connection.db!.collection('booking_commitments').insertOne({
       kind: 'WAITLIST',
@@ -1356,7 +1386,10 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
   });
 
   it('serializes closing working hours against a concurrent patient booking', async () => {
-    const [editing, booking] = await Promise.all([setWeekly([]), rest()]);
+    const [editing, booking] = await Promise.all([
+      setOverrides([{ type: 'UNAVAILABLE' }]),
+      rest(),
+    ]);
     expect(Boolean(editing.body.errors) || booking.status === 409).toBe(true);
     if (booking.status === 201)
       expect(editing.body.errors[0].extensions.code).toBe('CONFLICT');
@@ -1381,7 +1414,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         { $set: { clinicTimezone: 'Asia/Kathmandu' } },
       );
     const rows = (await slots()).body.data.getAvailableSlots;
-    expect(rows).toHaveLength(18);
+    expect(rows).toHaveLength(13);
     expect(
       rows.every(
         (row: { startsAt: string }) =>
@@ -1786,7 +1819,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
             doctorId: String(doctor2),
             patientId: String(patient2),
             source: 'WALK_IN',
-            startsAt: at(120).toISOString(),
+            startsAt: at(210).toISOString(),
           })
         ).body.errors,
       ).toBeUndefined();
@@ -2843,7 +2876,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       expect(
         (
           await replace('APPOINTMENT', foreign, 'APPOINTMENT', {
-            startsAt: at(120).toISOString(),
+            startsAt: at(210).toISOString(),
           })
         ).body.errors,
       ).toBeDefined();
@@ -2936,7 +2969,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         replace('WAITLIST', original, 'APPOINTMENT', destination),
         replace('WAITLIST', original, 'APPOINTMENT', {
           ...destination,
-          startsAt: at(120).toISOString(),
+          startsAt: at(210).toISOString(),
         }),
       ]);
       expect(results.filter((result) => !result.body.errors)).toHaveLength(1);
@@ -3333,8 +3366,10 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
           const first = await setup();
           if (change === 'schedule')
             await connection
-              .db!.collection('doctor_availability')
-              .deleteMany({ doctorId: doctor });
+              .db!.collection('doctor_availability_overrides')
+              .insertOne({
+                doctorId: doctor, clinicId: clinic, date: day, type: 'UNAVAILABLE',
+              });
           if (change === 'doctor')
             await connection
               .db!.collection('members')
@@ -3974,8 +4009,10 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         const { booking } = await setup();
         await cancel(booking._id, token2);
         await connection
-          .db!.collection('doctor_availability')
-          .deleteMany({ doctorId: doctor });
+          .db!.collection('doctor_availability_overrides')
+          .insertOne({
+            doctorId: doctor, clinicId: clinic, date: day, type: 'UNAVAILABLE',
+          });
         freezeTime(+start - 47 * 3600_000);
         await lifecycle().runOnce();
         expect(
@@ -4252,8 +4289,10 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
             startsAt: start.toISOString(),
           });
           await connection
-            .db!.collection('doctor_availability')
-            .deleteMany({ doctorId: doctor });
+            .db!.collection('doctor_availability_overrides')
+            .insertOne({
+              doctorId: doctor, clinicId: clinic, date: day, type: 'UNAVAILABLE',
+            });
           const closed = (await context(String(notice._id))).body.data
             .notificationContext;
           expect(closed).toMatchObject({

@@ -1216,3 +1216,16 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 
 
 **Final acceptance update:** The owner confirmed both authorized real Gmail messages arrived and reset/sign-in worked. Aggregate state verifies exactly two sends, committed reset, old access rejection and one new session. The visible confirmation email and keyboard request were observed; the owner performed password entry/submission. Separate reload rendering was inconclusive and not counted passed. Both test tabs and all owned fixture processes/database files were cleaned. Plan, FI-03 roadmap and owning entry/architecture docs mark local completion, preserving default-off production prerequisites. No code changed after the recorded 716-test run; final documentation/whitespace checks pass.
+
+
+## Standard booking hours — 2026-11-19
+
+**Tool(s) used:** Codex, implementation subagent, shell, TypeScript/Nest build, Jest, oxlint and disposable MongoDB runner.
+**What I asked for:** Working hours09:00–17:00 with lunch12:00–13:30 after missing booking slots.
+**Pre-planning:** Existing helper required stored hours and returned no candidates for an unconfigured doctor. The screenshot showed a selected weekday/doctor and empty results; live browser connection remained unavailable.
+**Planning:** Share fixed weekday windows across slot discovery and booking, fall back only for entirely unconfigured weekly schedules, preserve explicit narrowed schedules and date closures.
+**Implementation process:** Updated appointment-slot helper, whole-week schedule reads and validation callers, helper/API/integration tests, README and backend architecture. Build/full TypeScript/changed-file lint passed;34helper,40REST/GraphQL and195disposable MongoDB integration tests passed. Sandbox localhost EPERM required approved local-port execution. Three integration fixtures used deleted hours as closure; changed them to explicit UNAVAILABLE overrides. Next copy/checks belong to separate Next worktree. No sprint covers this date; closed records preserved. No production DB/environment/deployment/Git changes.
+**What I kept as-is:** Approval/account checks, clinic timezone,30-minute duration, concurrency gates, ownership, occupancy and waitlist rules.
+**What I changed or rejected, and why:** Empty weekly schedules now restore standard weekday hours; partial configured schedules still close omitted weekdays. Lunch/evenings/weekends cannot be reopened by custom or legacy hours.
+**Something the AI got wrong that I had to catch:** I clarified that standard hours were intended after the AI suggested manual schedule configuration. Automated checks also caught and corrected optional constant-field typing and outdated empty-schedule test assumptions.
+**One decision I can explain without AI:** Pass the entire weekly schedule to the shared helper so an intentionally closed weekday is distinguishable from a doctor with no saved schedule.
