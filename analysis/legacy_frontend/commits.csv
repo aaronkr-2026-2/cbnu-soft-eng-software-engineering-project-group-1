@@ -1,0 +1,4 @@
+hash,date,week,author,ai,files,added,deleted,churn,code_added,code_deleted,code_churn,non_code_added,non_code_deleted,non_code_churn,subject
+f7a74ea0,2026-10-01,2026-09-28,Dev4,0,26,1169,0,1169,1031,0,1031,138,0,138,Add frontend application
+64740829,2026-10-08,2026-10-05,Dev5,0,13,748,189,937,748,189,937,0,0,0,"feat(frontend): connect auth, appointments and profile to the API"
+7b2cfe40,2026-11-06,2026-11-02,Dev2,0,31,0,1728,1728,0,1590,1590,0,138,138,chore(main): remove legacy Vite frontend

@@ -1579,6 +1579,35 @@ Container startup and production deployment remain unverified.
 
 ## Project records
 
+Repository statistics are generated with `python3 repo_stats.py .` (Python 3.8+,
+Git, and `matplotlib` for charts). Use `--no-figures` to run without matplotlib,
+`--since YYYY-MM-DD` to filter dated activity, or `--out PATH` for a different
+output directory. Run `python3 -m unittest test_repo_stats` for the analysis checks.
+
+The generated files in `analysis/` contain combined and separate `backend/`,
+`next/`, shared, and legacy frontend reports. Churn is split into code and
+non-code. Markdown reports cover plans, improvements, instructions, and dated
+AI/session notes, including local ignored logs. `comparison.md`,
+`document_summary.md`, and `methods.md` explain the results and counting rules.
+Token estimates describe approximate text size, not actual AI consumption;
+recorded statuses and keyword mentions require review before claiming impact.
+Commit subjects, note titles, and plan text remain in exports, so review reports
+before sharing them.
+
+The interactive [Streamlit dashboard](DASHBOARD_README.md) reads those exports
+and provides application/date filters, an optional legacy frontend view,
+definitions, and evidence tables. From this repository root:
+
+```bash
+python3 -m pip install -r requirements.txt
+python3 -m streamlit run dashboard.py --server.address 127.0.0.1
+```
+
+Analysis code, required dashboard CSVs, methods, and publication downloads are
+trackable in Git for Streamlit deployment; other generated reports and caches
+remain ignored. Run dashboard checks with `python3 -m unittest test_dashboard` and figure
+checks with `python3 -m unittest discover -s analysis -p 'test_generate_figures.py'`.
+
 - [Booking and waitlist contracts](backend/BOOKING_WAITLIST_CONTRACT.md): Step 1
   target policy, API contracts, legacy-data strategy, and rollout gates. These
   contract includes future stages; the API sections above describe current behavior.

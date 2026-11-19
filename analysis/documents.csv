@@ -1,0 +1,35 @@
+source,scope,category,tracked,lines,characters,estimated_tokens
+CODE_OF_CONDUCT.md,shared,Project documentation,1,128,5222,1306
+README.md,shared,Project documentation,1,1656,88269,22068
+SECURITY.md,shared,Project documentation,1,38,1139,285
+backend/ACCOUNT_DELETION_PLAN.md,backend,Plan,1,481,30186,7547
+backend/AGENTS.md,backend,Agent instructions,0,187,26411,6603
+backend/AI_LOG.md,backend,AI log,1,1231,169755,42439
+backend/APPOINTMENT_REMINDERS_PLAN.md,backend,Plan,1,281,17182,4296
+backend/BOOKING_ROLLOUT.md,backend,Project documentation,1,58,8284,2071
+backend/BOOKING_WAITLIST_CONTRACT.md,backend,Project documentation,1,286,20162,5041
+backend/DIRECTORY_SEARCH_PLAN.md,backend,Plan,1,270,15758,3940
+backend/EMAIL_VERIFICATION_PLAN.md,backend,Plan,1,662,44769,11193
+backend/FIXES-and-BUGS.md,backend,Project documentation,0,113,11749,2938
+backend/FUTURE_IMPROVEMENTS.md,backend,Future improvements,1,202,14584,3646
+backend/PASSWORD_RECOVERY_PLAN.md,backend,Plan,1,549,37164,9291
+backend/SESSION_LOG.md,backend,Session log,0,498,62018,15505
+backend/SPRINT_01.md,backend,Sprint record,1,98,7182,1796
+backend/SPRINT_02.md,backend,Sprint record,1,94,10900,2725
+backend/SPRINT_03.md,backend,Sprint record,1,77,5295,1324
+backend/SPRINT_04.md,backend,Sprint record,1,81,5467,1367
+backend/SPRINT_05.md,backend,Sprint record,1,225,16084,4021
+docs/architecture/architecture-backend.md,shared,Project documentation,1,1225,97743,24436
+docs/architecture/architecture-next.md,shared,Project documentation,1,805,54008,13502
+docs/product/gap-map.md,shared,Project documentation,1,26,3560,890
+docs/product/personas.md,shared,Project documentation,1,69,4302,1076
+next/AGENTS.md,next,Agent instructions,0,252,26153,6539
+next/AI_LOG.md,next,AI log,1,1060,120184,30046
+next/FIXES-and-BUGS.md,next,Project documentation,0,60,5455,1364
+next/IMAGE_CROPPER_PLAN.md,next,Plan,1,45,2654,664
+next/README.md,next,Project documentation,1,402,25818,6455
+next/SESSION_LOG.md,next,Session log,0,170,27020,6755
+next/SPRINT_03.md,next,Sprint record,1,77,5257,1315
+next/SPRINT_04.md,next,Sprint record,1,72,4561,1141
+next/SPRINT_05.md,next,Sprint record,1,235,17012,4253
+resources/software-engineering-project-guide.md,shared,Project documentation,1,156,9022,2256

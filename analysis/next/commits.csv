@@ -1,0 +1,44 @@
+hash,date,week,author,ai,files,added,deleted,churn,code_added,code_deleted,code_churn,non_code_added,non_code_deleted,non_code_churn,subject
+b6b1427b,2026-10-15,2026-10-12,Dev2,0,5,142,0,142,0,0,0,142,0,142,BRR: Initial setup
+79804513,2026-10-16,2026-10-12,Dev2,0,14,214,0,214,152,0,152,62,0,62,feat(next): add shared SCSS foundation with logo-based colors
+8cacd49b,2026-10-16,2026-10-12,Dev2,0,6,166,2,168,107,0,107,59,2,61,"feat(next): add Apollo GraphQL queries, booking mutation, and shared fragments"
+0445c865,2026-10-16,2026-10-12,Dev2,0,14,1896,28,1924,1777,0,1777,119,28,147,feat(next): build responsive MUI landing page with clinic discovery
+59e28123,2026-10-16,2026-10-12,Dev2,0,12,936,16,952,874,10,884,62,6,68,feat(next): add combined sign-in and signup page with password visibility controls
+49603186,2026-10-16,2026-10-12,Dev2,0,7,383,43,426,321,37,358,62,6,68,feat(next): wired oAuth (Google) to the frontend
+2e1a5831,2026-10-16,2026-10-12,Dev2,0,1,80,0,80,0,0,0,80,0,80,docs: formatted AI-LOG.md file
+315d4d7f,2026-10-17,2026-10-12,Dev2,0,7,239,0,239,144,0,144,95,0,95,feat(next): developed ClinicCard component
+d54d37d0,2026-10-17,2026-10-12,Dev2,0,11,534,199,733,493,198,691,41,1,42,feat(next): developed Clinics page
+5deb1eae,2026-10-17,2026-10-12,Dev2,0,5,220,0,220,184,0,184,36,0,36,feat(next): developed doctorCard component
+87821307,2026-10-17,2026-10-12,Dev2,0,13,372,12,384,319,7,326,53,5,58,feat(next): developed Doctors page
+168d0c45,2026-10-18,2026-10-12,Dev2,0,1,21,0,21,0,0,0,21,0,21,docs(main): formatted README file
+ff781550,2026-10-19,2026-10-19,Dev2,0,14,1283,2,1285,1229,2,1231,54,0,54,feat(next): add My Page with inline profile editing and image uploads
+284a1162,2026-10-31,2026-10-26,Dev2,0,39,3895,591,4486,3697,239,3936,198,352,550,feat(next): add patient booking and waitlist journeys
+833a19e1,2026-10-31,2026-10-26,Dev2,0,21,2674,6,2680,2590,5,2595,84,1,85,feat(next): add shared clinic calendar and live updates
+ef9a0081,2026-11-01,2026-10-26,Dev2,0,18,1377,19,1396,1292,15,1307,85,4,89,feat(next): add patient notification center
+e7ada693,2026-11-01,2026-10-26,Dev2,0,1,2,1,3,0,0,0,2,1,3,fix: fixed gitignore file
+e369e081,2026-11-01,2026-10-26,Dev2,0,2,46,1,47,0,0,0,46,1,47,docs(next): record booking rollout acceptance
+9c805984,2026-11-01,2026-10-26,Dev2,0,14,179,35,214,159,35,194,20,0,20,feat(next): present member nicknames as usernames
+28bd92ca,2026-11-01,2026-10-26,Dev2,0,10,115,33,148,91,29,120,24,4,28,fix(next): disable weekend booking and schedule selection
+ef7693dc,2026-11-02,2026-11-02,Dev2,0,17,696,85,781,676,85,761,20,0,20,feat(next): add inline username availability checks
+fa869d9c,2026-11-02,2026-11-02,Dev2,0,5,289,0,289,0,0,0,289,0,289,docs(next): add matching sprint 03–05 delivery reviews
+f6dc8915,2026-11-05,2026-11-02,Dev2,0,11,1101,105,1206,1038,97,1135,63,8,71,feat(next): add URL-driven doctor search and autocomplete
+1cb63782,2026-11-05,2026-11-02,Dev2,0,20,814,682,1496,758,673,1431,56,9,65,feat(next): add URL-driven clinic search and autocomplete
+38fd3082,2026-11-05,2026-11-02,Dev2,0,8,307,18,325,254,15,269,53,3,56,feat(next): polish directory search and filter navigation
+8005084d,2026-11-05,2026-11-02,Dev2,0,17,531,35,566,443,31,474,88,4,92,feat(next): add square photo cropping and directory images
+1ed5b3d0,2026-11-05,2026-11-02,Dev2,0,3,108,53,161,0,0,0,108,53,161,docs(next): close sprint 05 and carry forward release checks
+3738c12b,2026-11-06,2026-11-02,Dev2,0,4,24,12,36,4,12,16,20,0,20,fix(next): preserve client navigation and simplify header
+7b2cfe40,2026-11-06,2026-11-02,Dev2,0,2,22,2,24,0,0,0,22,2,24,chore(main): remove legacy Vite frontend
+17e8f0c2,2026-11-11,2026-11-09,Dev2,0,7,142,4,146,100,4,104,42,0,42,feat(next): sync header avatar with saved profile photo
+0ebc234a,2026-11-13,2026-11-09,Dev2,0,13,1305,16,1321,1260,13,1273,45,3,48,feat(next): add email verification to patient signup
+522f158b,2026-11-13,2026-11-09,Dev2,0,2,25,2,27,0,0,0,25,2,27,docs(next): record live email signup acceptance
+5c42e004,2026-11-14,2026-11-09,Dev2,0,1,20,0,20,0,0,0,20,0,20,- fix(next): patch vulnerable Undici dependency
+6cefd3c2,2026-11-14,2026-11-09,Dev2,0,6,128,13,141,83,13,96,45,0,45,fix(next): hide My Care when signed out and clarify Korea service scope
+1cb33d90,2026-11-14,2026-11-09,Dev2,0,10,1183,0,1183,1155,0,1155,28,0,28,feat(next): add account deletion commitment dialog
+3a8a88a4,2026-11-14,2026-11-09,Dev2,0,12,1021,86,1107,996,83,1079,25,3,28,feat(next): complete account deletion confirmation flow
+16173baa,2026-11-14,2026-11-09,Dev2,0,1,20,0,20,0,0,0,20,0,20,docs(next): record account deletion acceptance checkpoint
+06f800d6,2026-11-14,2026-11-09,Dev2,0,2,44,1,45,0,0,0,44,1,45,docs(next): close account deletion acceptance and delivery
+623bae97,2026-11-18,2026-11-16,Dev6,0,1,1,1,2,0,0,0,1,1,2,chore(deps): bump next from 16.4.1 to 16.4.5 in /next
+6e1ca6a7,2026-11-19,2026-11-16,Dev2,0,11,256,1,257,222,1,223,34,0,34,feat(next): add forgot-password and reset-password flows
+d2d8a86c,2026-11-19,2026-11-16,Dev2,0,2,20,3,23,0,0,0,20,3,23,docs(next): complete password recovery acceptance
+708e3f19,2026-11-19,2026-11-16,Dev2,0,4,34,6,40,10,6,16,24,0,24,fix(next): clarify standard booking hours and schedule defaults
+09ce590d,2026-11-19,2026-11-16,Dev2,0,7,83,6,89,40,5,45,43,1,44,fix(next): upgrade to Next.js 16.4.6 and keep sticky content below navbar

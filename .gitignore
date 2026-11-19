@@ -3,6 +3,35 @@ node_modules/
 dist/
 build/
 coverage/
+# Keep dashboard tooling and its deployment data trackable.
+/analysis/*
+!/analysis/generate_figures.py
+!/analysis/test_generate_figures.py
+!/analysis/requirements-figures.txt
+!/analysis/FIGURES_README.md
+!/analysis/commits.csv
+!/analysis/weekly.csv
+!/analysis/ai_log.csv
+!/analysis/documents.csv
+!/analysis/document_weekly.csv
+!/analysis/dated_notes.csv
+!/analysis/plan_items.csv
+!/analysis/methods.md
+!/analysis/backend/
+/analysis/backend/*
+!/analysis/backend/commits.csv
+!/analysis/next/
+/analysis/next/*
+!/analysis/next/commits.csv
+!/analysis/shared/
+/analysis/shared/*
+!/analysis/shared/commits.csv
+!/analysis/legacy_frontend/
+/analysis/legacy_frontend/*
+!/analysis/legacy_frontend/commits.csv
+!/analysis/publication/
+__pycache__/
+*.py[cod]
 *.tsbuildinfo
 
 # Local session context & Logs for backend

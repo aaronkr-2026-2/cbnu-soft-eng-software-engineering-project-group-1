@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:xlink="http://www.w3.org/1999/xlink" width="498.96pt" height="377.28pt" viewBox="0 0 498.96 377.28" xmlns="http://www.w3.org/2000/svg" version="1.1">
+ <metadata>
+  <rdf:RDF xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:cc="http://creativecommons.org/ns#" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+   <cc:Work>
+    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+    <dc:date>2026-11-19T15:23:41.798374</dc:date>
+    <dc:format>image/svg+xml</dc:format>
+    <dc:creator>
+     <cc:Agent>
+      <dc:title>Matplotlib v3.10.9, https://matplotlib.org/</dc:title>
+     </cc:Agent>
+    </dc:creator>
+   </cc:Work>
+  </rdf:RDF>
+ </metadata>
+ <defs>
+  <style type="text/css">*{stroke-linejoin: round; stroke-linecap: butt}</style>
+ </defs>
+ <g id="figure_1">
+  <g id="patch_1">
+   <path d="M 0 377.28 
+L 498.96 377.28 
+L 498.96 0 
+L 0 0 
+z
+" style="fill: #ffffff"/>
+  </g>
+  <g id="axes_1">
+   <g id="table_1">
+    <g id="patch_2">
+     <path d="M 113.7735 50.334915 
+L 258.741 50.334915 
+L 258.741 25.188536 
+L 113.7735 25.188536 
+z
+" style="fill: #edf2f6; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_1">
+     <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="39.969226" transform="rotate(-0 128.27025 39.969226)">Measure</text>
+    </g>
+    <g id="patch_3">
+     <path d="M 258.741 50.334915 
+L 385.1865 50.334915 
+L 385.1865 25.188536 
+L 258.741 25.188536 
+z
+" style="fill: #edf2f6; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_2">
+     <text style="font-weight: 700; font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="39.969226" transform="rotate(-0 271.38555 39.969226)">Value</text>
+    </g>
+    <g id="patch_4">
+     <path d="M 113.7735 75.481294 
+L 258.741 75.481294 
+L 258.741 50.334915 
+L 113.7735 50.334915 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_3">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="65.115605" transform="rotate(-0 128.27025 65.115605)">Commit period (author dates)</text>
+    </g>
+    <g id="patch_5">
+     <path d="M 258.741 75.481294 
+L 385.1865 75.481294 
+L 385.1865 50.334915 
+L 258.741 50.334915 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_4">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="65.115605" transform="rotate(-0 271.38555 65.115605)">2026-09-11 to 2026-11-19</text>
+    </g>
+    <g id="patch_6">
+     <path d="M 113.7735 100.627673 
+L 258.741 100.627673 
+L 258.741 75.481294 
+L 113.7735 75.481294 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_5">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="90.261984" transform="rotate(-0 128.27025 90.261984)">Calendar weeks</text>
+    </g>
+    <g id="patch_7">
+     <path d="M 258.741 100.627673 
+L 385.1865 100.627673 
+L 385.1865 75.481294 
+L 258.741 75.481294 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_6">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="90.261984" transform="rotate(-0 271.38555 90.261984)">11</text>
+    </g>
+    <g id="patch_8">
+     <path d="M 113.7735 125.774052 
+L 258.741 125.774052 
+L 258.741 100.627673 
+L 113.7735 100.627673 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_7">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="115.294613" transform="rotate(-0 128.27025 115.294613)">Non-merge commits</text>
+    </g>
+    <g id="patch_9">
+     <path d="M 258.741 125.774052 
+L 385.1865 125.774052 
+L 385.1865 100.627673 
+L 258.741 100.627673 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_8">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="115.408363" transform="rotate(-0 271.38555 115.408363)">132</text>
+    </g>
+    <g id="patch_10">
+     <path d="M 113.7735 150.920431 
+L 258.741 150.920431 
+L 258.741 125.774052 
+L 113.7735 125.774052 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_9">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="140.497867" transform="rotate(-0 128.27025 140.497867)">Author pseudonyms</text>
+    </g>
+    <g id="patch_11">
+     <path d="M 258.741 150.920431 
+L 385.1865 150.920431 
+L 385.1865 125.774052 
+L 258.741 125.774052 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_10">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="140.554742" transform="rotate(-0 271.38555 140.554742)">6</text>
+    </g>
+    <g id="patch_12">
+     <path d="M 113.7735 176.06681 
+L 258.741 176.06681 
+L 258.741 150.920431 
+L 113.7735 150.920431 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_11">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="165.701121" transform="rotate(-0 128.27025 165.701121)">Lines added / deleted</text>
+    </g>
+    <g id="patch_13">
+     <path d="M 258.741 176.06681 
+L 385.1865 176.06681 
+L 385.1865 150.920431 
+L 258.741 150.920431 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_12">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="165.701121" transform="rotate(-0 271.38555 165.701121)">69,650 / 10,802</text>
+    </g>
+    <g id="patch_14">
+     <path d="M 113.7735 201.21319 
+L 258.741 201.21319 
+L 258.741 176.06681 
+L 113.7735 176.06681 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_13">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="190.8475" transform="rotate(-0 128.27025 190.8475)">Code churn</text>
+    </g>
+    <g id="patch_15">
+     <path d="M 258.741 201.21319 
+L 385.1865 201.21319 
+L 385.1865 176.06681 
+L 258.741 176.06681 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_14">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="190.8475" transform="rotate(-0 271.38555 190.8475)">64,809</text>
+    </g>
+    <g id="patch_16">
+     <path d="M 113.7735 226.359569 
+L 258.741 226.359569 
+L 258.741 201.21319 
+L 113.7735 201.21319 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_15">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="215.993879" transform="rotate(-0 128.27025 215.993879)">Non-code churn</text>
+    </g>
+    <g id="patch_17">
+     <path d="M 258.741 226.359569 
+L 385.1865 226.359569 
+L 385.1865 201.21319 
+L 258.741 201.21319 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_16">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="215.993879" transform="rotate(-0 271.38555 215.993879)">15,643</text>
+    </g>
+    <g id="patch_18">
+     <path d="M 113.7735 251.505948 
+L 258.741 251.505948 
+L 258.741 226.359569 
+L 113.7735 226.359569 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_17">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="241.140258" transform="rotate(-0 128.27025 241.140258)">Non-code share of churn</text>
+    </g>
+    <g id="patch_19">
+     <path d="M 258.741 251.505948 
+L 385.1865 251.505948 
+L 385.1865 226.359569 
+L 258.741 226.359569 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_18">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="241.140258" transform="rotate(-0 271.38555 241.140258)">19.4%</text>
+    </g>
+    <g id="patch_20">
+     <path d="M 113.7735 276.652327 
+L 258.741 276.652327 
+L 258.741 251.505948 
+L 113.7735 251.505948 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_19">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="266.286637" transform="rotate(-0 128.27025 266.286637)">Median churn per commit</text>
+    </g>
+    <g id="patch_21">
+     <path d="M 258.741 276.652327 
+L 385.1865 276.652327 
+L 385.1865 251.505948 
+L 258.741 251.505948 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_20">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="266.286637" transform="rotate(-0 271.38555 266.286637)">287.0</text>
+    </g>
+    <g id="patch_22">
+     <path d="M 113.7735 301.798706 
+L 258.741 301.798706 
+L 258.741 276.652327 
+L 113.7735 276.652327 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_21">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="291.376141" transform="rotate(-0 128.27025 291.376141)">AI-tagged commits</text>
+    </g>
+    <g id="patch_23">
+     <path d="M 258.741 301.798706 
+L 385.1865 301.798706 
+L 385.1865 276.652327 
+L 258.741 276.652327 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_22">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="291.433016" transform="rotate(-0 271.38555 291.433016)">0</text>
+    </g>
+    <g id="patch_24">
+     <path d="M 113.7735 326.945085 
+L 258.741 326.945085 
+L 258.741 301.798706 
+L 113.7735 301.798706 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_23">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="316.52252" transform="rotate(-0 128.27025 316.52252)">Dated AI-log entries</text>
+    </g>
+    <g id="patch_25">
+     <path d="M 258.741 326.945085 
+L 385.1865 326.945085 
+L 385.1865 301.798706 
+L 258.741 301.798706 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_24">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="316.579395" transform="rotate(-0 271.38555 316.579395)">145</text>
+    </g>
+    <g id="patch_26">
+     <path d="M 113.7735 352.091464 
+L 258.741 352.091464 
+L 258.741 326.945085 
+L 113.7735 326.945085 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_25">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="128.27025" y="341.725774" transform="rotate(-0 128.27025 341.725774)">Dated session notes</text>
+    </g>
+    <g id="patch_27">
+     <path d="M 258.741 352.091464 
+L 385.1865 352.091464 
+L 385.1865 326.945085 
+L 258.741 326.945085 
+z
+" style="fill: #ffffff; stroke: #cccccc; stroke-width: 0.4; stroke-linejoin: miter"/>
+    </g>
+    <g id="text_26">
+     <text style="font-size: 8px; font-family: 'DejaVu Serif', 'Bitstream Vera Serif', 'Computer Modern Roman', 'New Century Schoolbook', 'Century Schoolbook L', 'Utopia', 'ITC Bookman', 'Bookman', 'Nimbus Roman No9 L', 'Times New Roman', 'Times', 'Palatino', 'Charter', serif; text-anchor: start" x="271.38555" y="341.725774" transform="rotate(-0 271.38555 341.725774)">82</text>
+    </g>
+   </g>
+  </g>
+ </g>
+</svg>
