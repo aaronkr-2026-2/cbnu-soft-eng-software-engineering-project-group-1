@@ -1,0 +1,29 @@
+@use "sass:color";
+@use "../../variables" as v;
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.625rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--color-primary);
+  color: var(--color-white);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--transition);
+
+  &:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: #{color.scale(v.$primary, $lightness: -15%)};
+  }
+
+  &:disabled,
+  &[aria-disabled="true"] {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}

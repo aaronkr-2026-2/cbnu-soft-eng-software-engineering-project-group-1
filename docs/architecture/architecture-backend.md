@@ -1,0 +1,1225 @@
+# MedConnect backend architecture
+
+Source inspection date: 2026-10-15; uploader update: 2026-10-18 (Asia/Seoul). This document describes the current implementation, not a verified live deployment. Paths below are relative to the repository root. This is the single architecture document for the backend, including component responsibilities, diagrams, integration status, and concerns.
+
+## Purpose and structure
+
+The backend is a single NestJS application serving member authentication, public member profiles, appointment booking/lookup, and operational health endpoints. Feature modules run in the same Node.js process; they are not independent microservices. MongoDB stores application records and refresh sessions.
+
+`backend/src/main.ts` loads environment configuration, validates startup requirements, configures validation/CORS/security headers/logging, exposes Swagger, and starts the HTTP server. `AppModule` imports GraphQL, database infrastructure, and `ComponentsModule`, which registers member, appointment, notification, health, upload, and internal booking coordination modules. Booking policy V2 was integrated October 25, 2026 (Asia/Seoul); writes require the activation flag and verified migration on a replica set.
+
+| Layer | Responsibility | Source |
+| --- | --- | --- |
+| Transport | REST request handling and GraphQL arguments/context; delegate operations | `backend/src/components/member/member.controller.ts`, `member.resolver.ts`; `backend/src/components/appointment/appointment.controller.ts`, `appointment.resolver.ts` |
+| Authentication | Verify Google credentials/browser nonce; resolve Bearer tokens to current member principals | `backend/src/components/auth/google-auth.service.ts`; `backend/src/components/auth/guards/member-access.guard.ts`; `backend/src/components/member/member.service.ts` |
+| Application logic | Authentication/session lifecycle, profile projection, booking rules, participant access | `backend/src/components/member/member.service.ts`; `backend/src/components/appointment/appointment.service.ts` |
+| Validation and contracts | Input validation, GraphQL output types, enums, shared TypeScript types | `backend/src/libs/dto/`, `backend/src/libs/enum/`, `backend/src/libs/types/` |
+| Data access | Injected Mongoose models queried directly by feature services; no separate repository layer | `backend/src/schemas/`; feature services |
+| Infrastructure | MongoDB connection/status, GraphQL configuration, logging | `backend/src/database/`, `backend/src/libs/graphql/`, `backend/src/libs/logger/`, `backend/src/libs/interceptor/` |
+
+## Stack and technologies
+
+Versions below are declared dependency ranges in [backend/package.json](../../backend/package.json), not claims about installed or production versions.
+
+| Area | Technology | Use |
+| --- | --- | --- |
+| Runtime and language | Node.js; TypeScript `^6.0.2` | Node 24.12.0 is selected by the local Compose file. TypeScript targets ES2023 with NodeNext resolution; package format is CommonJS. |
+| Server framework | NestJS `^12.0.1`, Express adapter | Dependency injection, modules, REST controllers, guards, pipes, interceptors |
+| GraphQL | Nest GraphQL/Apollo `^14.0.0`, Apollo Server `^5.5.1`, GraphQL `^16.14.2` | Code-first schema generated in memory from DTO decorators at `/graphql` |
+| Persistence | MongoDB driver `^7.6.0`, Mongoose `^9.10.0`, Nest Mongoose `^12.0.0` | MongoDB/Atlas-compatible connection, schemas, indexes, queries |
+| Authentication | Nest JWT `^12.0.1`, `google-auth-library` `^11.3.0`, Node `crypto` | Google ID-token verification, HS256 access JWTs, salted scrypt passwords, random opaque refresh tokens and SHA-256 token hashes |
+| Input handling | `class-validator` `^0.15.1`, `class-transformer` `^0.5.1` | Global validation/transform pipe and DTO rules |
+| API documentation | Nest Swagger `^12.0.2` | REST UI at `/docs`, OpenAPI JSON at `/docs-json` |
+| Abuse controls | `express-rate-limit` `^8.7.0` | In-memory auth request limits per process |
+| Async execution and logs | RxJS `^7.8.1`, custom `FileLogger`, Node filesystem APIs | HTTP/GraphQL timing/error interception, JSON-line file logs and terminal output |
+| Verification/tooling | Jest 30, ts-jest 29, Supertest 7, Nest CLI, Oxlint, Prettier | Unit/HTTP tests, compilation, linting, formatting; exact ranges are in package.json |
+| Browser client context | Next.js Pages Router, React, TypeScript and MUI | Frontend lives in `next/`; see [Next.js architecture](architecture-next.md). The legacy React/Vite `frontend/` application was removed on November 6, 2026. |
+
+## Logical layers
+
+```mermaid
+flowchart TD
+  UI[React pages and components]
+  Session[React Router and Zustand session]
+  Client[Axios API clients - integration incomplete]
+  REST[Nest REST controllers]
+  GQL[Apollo GraphQL resolvers]
+  NextUI[Next.js landing page and clinic directory]
+  PublicClient[Public discovery fetch helper]
+  Guard[MemberAccessGuard - protected appointments, uploads and member edits]
+  Upload[UploadService - public member and clinic images]
+  Images[(Local upload directory)]
+  Member[MemberService]
+  Google[GoogleAuthService]
+  Verify[EmailVerificationService]
+  Recover[PasswordRecoveryService - default off]
+  Mail[EmailDeliveryService]
+  Gmail[Gmail SMTP]
+  Provider[Google Identity Services and signing keys]
+  Booking[AppointmentService and slot helper]
+  NoticeTarget[AppointmentNotificationService]
+  Notifications[NotificationService - in-app delivery and private inbox]
+  Lifecycle[AppointmentWaitlistLifecycleService]
+  Calendar[AppointmentCalendarService - snapshot polling]
+  Promotion[AppointmentPromotionService - gated polling]
+  Commitments[AppointmentCommitmentService]
+  Waitlist[WaitlistService]
+  Coordination[BookingCoordinationService - patient, doctor, clinic and slot gates]
+  DeletionCheck[AccountDeletionCommitmentService]
+  Schedule[AppointmentScheduleService]
+  Models[Mongoose models and schema constraints]
+  DB[(MongoDB collections)]
+  Health[Health controllers and DatabaseService]
+  Logs[LoggingInterceptor and FileLogger]
+  UI -->|In-process calls: navigation and session state| Session
+  UI -->|In-process calls: auth payloads| Client
+  Session -->|In-process read: access token| Client
+  Client -->|HTTP REST: JSON and Bearer token; some paths mismatched| REST
+  NextUI -->|In-process calls: clinic and doctor discovery| PublicClient
+  PublicClient -->|HTTP GraphQL: public queries, credentials omitted| GQL
+  GQL -->|In-process context: appointment, upload or member edit Bearer token| Guard
+  GQL -->|In-process call: validated upload streams and target| Upload
+  Upload -->|Node filesystem streams: image bytes| Images
+  REST -->|In-process request: appointment Bearer token| Guard
+  Guard -->|In-process call: verify token and load principal| Member
+  REST -->|In-process calls: signup, login, refresh, reset| Member
+  GQL -->|In-process call: public profile ID| Member
+  GQL -->|In-process call: own-account update input and principal| Member
+  Member -->|In-process call: claim new image and delete previous owned file after save| Upload
+  REST -->|In-process call: issue sign-in nonce| Google
+  Member -->|In-process call: verify Google ID token and browser nonce| Google
+  Google -->|HTTPS: fetch public signing keys for local JWT verification| Provider
+  REST -->|In-process calls: validated input and principal| Booking
+  GQL -->|In-process calls: validated input and principal| Booking
+  REST -->|In-process calls: request code and verify code| Verify
+  Member -->|In-process call: consume proof and create member in one transaction| Verify
+  Verify -->|MongoDB transactions: send limits, challenges and member callback| DB
+  Verify -->|In-process call after reservation commit: email and code| Mail
+  REST -->|In-process call: neutral password recovery request| Recover
+  Member -->|Consume reset with credential-write callback in one transaction| Recover
+  Recover -->|MongoDB transactions: admission, limits, jobs, token digests and confirmation| DB
+  Recover -->|Worker after reservation commit: recovery/confirmation email| Mail
+  Mail -->|SMTP over TLS: verification/recovery email| Gmail
+  Member -->|In-process calls: deletion and affiliation transactions| Coordination
+  Member -->|In-process call: account-scoped blocker snapshot| DeletionCheck
+  DeletionCheck -->|MongoDB aggregation: appointments, waitlists and cleanup cutoffs| Models
+  Member -->|Mongoose calls: member and session reads/writes| Models
+  Booking -->|Mongoose calls: eligibility/hours reads, appointment and outbox writes| Models
+  GQL -->|Public slots or guarded clinic schedule mutations| Schedule
+  GQL -->|Guarded join, leave, replace| Commitments
+  GQL -->|Scoped entry reads and counts| Waitlist
+  GQL -->|Authorized calendar window and revision polling| Calendar
+  Calendar -->|Read-only MongoDB snapshot: own appointments and timezone metadata| Models
+  GQL -->|Owned notification target query| NoticeTarget
+  NoticeTarget -->|Owned notice| Notifications
+  NoticeTarget -->|Own current appointment| Booking
+  NoticeTarget -->|Current owned entry| Waitlist
+  NoticeTarget -->|Current exact-slot availability| Schedule
+  GQL -->|Own inbox/read or operator aggregate status| Notifications
+  Waitlist -->|Transactional notification intents| Notifications
+  Notifications -->|Fenced delivery transaction and scoped inbox queries| Models
+  Lifecycle -->|Current slot availability| Booking
+  Lifecycle -->|Cutoff and expiry transitions| Waitlist
+  Lifecycle -->|Doctor/patient/slot transactions| Coordination
+  Promotion -->|Claim, fence and finish private release events| Models
+  Promotion -->|FIFO head and terminal transitions| Waitlist
+  Promotion -->|Eligibility and held-generation booking| Booking
+  Promotion -->|Doctor, patient and slot transaction| Coordination
+  Commitments -->|One transaction covering both commitments| Coordination
+  Commitments -->|Validated booking and cancellation| Booking
+  Commitments -->|Consent, FIFO, terminal transitions| Waitlist
+  Booking -->|Fulfill own matching entry in transaction| Waitlist
+  Waitlist -->|Mongoose session: waitlist records| Models
+  Schedule -->|In-process doctor-scoped transaction callback| Coordination
+  Schedule -->|Mongoose reads and schedule writes| Models
+  Booking -->|In-process transaction callback: patient and slot scope| Coordination
+  Coordination -->|Mongoose session: coordination gates and commitment ledger| Models
+  Models -->|MongoDB wire protocol: documents, queries, indexes| DB
+  Health -->|In-process calls: Mongoose connection state| Models
+  REST -->|Interceptor events: route, duration, errors| Logs
+  GQL -->|Interceptor events: operation field, duration, errors| Logs
+```
+
+External API clients can call REST or `POST /graphql` over HTTP using JSON and, for protected operations, a Bearer token. The checked-in frontend does not yet implement the complete GraphQL flow. Guards and DTO validation precede protected service execution; the arrows show dependencies rather than every lifecycle step. Logs are metadata/error output, not business payloads. Google ID-token verification is implemented on the backend; the Next.js browser Google button/callback is implemented but real account sign-in remains unverified. Gmail verification endpoints and transactional signup enforcement are implemented; the Next.js signup controls are implemented, with local real Gmail/browser acceptance completed in FI-08.
+
+### Next.js public discovery client
+
+Added October 16, 2026: `next/pages/index.tsx` composes the MUI landing page.
+`next/components/landing/ClinicDirectory.tsx` calls `next/libs/hooks/useMembers.ts`,
+which delegates HTTP and GraphQL error handling to
+`next/libs/api/public-members.ts`. The browser sends existing `GET_CLINICS` and
+`GET_CLINIC_DOCTORS` documents to `NEXT_PUBLIC_GRAPHQL_URL` with cookies omitted
+and no shared cache. MemberResolver delegates to MemberService's public projections;
+the backend owns account filtering and doctor affiliation approval. Search filters
+only the returned public records. Requests are canceled on unmount and bounded
+by a ten-second timeout. No Next server API or direct database access was introduced. Pages are rendered by Next locally; no new hosting is verified.
+Builds, mocked transport checks, and desktop/mobile layout inspection passed;
+successful browser-to-Nest/database discovery remains unverified. Booking screens
+remain pending.
+
+The Next.js `/auth` route composes `components/auth/AuthPage.tsx` and posts through
+`libs/api/auth.ts` to existing REST login/signup endpoints. The backend still owns
+password verification, signup writes, rate limits, roles, and token issuance. The
+patient signup form sends USER only; the client does not grant permissions. The
+`libs/auth-session.ts` module stores member/access-token state in browser memory
+only, expires it using the access token’s exp claim for UI timing, and clears it
+on local sign-out. No refresh token is retained and no automatic refresh or server
+revocation is implemented. Client-side navigation home preserves that temporary
+state; a reload clears it. The isolated GoogleSignIn component loads the official
+GIS SDK, obtains the backend's signed nonce/cookie with credentials included, and
+initializes the popup with that exact nonce. Its credential callback posts only
+`idToken` with the cookie to the Google login endpoint; a successful MedConnect
+response uses the same session module and internal home redirect. Password login
+still omits cookies. No provider credential is stored or treated as an API token.
+The public Next client ID must match the backend audience; CORS/cookie/origin
+configuration remains a deployment responsibility. SDK errors/challenge expiry
+support explicit retries; duplicate/late callbacks and overlapping sign-in writes
+are blocked. Build/type checks and mocked Google lifecycle checks passed; real
+Google/Nest/database completion and official-button rendering remain unverified.
+
+## APIs and request flows
+
+There is no global `/api/v1` prefix. REST and GraphQL share the same HTTP server and feature services.
+
+| Interface | Operation | Access and implementation |
+| --- | --- | --- |
+| REST | `POST /member/email-verification/request`, `/member/email-verification/verify` | Public code delivery/confirmation with separate IP budgets and durable email policy; no account/session creation |
+| REST | `POST /member/signup`, `/member/login`, `/member/refresh` | Public authentication endpoints with validation and auth rate limiting; `MemberController` → `MemberService` |
+| REST | `POST /member/google/nonce`, `/member/google/login` | Public, rate-limited nonce issuance and Google login/automatic USER registration; GoogleAuthService verifies identity, MemberService owns persistence and sessions |
+| REST | `POST /member/username/availability`, `/member/username/availability/me` | Public signup check and guarded own-profile check; shared separate 30/minute/IP budget; MemberService performs exact normalized-key lookup |
+| GraphQL | `getMember(id: ID!)` at `POST /graphql` | Public allowlisted active USER/DOCTOR/CLINIC profile; `MemberResolver` → `MemberService` |
+| GraphQL | `searchDoctors(input: DirectorySearchInput!)` at `POST /graphql` | Public paged full-name/city/specialty doctor search; `MemberResolver` → `MemberService.searchDoctors`; contract below |
+| GraphQL | `searchClinics(input: DirectorySearchInput!)` at `POST /graphql` | Public paged clinic-name/city search with eligible affiliated-doctor specialty matching; `MemberResolver` → `MemberService.searchClinics`; contract below |
+| GraphQL | `suggestDoctorNames(input)`, `suggestClinicNames(input)` at `POST /graphql` | Public filtered name strings; `DirectoryNameSuggestionsInput`, maximum eight; `MemberResolver` → matching `MemberService` method; contract below |
+| GraphQL | `getDoctors` at `POST /graphql` | Public active, approved, nondeleted doctors; shared public-field projection, name/ID ordering, maximum 100; `MemberResolver` → `MemberService.listDoctors` |
+| GraphQL | `bookAppointment(input)`, `getAppointment(id)`, `myAppointments(input)` | Bearer authentication via `MemberAccessGuard`; delegates to `AppointmentService` |
+| GraphQL | `getNotification`, `notificationContext`, `myNotifications`, `markNotificationRead` | Guarded patient-owned inbox/current-target reads and read state; separate ADMIN delivery-status counts |
+| GraphQL | `myCalendar`, `calendarUpdates` | Current clinic/doctor scope; consistent snapshots and revision polling through AppointmentCalendarService |
+| GraphQL | `createClinicAppointment`, `cancelAppointment`, `setAppointmentOutcome` | Guarded actor/participant permissions; shared AppointmentService rules and transactional outbox |
+| GraphQL | `getAvailableSlots`, `setDoctorWeeklyHours`, `setDoctorDateOverrides` | Public bounded slot reads; own-clinic guarded schedule writes |
+| GraphQL | `myClinicDoctors`, `reviewDoctorAffiliation` | Own-clinic affiliation discovery/review through MemberService |
+| GraphQL | `accountDeletionReadiness(input)`, `updateMember(input)` with DELETED/agreement | Current USER/DOCTOR/CLINIC account, complete blocker counts/pages, transactional soft deletion and session invalidation |
+| REST | `POST /appointment/bookAppointment`, `GET /appointment/:id` | Same guard and appointment service as GraphQL |
+| Operations | `GET /`, `/health/live`, `/health/ready`, `/status` | Public API info, liveness, database readiness, and status UI; `/status/assets/*` serves its CSS/JS |
+
+**Authentication:** signup validates public role/input fields and hashes the password before opening a bounded transaction. EmailVerificationService consumes valid email-bound proof and calls MemberService to validate clinic affiliation and create the member in that same session, recording private `emailVerifiedAt`. Credential issuance follows commit. Missing/expired/replayed proof cannot create a member/session, and duplicate-field failures roll back proof consumption. Doctors require an active clinic and start with PENDING affiliation; ADMIN is excluded from public signup. Login verifies email/password credentials and account status. Access JWTs last 15 minutes. Refresh tokens have a fixed seven-day session lifetime; only their hashes are persisted. Refresh atomically replaces the stored hash, so a token can be consumed once; rotation does not extend session expiry. There is no implemented logout/revocation endpoint.
+
+**Google sign-in:** the browser first requests a five-minute signed nonce from `/member/google/nonce`, which also sets an HttpOnly cookie. It passes that nonce to Google Identity Services and posts the resulting ID token to `/member/google/login` with credentials included. GoogleAuthService validates the challenge and Google's signature/audience/issuer/expiry and checks the ID-token nonce against the cookie. Production uses a Secure, host-only cookie; successful login clears it. MemberService finds by Google `sub` or immediately creates an active USER, omitting phone/password. The provider display name supplies only the trimmed/truncated full name. Every new Google identity gets `google_user` plus eight random digits and its private lowercase key, with at most ten attempts against the unique index. Returning identities retain user-edited usernames/full names. Only verified provider email is copied. Existing account profile/role remains unchanged. Email conflicts return 409 without automatic linking; inactive accounts are rejected. The service reuses normal access/refresh issuance. GOOGLE_CLIENT_ID is required for this flow; GOOGLE_CLIENT_SECRET is not consumed. The Next.js Google button/callback integration is implemented; live Google account completion remains unverified.
+
+**Protected requests:** the guard extracts REST or GraphQL request context and calls `MemberService.authenticateAccessToken`. JWT algorithm, issuer, audience, expiry, token type, and subject are checked. A fresh member query determines active status and current role. Services then enforce operation-specific authorization; a token alone does not grant appointment access.
+
+**Booking:** the authenticated caller must be USER; patient identity comes from the principal. With BOOKING_POLICY_V2_ENABLED=true and verified migration, AppointmentService rechecks the active patient/auth version, doctor/clinic approval, selected specialty, clinic-local alignment and hours/overrides within a BookingCoordinationService transaction. It saves a CONFIRMED appointment with source ONLINE, specialty and opaque version together with its active ledger entry. Whole-patient serialization enforces the sliding 24-hour rule at one clinic/specialty across doctors and appointment overlap prevention everywhere. Doctor-slot gates plus the unchanged unique active-slot index prevent double allocation. New requests require specialty; old PENDING records are never silently confirmed. Disabled booking returns 503 rather than falling back to old writes.
+
+**Appointment lookup:** the service scopes the query to the caller's patient, doctor, or clinic ID. Another doctor in the same clinic has no access; there is no ADMIN override. Missing and unauthorized appointments both return not found. Public member lookup is separate and returns only projected profile fields; it does not require this guard.
+
+GraphQL errors are returned in an `errors` array, potentially with HTTP 200. `backend/src/libs/graphql/graphql.config.ts` maps application errors to codes, suppresses internal details, disables batched requests, and enables GraphiQL/introspection only outside production. Auth and appointment responses, and GraphQL responses, use `Cache-Control: no-store`.
+
+## Data stores and ownership
+
+| MongoDB collection | Data | Current owner/access |
+| --- | --- | --- |
+| `members` | USER, DOCTOR, CLINIC, ADMIN accounts, clinic timezone, affiliation and profile data | MemberService owns accounts/authentication/profile/affiliation writes; appointment services read eligibility |
+| `member_sessions` | Member ID, refresh-token hash, expiry | MemberService writes and rotates sessions; unique hash and TTL expiry index |
+| `appointments` | Participant IDs, booked specialty, source/version, UTC start/end, status, cancellation/change-request fields | AppointmentService creates confirmed bookings/reads participants; partial unique doctor/start index still includes legacy PENDING/CONFIRMED |
+| `booking_gates` | Durable patient/doctor-slot revision rows; slot generation and allocation-pending state | BookingCoordinationService; transaction writes serialize competing operations; no TTL |
+| `booking_commitments` | Active appointment/waitlist references, participants, recorded specialty, version/status and time interval | BookingCoordinationService; appointment entries saved atomically by public booking, legacy entries populated by migration |
+| `appointment_events` | Durable status/release/booking-notice outbox, generation, fenced leases, retry/result fields | AppointmentService writes lifecycle events; AppointmentPromotionService claims releases and writes booking notices transactionally; no public event API; Step 8 emits separate in-app delivery intents |
+| `waitlists` | Exact slot/specialty, consent evidence, FIFO sequence, status/version and fulfilled appointment reference | WaitlistService owns enrollment/closure and scoped reads; promotion uses its transaction methods |
+| `waitlist_cleanup` | Slot sequence high-water marks for pending queue expiry | WaitlistService records atomically with booking; lifecycle worker closes old entries under their patient locks |
+| `notification_outbox` | Deduplicated event/recipient/channel intents and claim/retry state | NotificationService; feature transactions emit intents, separate worker delivers |
+| `notifications` | Private in-app message references and read state | NotificationService; patient-owned inbox/read API, no public collection access |
+| `booking_policy` | Migration version/readiness marker | BookingMigrationService writes offline; BookingPolicyService checks at startup and in mutation transactions |
+| `booking_migration_audit` | Metadata/status change history and review evidence references | Offline migration only; excluded from API projections and console/app logs |
+| `doctor_availability` | Weekly doctor/clinic hours | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
+| `doctor_availability_overrides` | Date-specific custom hours and unavailable intervals | AppointmentScheduleService owns writes; booking/slot reads share the slot helper |
+
+Schemas are in `backend/src/schemas/`. References are MongoDB ObjectIds; appointment operations do not populate related member records. Cancellation/outcome APIs are implemented; embedded doctor change-request fields still do not establish a rescheduling API. MemberService owns pending doctor affiliation review; AppointmentScheduleService owns clinic-scoped schedule writes. These now have guarded GraphQL APIs. MemberModule exports MemberService and MemberAccessGuard. AppointmentModule imports that public interface for authentication while separately registering member models for its direct reads.
+
+### Booking transaction foundations (Steps 2–3)
+
+`backend/src/components/booking/booking-coordination.service.ts` exports `run(scope,
+callback)` through BookingModule. The scope declares every affected patient and
+doctor-slot up front. A whole-patient gate deliberately serializes all of that
+patient's writes: this protects both the patient/clinic/specialty sliding 24-hour
+check and appointment overlap across clinics/specialties. It is stronger and
+coarser than separate specialty locks. All callbacks must lock the complete scope
+before any authoritative business reads, use the supplied session on every write,
+and await operations sequentially. Discovering another participant requires a
+new transaction with an expanded scope, never a late out-of-order lock.
+Callers must validate slots through `appointment-slot.ts` in the clinic timezone
+and recheck authorization, doctor eligibility, schedule, cutoff and consent in the
+transaction. Coordination is not a replacement for those domain checks.
+
+The service seeds empty coordination rows outside the transaction, then writes
+their revisions inside it in sorted key order: doctor IDs, patient IDs, then
+doctor-slot keys. Booking and schedule edits both take the doctor gate. Concurrent writers therefore conflict on an actual document instead of
+both passing a snapshot read. There is no expiring application lock or lock TTL.
+The driver retries transient failures with a 10-second transaction deadline and
+at most eight callback executions; commit time is limited to five seconds. Reads
+use snapshot isolation, writes majority concern, and primary preference. Unknown
+commit outcomes must be reconciled before callers retry a user action. Callback
+code must not send notifications, perform filesystem/network side effects, or
+manually commit/abort; persist future outbox events in the supplied transaction.
+
+`reserve` checks the active ledger for specialty spacing, patient overlap and
+doctor occupancy. `release` removes a commitment under its patient/slot locks.
+`holdSlot` increments a generation and prevents manual reservation until allocation
+is resolved; allocator reservations and `resolveSlot` require the expected
+generation. Generation checks provide the shared concurrency foundation; Step 7 adds FIFO
+processing above it, while notification delivery remains separate. Domain records
+and their ledger entries are created/changed atomically by booking, lifecycle,
+waitlist and replacement services. Historical appointments enter the ledger
+only through explicit offline migration before policy V2 is enabled. The existing appointment unique active
+doctor/start index is unchanged.
+
+The service refuses missing persistence and standalone MongoDB before executing a
+callback. Replica-set, transaction and deployment guidance follows the
+[MongoDB transaction documentation](https://www.mongodb.com/docs/drivers/node/current/crud/transactions/).
+`npm run test:booking:integration` owns temporary local MongoDB processes and tests
+real two-client races, failure rollback, retries, slot generations, unique indexes
+and standalone rejection. This does not establish Atlas deployment readiness or
+production queue operation. Public enrollment/replacement is covered below.
+
+### Activation, migration and conflict responses (Step 3)
+
+BookingPolicyService verifies the enabled flag, replica-set/index prerequisites,
+readiness marker and a consistent transactional snapshot of metadata/ledger coverage
+at startup. Every booking rechecks the marker in its transaction. The operator
+must stop all old/new writers for migration; a CLI acknowledgment cannot enforce
+another process's shutdown. Never run old writers after cutover or bypass the
+ledger with external status edits. Cancellation/outcomes update ledger and version
+atomically; replacements and waitlist writes follow the same protocol.
+
+`backend/src/tools/booking-migration.ts` uses the shared URI selector and a
+connection with automatic DDL disabled. Dry-run reads only and emits aggregate
+counts; an optional exclusive mode-0600 operator report contains record IDs/issues.
+BookingMigrationService applies reviewed resolutions, backfills source/version and
+known specialty, preserves terminal history with nullable specialty, rebuilds the
+active ledger and marks readiness atomically. PENDING/ambiguous/conflicting or stale
+active records block migration; the current doctor specialty list is never used
+as historical inference. Each actual metadata/status change records audit evidence;
+unchanged reruns preserve versions and add no audit entries. Failure rolls back
+all document changes, while index preparation precedes the transaction. This
+initial tool is bounded to 5000 appointments and refuses any waitlist records or commitments.
+The exact commands and resolution shape are in the root README. No application
+DB migration, backup rehearsal, Atlas cutover or production activation was run.
+
+BookingConflictException constructs only allowlisted summaries from a query scoped
+to the requesting patient. Both transports expose reason, own commitments and
+choices; GraphQL keeps its generic extensions.code and adds extensions.booking
+only for the explicit booking exception classes. Other HttpException payloads
+are not forwarded. KEEP is offered for own conflicts; REPLACE is additionally offered when enabled
+for a single future replaceable blocker. Slot conflicts expose no other patient's identity. Source,
+specialty and version are added to participant appointment reads; no generic
+status mutation or notification worker is introduced.
+
+### Clinic schedules and dynamic slots (Step 4, October 26)
+
+MemberService exposes own-clinic doctor discovery and conditional PENDING affiliation
+approval/rejection; approved affiliations cannot be revoked through that operation.
+AppointmentScheduleService replaces weekly hours or one date's overrides inside
+a doctor-gated transaction, verifies clinic ownership/current account state and
+checks future/in-progress appointments plus active waitlist ledger targets before
+narrowing hours. Invalidating edits conflict without changing those commitments.
+Slot reads and booking writes share a clinic-local Monday–Friday 09:00–17:00
+policy with a 12:00–13:30 lunch break. A doctor without any weekly rows receives
+these standard hours automatically; a configured weekly schedule closes omitted
+weekdays. Custom date hours remain bounded by the standard windows, and
+unavailability overrides still block slots. Clearing all weekly rows restores the
+default; full-day closures use UNAVAILABLE overrides. The shared helper receives
+the whole weekly schedule so an omitted weekday is not mistaken for an unconfigured
+doctor.
+Booking takes the same doctor gate before schedule reads, preventing write races.
+Later worker allocation paths must also include the doctor gate.
+
+The public getAvailableSlots query requires an active clinic, approved doctor and
+offered specialty, and caps inclusive clinic-local date ranges at 31 days. Shared
+appointment-slot.ts helpers generate real UTC instants, preserve local :00/:30
+alignment through DST/quarter-hour offsets, and apply weekly/custom/blocked hours.
+Occupancy reads project only time intervals; allocation holds become UNAVAILABLE.
+No empty slot documents or fixed time enum are introduced. Slot policy eligibility
+for waitlisting is distinct from actual enrollment, which requires the Step 6 flag. Results are advisory; mutation-time checks remain authoritative. The
+existing disposable API suite covers onboarding/configuration, split shifts,
+overrides, privacy, ownership, preserved commitments and concurrent booking/editing.
+No browser integration, application DB changes or deployment was performed.
+
+### Waitlists and atomic replacements (Step 6, October 31)
+
+WaitlistModule (imported by AppointmentModule) owns waitlists through WaitlistService:
+consent, per-slot FIFO sequence, participant-scoped reads and terminal updates.
+AppointmentCommitmentResolver delegates patient join/leave/replace operations to
+AppointmentCommitmentService. That orchestrator calls explicit AppointmentService
+transaction interfaces for schedule validation, occupied-slot checks, creation and
+cancellation; it does not access another service's models or private helpers.
+
+Both source/destination doctors, the patient and both slots are locked in the
+existing order. Expected original versions prevent stale replacement. Appointment
+cancellation, outbox events, waitlist withdrawal/enrollment and the ledger commit
+or roll back together. New queue entries increment the slot gate's queueSequence;
+withdrawal/rejoining never restores an old position. Patient overlap and specialty
+spacing are enforced against all remaining commitments.
+
+Booking fulfills only its own matching entry, in the booking transaction, without
+resolving an allocation hold. It therefore cannot jump queued allocation. Last
+withdrawal clears an otherwise stranded hold. Other patients' expiry is deferred
+to workers so this writer never changes entries outside its patient scope.
+
+WAITLIST_ENROLLMENT_ENABLED and COMMITMENT_REPLACEMENT_ENABLED default off and
+validate their prerequisite flags. Disabling enrollment preserves reads/withdrawal.
+Startup snapshot audit compares active appointment and waitlist metadata/ledger,
+checks queue counters/ordering and combined specialty conflicts. The initial
+migration continues to refuse all queues, including terminal history.
+
+The Step 7 promotion and Step 8 lifecycle/delivery workers are described below. Outputs explicitly return
+automaticBookingEnabled=false and compute cutoff eligibility; the lifecycle worker persists NOTIFICATION_ONLY/expiry transitions. Own patient/clinic
+entry reads are allowlisted; clinics receive no FIFO position, doctors only scoped
+aggregate counts. See root README for GraphQL inputs, pagination and flag behavior.
+
+### Cancellation, clinic booking and durable events (Step 5, October 28)
+
+AppointmentService owns all new mutations. Clinic creation derives clinicId from
+a current CLINIC principal, validates an existing active USER, and delegates to
+the same private booking operation as online creation. Source/creator metadata
+records PHONE/WALK_IN and the clinic actor. Staff conflict responses omit patient
+commitment summaries, including other clinics' records.
+
+Cancellation is patient/own-clinic only before start; completion/no-show is
+own-clinic only at/after end. Each operation rechecks actor, scoped appointment and
+state/time under doctor, patient and slot gates. A version-conditional write,
+active ledger removal and durable outbox insert commit together. Repeated matching
+terminal actions return the stored result without new events/generation changes.
+Outbox initialization/indexing occurs before the transaction; failures inside it
+roll back appointment, ledger, generation and events. Creation can be paused while
+migrated commitments remain cancellable through assertMigrated.
+
+Cancellation increments slot generation and writes SLOT_RELEASED plus a status
+change event with stable IDs. A queue at >=48h retains the allocation hold;
+manual openings release it. Closed/ineligible schedules produce UNAVAILABLE hints
+and never bypass booking's schedule checks. Manual reservations increment the
+generation to stale earlier releases. The promotion worker rechecks actual cutoff,
+generation and current occupancy/schedule, rather than treating an event hint as
+current availability. Outbox records are private and have no TTL. Step 7 adds
+claims/retries; Step 8 adds in-app delivery. No application DB migration,
+frontend integration or deployment was performed.
+
+### FIFO promotion and durable claim recovery (Step 7, October 31)
+
+`backend/src/components/appointment/appointment-promotion.service.ts` is an internal
+AppointmentModule provider. It owns no transport route and uses the existing
+appointment_events outbox. A bounded polling loop claims queue/unavailable release
+events with a token, 30-second lease and attempt counter. Expired claims can be
+reclaimed after restart. Each transaction writes the token fence after locking the
+doctor/patient/slot, so a stale owner cannot book after takeover. Slot generation
+checks prevent old releases from touching a newer hold.
+
+WaitlistService selects the FIFO ACTIVE head and performs version-conditional
+INELIGIBLE/fulfilled transitions; notification-only entries are excluded.
+AppointmentService checks current consent/patient/doctor/clinic/schedule eligibility.
+BookingCoordinationService exposes a read-only reservation preflight that excludes
+only the selected waitlist, sharing specialty/overlap checks with actual reservation.
+Only typed, established eligibility failures skip a patient; infrastructure failures
+abort the transaction and retry the same head with bounded backoff. A claim handles
+at most 25 candidates before yielding; empty eligible queues resolve their hold.
+
+Promotion uses the existing booking transaction with source WAITLIST and the held
+generation. Appointment creation, queue fulfillment, ledger changes, hold resolution,
+WAITLIST_BOOKING_CREATED and release-event completion commit together. Cutoff checks
+before and after writes roll back a booking that crosses inside 48 hours. A fenced
+follow-up transaction releases the same generation and marks DEFERRED for Step 8;
+manual-opening events are not consumed by this worker. Remaining queue expiry and
+notification fan-out belong to Step 8.
+
+Persisted claim/retry/result fields provide private failure visibility; poll failures
+log only a fixed safe code. The worker stops polling and waits for its current poll
+on shutdown. Tests use real MongoDB for worker contention, FIFO, rollback, abandoned
+leases, fresh instances, stale-owner fencing and cutoff/withdrawal races. Step 12 now verifies actual process-kill recovery, expired-lease takeover and
+replay/read-state deduplication in owned disposable databases. The read-only
+`booking:status` CLI combines aggregate backlog/latency with consistent snapshot
+reconciliation without starting workers or creating collections/indexes.
+
+WAITLIST_PROMOTION_ENABLED defaults off and now accepts true only with booking V2,
+enrollment, IN_APP delivery and lifecycle enabled. The native-worker local browser
+pilot verifies the patient notice and clinic calendar. Production/staging activation
+remains separate; follow [Booking operations](../../backend/BOOKING_ROLLOUT.md).
+
+### Cutoff lifecycle and in-app delivery (Step 8, October 31)
+
+NotificationModule owns notification_outbox and notifications through
+`backend/src/components/notification/notification.service.ts`; WaitlistModule imports
+its exported interface. AppointmentModule's AppointmentWaitlistLifecycleService
+owns background coordination and uses public appointment/waitlist methods. This
+keeps inbox/delivery independent of appointment creation and avoids a module cycle.
+Notification transport is a guarded resolver with user-scoped pagination/read state
+and ADMIN-only aggregate delivery counters. DTOs and Notice types remain under libs.
+
+Cancellation writes recipient intents inside its transaction, capturing active
+manual-opening recipients under the doctor/slot gate. Later delivery does not
+reconstruct the original snapshot from changing queue state. Promotion's cutoff
+handoff similarly writes manual-opening intents. The lifecycle worker also handles
+manual/deferred events and queued holds reaching the cutoff when promotion is off;
+current generation, occupancy and schedule checks prevent stale availability alerts.
+
+Successful booking records a per-physical-slot sequence high-water mark in
+waitlist_cleanup. Per-patient transactions expire the remaining old entries and
+write expiry intents without a transaction spanning every patient. Newer enrollments
+survive old jobs; entries pending cleanup are excluded from promotion/replacement.
+Cutoff transitions update queue and ledger versions together; slot-start expiry
+releases the commitment. Cleanup and delivery each process at most 25 units per
+one-second poll and resume from durable data after restart.
+
+NotificationService.emit upserts event/recipient/IN_APP delivery intents in the
+caller's transaction. Its IN_APP adapter separately claims a token/30-second lease,
+fences ownership, upserts a private inbox record and acknowledges delivery in one
+MongoDB transaction. Failed delivery cannot change a booking; safe backoff metadata
+and operator aggregate counters expose failures. No provider errors or contacts are
+returned. Replay preserves read state. Hash notification IDs do not reveal the
+source cancellation's other-patient appointment ID. Patient messages distinguish
+an unreserved opening from a historical booking event and require current-state reads.
+
+WAITLIST_LIFECYCLE_ENABLED and WAITLIST_NOTIFICATIONS_ENABLED independently default
+off and require migrated replica-set persistence. Captured intents survive pauses;
+lifecycle is independent of delivery availability. In-app API delivery, privacy,
+deduplication and retry are tested against real MongoDB/HTTP. Browser inbox/link
+integration is Step 11; external email/SMS adapters remain unconfigured. Promotion's
+release gate remains closed until the patient-facing flow is verified. No real
+application DB, runtime activation or deployment changed.
+
+### Patient appointment list (Step 9 backend only, October 31)
+
+AppointmentResolver exposes guarded myAppointments with MyAppointmentsInput and
+AppointmentPage DTOs. AppointmentService derives patientId from the USER principal,
+scopes both cursor lookup and result queries to that patient, reuses the appointment
+projection and normalizes missing historical source to LEGACY. It accepts no target
+patient identity. MemberAccessGuard continues to verify current role/status/token
+version; GraphQL responses remain no-store.
+
+The query caps pages at100 (default20), orders startsAt then _id ascending, and uses
+an owned appointment ID as the cursor. Status and inclusive-from/exclusive-to UTC
+filters support upcoming/history views. Time ties use _id to avoid skipped records;
+status changes on the anchor do not invalidate an owned cursor. The new compound
+patientId/startsAt/_id index supports the ordering. Reads do not require booking's
+creation flag or migration marker, matching participant lookup behavior.
+
+This supplies the missing backend list for the patient journey. Existing auth/refresh,
+slots, booking, waitlist and replacement APIs remain unchanged. Per user direction,
+frontend work for Steps9–12 is deferred; no Next.js/Vite files or session behavior
+are changed. Browser integration remains unverified and the promotion release gate
+remains closed. The next implementation scope is Step10's backend portion.
+
+### Clinic/doctor calendar synchronization (Step 10 backend only, October 31)
+
+AppointmentCalendarResolver/Service are registered within AppointmentModule, with
+calendar input/output DTOs under libs/dto/appointment. Calendar entries reuse the
+positive appointment projection now shared through libs/types/appointment.types.ts.
+The service owns read-only participant-scoped appointment/member model reads; no
+new writer, event queue or process-local subscription registry is introduced.
+
+The chosen synchronization mechanism is Bearer-authenticated GraphQL polling. Repo
+records describe a VPS but do not verify WebSocket/SSE proxy buffering/timeouts, so
+the existing HTTP transport provides a concrete supported backend path. Reconnect
+always resynchronizes authoritative state; no timestamp feed can skip a late commit.
+Each request rechecks current account/role/authVersion and reads appointments plus
+clinic timezone metadata in a primary read-only snapshot session with explicit
+cursor timeouts and a shared ten-second abort deadline. Uncommitted
+booking/replacement writes remain invisible. Replica-set persistence is required.
+
+CLINIC scope is recorded clinicId=self; optional doctorId intersects that scope.
+DOCTOR scope is doctorId=self, including their own recorded history; another doctor
+filter is forbidden. USER/ADMIN roles do not gain calendar access. UTC overlap windows
+are bounded to31 elapsed days, at most5000 records, with pages of at most100 entries.
+Additional compound clinic/doctor start-time/ID indexes support the ordering. Output
+contains existing participant fields plus clinicTimezone, never contacts or raw rows.
+
+The server hashes the full scoped window/timezone context into a revision. Polling
+returns changed/revision with a five-second advisory interval. Continuation pages
+must supply the first page revision and fail CONFLICT if state changed, preventing
+mixed revisions. The client buffers all pages then swaps its complete state; on
+reconnect or conflict it restarts. Revisions are state fingerprints, not event/audit
+sequences. Existing writes automatically appear after commit without changing their
+transaction boundaries or flags. Availability and schedule controls remain separate
+existing APIs, not inferred from a calendar notice.
+
+Real MongoDB tests cover scope isolation, time ties/bounds/offsets, revision changes,
+late/uncommitted writes, replacement atomicity, promotion, status/outcome changes,
+timezone context, cursor revisions and oversized-window errors. No frontend, live
+proxy/hosting, browser recovery or production throughput verification is implied.
+Existing onboarding/schedule/staff mutations supply the other backend contracts;
+frontend workspace/calendar controls remain deferred per user instruction.
+
+### Notification target resolution and delivery journeys (Step 11 backend only)
+
+NotificationService now exposes getNotification and unread-only list filtering;
+its generic positive-view mapper preserves the selected record type. Read/detail
+lookups remain owner-scoped, with separate idempotent markNotificationRead.
+AppointmentNotificationResolver/Service orchestrate notification ownership, existing
+appointment/waitlist services and the shared exact-slot schedule lookup. The
+orchestrator lives in AppointmentModule, which imports NotificationModule's public
+interface; NotificationModule does not import appointment services, avoiding a cycle.
+DTOs and target-kind enum remain under libs/dto/notification and libs/enum.
+
+notificationContext accepts only an owned notification ID. Booking notices resolve
+the current owned appointment status; manual notices resolve the retained owned
+waitlist reference's specialty and clinic-local slot through the existing public
+slot rules. Known absent/closed/past targets return UNAVAILABLE, while infrastructure
+errors propagate. A late opening can return SLOT/OCCUPIED without revealing the
+occupant. Historical text never becomes proof of a live reservation. checkedAt is
+an advisory evaluation time, not a snapshot/booking guarantee. Join/expiry notices
+return current waitlist state. None of these queries marks a notification read.
+
+The existing IN_APP outbox/inbox pipeline is tested end to end through real HTTP
+and MongoDB: promotion delivery, current cancellation state, delayed manual alerts,
+UTC/local-day boundaries, unread cursors, retry during paused creation, replay and
+fresh-worker expired-lease takeover/stale-owner fencing. Required booking intents
+remain durable, and notification retry never recreates an appointment. No channel
+preference API suppresses required delivery; unread filtering affects reads only.
+External provider adapters remain unconfigured. Frontend center/link verification
+and promotion activation remain deferred by the backend-first scope. No application
+DB, feature flags, hosting or frontend files were changed.
+
+## Shared services and external integrations
+
+Here, shared services include reusable in-process capabilities and external providers. An installed package or schema field alone does not establish a working integration.
+
+| Capability/provider | Status | Boundary and evidence |
+| --- | --- | --- |
+| Email/password identity | Implemented internally | MemberService, JWT module, password helper, and MemberAccessGuard. New email/password signup requires email ownership proof. Historical accounts retain login/refresh without backfilled verification timestamps. |
+| Google sign-in | Backend and Next.js callback implemented; live provider completion unverified | GoogleAuthService uses google-auth-library and GOOGLE_CLIENT_ID. REST nonce/login endpoints verify the ID token and bind its nonce to a browser cookie. MemberService owns identity creation and app sessions; no Google client secret or code exchange is used. Explicit account linking is not implemented. |
+| Telegram identity | Schema support only | `telegramId` exists; no implemented Telegram login flow. |
+| Email delivery | Signup verification locally accepted; recovery request delivery implemented, default off | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
+| MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
+| External medical, pharmacy, maps, or payment APIs | No implemented integration found | No outbound business HTTP client/service found in backend source. Do not present these as existing capabilities. |
+| Logging | Implemented internally | FileLogger writes JSON lines to `LOG_FILE` or `logs/medconnect.log`; LoggingInterceptor records transport execution metadata. No hosted log service is configured in this code. |
+| Health monitoring | Implemented internally | DatabaseService supplies connection status; `/status` polls this application's JSON endpoints using browser fetch. No external monitoring provider is established. |
+| Cache, queue, scheduler, batch service | Not implemented | No Redis/shared rate-limit store, mail queue, or batch runtime wired into AppModule. |
+
+Google verification is behind GoogleAuthService. Account/session writes belong to
+MemberService. `backend/src/components/auth/email-delivery.service.ts` now supplies
+`EmailDeliveryService.sendVerificationCode(email, code)` as a MemberModule provider.
+It normalizes and validates one recipient, uses the configured Gmail account as
+sender and preserves six-digit leading zeros. The approved welcome copy is sent
+as responsive HTML with a plain-text fallback. `verification-email.ts` builds
+the message, and the project logo is packaged through Nest assets and embedded
+as a CID attachment from a Buffer. SMTP is
+outside database transactions. EmailVerificationService owns the durable send/code/proof
+workflow; signup UI integration completed in FI-08 Step 4 on Next commit `0ebc234`.
+
+The provider reads `GOOGLE_SMTP_USER` and `GOOGLE_SMTP` when called. Password grouping
+spaces are removed. Nodemailer connects to `smtp.gmail.com:465` with certificate
+validation and TLS 1.2 or later, bounded connection/DNS/socket waits and a 10-second
+AbortSignal deadline that cancels the active send. SMTP diagnostics are disabled.
+The service exposes a sanitized 503 response with `EMAIL_VERIFICATION_UNAVAILABLE`.
+Its server-side `deliveryOutcome` distinguishes NOT_SENT, REJECTED and UNKNOWN for
+reservation finalization. Provider payloads are discarded. Same-request recovery
+returns its current challenge without another SMTP call; deliberate resends use new IDs.
+
+November 12 checks passed for backend build, full TypeScript, 96 unit tests
+(19 focused mail cases) and 222 API tests. Lint retains the existing empty-config
+warning. A real Gmail connection using the configured private main-checkout keys
+passed TLS/authentication. On November 13, the compiled provider sent one test
+message to the owner-selected configured sender inbox and Gmail accepted it.
+The owner confirmed inbox receipt on November 13, completing FI-08 Step 2.
+The full signup verification feature is tracked in
+[FI-08](../../backend/EMAIL_VERIFICATION_PLAN.md).
+
+### Email verification storage and REST contract
+
+`EmailVerificationService` in MemberModule uses the members connection and native
+collections declared in `backend/src/schemas/email-verification.model.ts`:
+`member_email_send_limits` has one durable row per normalized email; `_id` enforces
+uniqueness. `member_email_verifications` has unique challenge identity, unique
+email/request ID, sparse unique proof hash and a `cleanupAt` TTL index. The API never
+creates these collections/indexes automatically. `member:email:storage -- --apply`
+sets them up; `--check` checks readiness. Request/verify/signup check storage and
+replica-set/sharded transaction support, returning sanitized 503 on missing prerequisites.
+Existing login, refresh and Google identity policy do not require this storage.
+
+The public request/verify paths and signup use scoped validation/error handling,
+no-store responses and safe allowlisted reasons. Each verification request/confirmation
+returns only its challenge/timing or proof/timing fields. Limits are 10 requests and
+30 confirmations per minute/IP/process, separate from the authentication budget.
+Next's upstream server is currently the peer for proxied traffic; trusted forwarded
+IP attribution is not configured. Email limits survive processes/devices/restarts.
+
+Six-digit codes last 10 minutes and permit five failures. HMAC-SHA-256 uses a key
+derived from `JWT_ACCESS_SECRET` with purpose/email/challenge binding and constant-time
+comparison. Random proof tokens are stored only as SHA-256 hashes and last 10 minutes.
+Atomic challenge updates and a shared send-limit version serialize guessing,
+confirmation and resend promotion. An already-issued proof survives resend.
+
+Sending reserves a 30-second lease in a transaction, then calls SMTP outside it.
+Accepted or ambiguous sends promote the new challenge and count once; definitive
+rejection keeps the prior code and releases the resend allowance. Every reservation
+starts 60-second spacing. An expired lease is recovered as ambiguous; reservation
+identity fences late callbacks. Three resends per group trigger 1/3/5/24-hour blocks;
+the initial send is separate. Blocked requests update activity without extending the
+block. A full 24-hour inactivity period resets escalation when no block/lease is active.
+Explicit code/proof expiry checks remain effective before delayed TTL cleanup.
+
+The required signup field is a compatibility change: deploy with the implemented
+Next.js Step 4 form/proxy work (`0ebc234`). Full API/recovery details and operator setup are in the
+[email verification plan](../../backend/EMAIL_VERIFICATION_PLAN.md).
+
+### Password recovery — FI-03 Steps 1–3, November 17, 2026
+
+`MemberController` exposes `POST /member/password-recovery/request` through scoped
+DTO validation, no-store/no-referrer headers and a ten-per-minute peer-IP limiter.
+`PasswordRecoveryService` persists neutral requests with opaque idempotency before
+account lookup or SMTP. Disabled/unavailable recovery returns a sanitized 503;
+accepted requests return only 202 `{ accepted: true }`, never delivery/account state.
+`POST /member/password-recovery/reset` delegates to MemberService and a separate
+30/minute peer limiter. Next recovery screens/proxy are implemented on branch
+`next` (`6e1ca6a`); the combined production Next → Nest AppModule → disposable
+MongoDB automated lifecycle passed November 19 (stubbed provider).
+
+The service owns separate native recovery limits/jobs/current-token/confirmation
+collections and a singleton admission guard in `password-recovery.model.ts`. Guard
+writes serialize indexed capacity checks across processes: 10,000 retained email-limit
+rows and 20,000 retained request jobs. Jobs have unique email/request IDs, leases,
+due indexes and cleanup TTL; token digests are unique with one member-ID slot.
+Limits have no TTL; the worker reclaims only fully inactive, unblocked/unreserved
+rows after 24 hours. Explicit `member:recovery:storage -- --apply` manages schema,
+indexes and the guard; `--check` verifies readiness. There is no startup DDL.
+
+Shared email policy preserves FI-08's initial send, 60-second spacing, three-resend
+groups and 1/3/5/24-hour escalation/inactivity reset. Recovery counters are separate.
+A bounded nonoverlapping Nest worker reads eligible ACTIVE/nondeleted EMAIL members,
+writes a random-token digest/email/authVersion generation and claims a 30-second
+lease in a transaction, then calls Gmail outside the transaction. The link deadline
+is the original ten-minute request deadline. Definitive failures retry at most three
+times with at least 60-second spacing; uncertain/expired-lease outcomes count once
+and are not automatically resent. Generation fencing prevents stale callbacks from
+reactivating old links. Lookup/credential writes remain behind the Nest API.
+
+`EmailDeliveryService` now shares its existing bounded TLS/Gmail transport with reset
+and token-free password-changed HTML/plain-text templates and CID logo. Confirmation
+intents now commit with reset. `PasswordRecoveryService.consumeReset` checks the
+indexed token digest/current account before hashing, hashes outside retrying
+transactions through a MemberService callback, then atomically rechecks/consumes
+the token, invokes MemberService's conditional password/authVersion/__v/session
+writes, cancels queued/leased resends, coordinates durable send limits and inserts
+a deterministic token-free confirmation intent. The callback preserves member/session
+write ownership without a service dependency cycle. Missing/null legacy versions are
+zero; deleted/inactive/provider/email/version changes cannot be bypassed. Success
+returns only `{ passwordChanged: true }` without creating a session/cookie.
+
+The worker alternates link/confirmation priority. `password-recovery-confirmation.ts`
+claims one confirmation intent atomically with a 30-second lease, sends outside any
+password transaction and fences finalization by lease ID. Definitive failures retry
+at most three times with 60/120-second backoff before the 24-hour deadline. Unknown
+outcomes and abandoned leases become FAILED/uncertain without automatic duplicate
+mail; stale callbacks cannot overwrite terminal state. Confirmation failure leaves
+a committed password reset intact. Lost commit results stay ambiguous (safe 503);
+replay cannot consume the link again. Real disposable AppModule checks cover
+simultaneous reset and login/refresh/profile/password/deletion races.
+Only aggregate process-local counts and generic worker-failure messages are exposed;
+no email, token or provider payload is logged. Opening a link does not consume it.
+
+`PASSWORD_RECOVERY_ENABLED` defaults off. Enabling requires ready replica-set storage,
+validated `PASSWORD_RESET_WEB_ORIGIN` and existing private SMTP configuration. Keep it
+off until production prerequisites and coordinated release are complete.
+The IP limiter still sees Next as peer; production needs verified trusted-proxy guest
+limits, with no trust in arbitrary forwarded headers. No application DB migration,
+proxy/deployment change was performed. Live recovery acceptance is recorded below. Local stubbed-provider
+checks, the repeatable combined acceptance command, monitoring/retention and
+rollout/rollback procedures are in the
+[recovery plan](../../backend/PASSWORD_RECOVERY_PLAN.md).
+
+## Clinic and doctor cities
+
+As of 2026-10-18, clinic signup requires `location` from MediBridge's ten-value
+`Location` enum in `backend/src/libs/enum/location.enum.ts`. SignupDto and
+MemberService validate required clinic cities; the service rejects location supplied
+by doctors/users, and the Mongoose schema requires city storage on clinics only.
+Doctors select `clinicId` at signup and never store their own city.
+
+MemberService hydrates the location response field from each doctor's current active,
+nondeleted clinic for getMember, getDoctors, and signup/login/refresh. The directory
+uses one batched clinic query, selecting only clinic ID and location. Existing stored
+doctor cities are ignored. Changing clinicId or the clinic city affects the next read;
+there is no city cache or duplicate city value to synchronize. A missing/unavailable
+clinic or legacy clinic without a city yields an absent city (GraphQL null). Clinic
+responses use the clinic's stored city; USER responses do not expose legacy city data.
+
+Clinics can edit their city through updateMember; doctor responses reflect it on the
+next read. No migration or workplace-change endpoint is implemented. Legacy read
+tests use simulated persistence; the new search query below is also verified with
+disposable MongoDB. No frontend workplace-change workflow was exercised.
+
+## Public doctor search (November 4, 2026)
+
+`searchDoctors(input: DirectorySearchInput!): DoctorDirectoryPage!` is public and
+returns `{ entries: [Member!]!, total: Int!, page: Int!, limit: Int! }`.
+The resolver delegates to `MemberService.searchDoctors`; input/output DTOs live in
+`backend/src/libs/dto/directory`, with `DirectorySort` in `src/libs/enum`.
+Existing `getDoctors`, `getClinics` and `getClinicDoctors` contracts are preserved.
+
+```graphql
+query {
+  searchDoctors(input: {
+    name: "Kim", city: SEOUL, specialty: DENTIST,
+    sort: NAME_ASC, page: 1, limit: 12
+  }) {
+    entries { _id memberFullName memberNick location doctorSpecializations clinicId }
+    total page limit
+  }
+}
+```
+
+- Optional `name` is trimmed, at most 100 characters, and matches a literal,
+  case-insensitive substring of `memberFullName`; regex metacharacters are escaped.
+  Unicode is supported; usernames are never searched. Empty name means no name filter.
+- Optional `city` uses `Location`; optional `specialty` uses `DoctorSpecialization`.
+  All supplied filters intersect. Explicit null values are rejected; omit unused filters.
+- `page` defaults to 1 and accepts integers 1–1000; `limit` defaults to 12 and
+  accepts integers 1–50. `sort` defaults to `NAME_ASC`, or accepts `NAME_DESC`.
+  Unknown fields/enum values, nulls and invalid bounds are rejected at the API boundary.
+- An initial doctor match requires active, nondeleted, approved doctors. A self-lookup
+  joins only active, nondeleted CLINIC members through `clinicId`; unavailable clinics
+  exclude their doctors. City filtering uses the joined clinic and the returned
+  `location` always comes from it. Legacy clinics without city return null without
+  a city filter. Specialty membership is tested on the doctor.
+- All eligibility/filter stages precede `$facet`. Entries sort by full name, then
+  `_id`, both ascending or both descending, using ICU `en`, strength 2 (case-insensitive,
+  accent-sensitive) collation in both directions. Missing names follow MongoDB's
+  null/missing name ordering. Pagination and actual total share the filtered stream;
+  empty/out-of-range pages return empty entries with the actual total.
+- Results use the existing explicit public-field projection. No email, phone,
+  password, normalized username key, provider identity or session fields are returned,
+  including from direct service results. The query sets `maxTimeMS: 5000`.
+- `npm run test:directory:integration` builds and invokes the existing owned disposable
+  MongoDB runner; it loads no application database settings. Real GraphQL/aggregation
+  checks include 125 tied-name rows and 150-row execution-plan inspection. The inspected
+  substring search scans the member collection and the clinic lookup uses `_id_`.
+  No indexes or migrations are proposed from this small fixture; production-scale
+  latency/load remains unmeasured.
+
+## Public clinic search (November 5, 2026)
+
+`searchClinics(input: DirectorySearchInput!): ClinicDirectoryPage!` is public and
+returns the same `{ entries: [Member!]!, total: Int!, page: Int!, limit: Int! }`
+shape as doctor search. Both page DTOs inherit a shared abstract directory page;
+existing GraphQL names/contracts are preserved. `MemberResolver` delegates to
+`MemberService.searchClinics`. Shared private helpers implement literal name
+matching and the final facet, public projection, collation and timeout.
+
+```graphql
+query {
+  searchClinics(input: {
+    name: "Care", city: BUSAN, specialty: DENTIST,
+    sort: NAME_DESC, page: 1, limit: 12
+  }) {
+    entries { _id clinicName location memberImage memberAddress memberDesc }
+    total page limit
+  }
+}
+```
+
+- Input validation/defaults/bounds are identical to doctor search. Name searches
+  only `clinicName`, using escaped case-insensitive literal substrings and Unicode;
+  neither username nor member full name is matched. City uses the clinic's own location.
+- Initial filtering requires active, nondeleted CLINIC members. With `specialty`,
+  a self-lookup from clinic `_id` to doctor `clinicId` requires at least one active,
+  approved, nondeleted DOCTOR offering that specialty. The lookup returns at most
+  one public identifier internally, and an existence filter precedes the facet.
+  No unwind is needed: multiple matching doctors cannot duplicate a clinic or total.
+- Without specialty, no doctor lookup is performed; active clinics without doctors
+  can appear. A legacy clinic without a city appears only when no city is selected.
+- Sort is clinic name then `_id`, both ascending or both descending, with the same
+  ICU `en`, strength 2 collation. Page/count share all filters and return actual totals
+  for empty/out-of-range pages. The shared public allowlist strips private fields
+  and joined doctor data; the execution bound remains `maxTimeMS: 5000`.
+- `npm run test:directory:integration` now exercises both queries on owned disposable
+  MongoDB, including 105 tied clinics each with two eligible doctors. A separate
+  52-clinic/50-doctor explain fixture confirms collection scanning; no new indexes,
+  migration or production-scale latency claims are introduced. Representative target
+  workload measurements are needed before proposing indexes for specialty joins.
+
+## Directory name suggestions (November 5, 2026)
+
+Public GraphQL queries:
+
+```graphql
+query {
+  suggestDoctorNames(input: { name: "Ki", city: SEOUL, specialty: DENTIST })
+  suggestClinicNames(input: { name: "Ca", city: BUSAN, specialty: DENTIST })
+}
+```
+
+Both take `DirectoryNameSuggestionsInput!` and return `[String!]!`. Required `name`
+is trimmed and must contain 2–100 characters. Optional `city: Location` and
+`specialty: DoctorSpecialization` intersect with name matching. Omit unused filters;
+explicit nulls, unknown fields and enum values are rejected. No page, limit or sort
+arguments are accepted. Short/blank queries are rejected before database access;
+the frontend should wait for two trimmed characters before sending a request.
+
+The resolver delegates to MemberService. Shared abstract filter input fields retain
+the same city/specialty validation as directory search. Each suggestion method uses
+the same doctor/clinic pipeline builder as its search query, preserving literal
+substring matching, Unicode, account/affiliation eligibility and authoritative city:
+
+- Doctor names come only from `memberFullName` on active, approved, nondeleted
+  doctors with active nondeleted clinics. City uses the joined clinic's location.
+- Clinic names come only from `clinicName` on active nondeleted clinics. Specialty
+  requires an eligible affiliated doctor; without specialty, clinics without doctors
+  can be suggested. Clinic city is its own location.
+- Eligibility and all filters precede grouping/limiting. The shared names aggregation
+  groups equivalent names with ICU `en`, strength 2 (case-insensitive, accent-sensitive)
+  collation, sorts alphabetically ascending and returns at most eight distinct names.
+  For equivalent names with different casing, the eligible matching record with the
+  smallest `_id` supplies the display string, making repeat requests deterministic
+  while data is unchanged. Names select text, not a unique member identity.
+- Responses contain only name strings: no member IDs, private contact fields,
+  credentials, provider identities, session data or joined doctor/clinic objects.
+  Each aggregation has the same 5-second `maxTimeMS` bound as directory search.
+- `npm run test:directory:integration` verifies both suggestion queries through real
+  GraphQL/MongoDB, including boundary lengths, literal/Unicode names, distinct names,
+  deterministic casing/order, the eight-name cap, filters, eligibility and privacy.
+  Existing directory regression cases run in the same disposable suite. No production
+  database, index/migration or frontend/deployment changes are required by this API step.
+
+Debouncing, obsolete-response suppression, accessible combobox behavior, URL selection
+and independent suggestion-error handling remain frontend Steps 4–6.
+
+## Authenticated member updates
+
+Username storage (OAuth-fix Step 2, November 1): `MemberService` maintains display
+`memberNick` and private lowercase `memberNickNormalized` together on signup,
+Google creation and profile renames. Mongoose document validation also maintains
+the key for document saves. A non-sparse unique binary index and strict native
+collection validation reject missing, forged or stale keys, including writes from
+old binaries. All accounts reserve their username, regardless of status/deletion.
+The comparison key is absent from client DTOs and allowlisted projections.
+
+`backend/src/tools/member-username-migration.ts` runs outside HTTP serving. Its raw,
+read-only audit reports invalid usernames, case collisions and legacy Google names
+requiring explicit review. Reviewed renames/backfills are transactional; indexes and
+preserved/composed collection validation are installed afterward while writers stay
+offline. Startup refuses incomplete enforcement or invalid records. Existing full
+names are never rewritten; application/production migration has not been performed.
+Non-simple collection collation and more than 100,000 members require a separate
+reviewed migration. See the root README's offline username migration procedure.
+
+`MemberResolver.myProfile(): MemberSelf!` is a guarded read for settings pages.
+It takes no target ID: MemberService reads the authenticated member's active,
+nondeleted record, rechecks authVersion, selects an explicit profile/contact allowlist,
+and hydrates doctor city from the current clinic. A shared selfProfile mapper supplies
+both this query and updateMember.member. Only MemberSelf exposes email/phone and
+canChangePassword (EMAIL provider); public Member schema/projections are unchanged.
+The capability flag is a UI hint; updateMember retains server-side enforcement.
+No password hash/provider identifiers/authVersion are returned. Existing GraphQL
+context sets no-store. Next.js may load settings with this query without expanding
+its basic identity session. Actual frontend wiring remains outside this backend task.
+
+`MemberResolver.updateMember(input: MemberUpdateInput!)` uses MemberAccessGuard and
+the authenticated principal, never a caller-supplied account ID. Input lives in
+`backend/src/libs/dto/member/member-update.input.ts`; MemberService owns profile,
+password, and session-version writes. The response is MemberUpdateResult with an
+authenticated MemberSelf (private contact fields), requiresLogin, and
+imageCleanupPending. Public Member fields remain unchanged.
+
+Allowed edits are name, nickname, phone, image, address and description; clinic name
+and city are clinic-only. Affiliation, approval, email/provider and role/status changes
+are outside this API. Password changes require currentPassword, newPassword and
+confirmPassword together, matching confirmation, existing length constraints and
+successful current-password verification. Google-only accounts cannot set a password.
+Only the new salted hash persists; logging excludes arguments and response data.
+
+All requested member changes use one conditional findOneAndUpdate with explicit
+allowlisted $set fields, runValidators, and an incremented __v. Snapshot/version
+conflicts and unique-index collisions return CONFLICT. The clinic-city schema validator
+reads the trusted memberType filter when running in Mongoose query context.
+Password changes also atomically increment hidden member authVersion; signed access
+tokens and refresh-session records carry the version. Current-member guard/refresh
+checks reject mismatches, including outstanding tokens/sessions. Missing legacy
+versions mean zero. The frontend must sign in again when requiresLogin is true.
+
+Image writes remain owned by UploadService. UploadStorageModule exports storage to
+MemberModule and UploadModule without an authentication dependency/circular import.
+Uploads use authenticated owner directories. Before saving, MemberService claims an
+owned pending image with an exclusive hidden attachment marker. Conditional-write
+failures release the marker when the failure is known; uncertain database outcomes
+retain it for later reconciliation. A successful database write precedes deletion of
+the old owned attached file. Markers remain after deletion to prevent reattachment
+races. External/unowned legacy files are never deleted. Failed deletion preserves
+the successful update and sets imageCleanupPending; no automatic retry exists.
+Pending uploads, orphan claims, and retired markers await the deferred cleanup tool.
+
+Update/ownership/concurrency/session tests use real GraphQL, Mongoose document
+validation, password helpers and filesystem operations with simulated database writes.
+Actual MongoDB concurrent writes/indexes, browser Save integration and deployment
+remain unverified.
+
+### Username availability
+
+Both POST endpoints accept JSON `{ "memberNick": "Alex#1" }` without a display-only
+`@` prefix. The public endpoint reports whether any account reserves the username;
+`/me` requires a current Bearer token and permits that account's own username,
+including case-only variants. Account IDs cannot be supplied to exclude another
+owner. All roles/statuses/deleted records retain their existing reservation.
+
+Successful responses are only `{ "status": "AVAILABLE", "available": true }`,
+`{ "status": "TAKEN", "available": false }`, or
+`{ "status": "INVALID", "available": false }`, with `Cache-Control: no-store`.
+Shared username validation trims surrounding whitespace, enforces the confirmed
+6–40-character rule, and uses the indexed lowercase key. Invalid usernames require
+no lookup. Malformed/extra fields or trimmed strings longer than the transport bound of
+256 characters return 400; missing/invalid/stale profile credentials return 401.
+Lookup failures return an error rather than availability. No account ID, profile,
+email, phone, or normalized key is returned.
+
+The two routes share 30 requests/minute/client IP per process, independently of the
+authentication budget; excess requests return 429 and `no-store`. Multiple API
+instances need a shared limiter store; forwarded client IPs require deliberate
+trusted-proxy configuration. Checks never write or reserve a username.
+
+Signup/profile saves still rely on database uniqueness. A username collision uses
+HTTP 409 with `reason: "USERNAME_TAKEN"` and `field: "memberNick"`. GraphQL retains
+`extensions.code: "CONFLICT"` and adds those same reason/field values in extensions.
+Phone/email/other conflicts do not acquire the username marker. A previously
+available username may be taken before save; clients must handle this inline.
+
+## Public image uploads
+
+`UploadModule` imports `MemberModule` for its exported access guard and
+`UploadStorageModule` for filesystem operations. `UploadResolver`
+exposes MediBridge-compatible `imageUploader(file: Upload!, target: String!): String!`
+and `imagesUploader(files: [Upload!]!, target: String!): [String!]!` mutations.
+`MemberAccessGuard` verifies the token and current account through `MemberService`;
+`UploadService` owns file writes and has no MongoDB/profile write responsibility.
+`upload.http.ts` registers graphql-upload-ts multipart middleware at `/graphql`
+and Express static serving at `/uploads`; `main.ts` calls it before listening.
+
+November5 upload compatibility fix: the single Upload argument uses a
+`FileUpload | Promise<FileUpload>` union so runtime validation metadata is Object,
+then Promise.resolve normalizes it for UploadService. This avoids class-transformer
+trying to instantiate Promise under main.ts's transforming ValidationPipe. The
+GraphQL Upload schema,access guard and storage rules remain unchanged. All12 upload
+HTTP tests now use the production pipe; all222 API tests pass. Normal compiled Nest
+with disposable MongoDB accepts browser-cropped doctor and clinic JPEGs. This is
+local acceptance,not a deployment or production-storage claim.
+
+Targets are restricted to member/clinic images, stored below authenticated owner IDs.
+UploadService generates UUID names,
+checks MIME types and PNG/JPEG/WebP signatures, streams to hidden temporary files,
+then publishes by rename. Limits are 10 MB/file and five files/request; failed writes
+and batches are cleaned up. Apollo CSRF protection stays enabled; clients send
+`Apollo-Require-Preflight: true`, which is allowed by CORS. These are public images,
+not protected medical documents. Signatures are checked without full decoding or
+malware scanning. `UPLOAD_DIR` defaults to `uploads` relative to the backend working
+directory. Save-time deletion of previously attached owned profile images is implemented;
+persistent disk provisioning, quotas, unused-file cleanup/retry jobs, object storage,
+and browser/profile editing integration remain unimplemented.
+
+Upload HTTP tests use real multipart parsing and disk writes with mocked current-member
+authentication. No live MongoDB or deployment was exercised for this addition.
+
+## Security and configuration
+
+The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor excludes bodies, tokens, GraphQL arguments/query text, and response data, but records request paths and exception messages/stacks; this is not a universal redaction service.
+
+Auth endpoints share a 20-request/minute/IP/process limiter. It is not a distributed abuse-control system and does not cover every query. Public profile access and its projected fields must be considered when changing privacy requirements.
+
+| Configuration name | Purpose / current behavior |
+| --- | --- |
+| `JWT_ACCESS_SECRET` | Server-only signing key for access JWTs and Google nonce challenges, and derives the email-code HMAC key; startup requires at least 32 bytes |
+| `GOOGLE_CLIENT_ID` | Google web client audience; absence disables Google endpoints with 503. GOOGLE_CLIENT_SECRET is unused by this ID-token flow. |
+| `MONGO_URI`, `MONGO_DEV`, `MONGO_PROD`, `NODE_ENV` | Shared database.config.ts selector: explicit MONGO_URI, then MONGO_PROD in production or MONGO_DEV otherwise. Startup validates the same selection; production requires SRV. |
+| `BOOKING_POLICY_V2_ENABLED` | Exactly true/false; defaults false. Booking writes require true plus verified migration on a replica set; disabled never restores old writes. |
+| `PORT_API`, `PORT` | Listener precedence: PORT_API, then PORT, then 3000. README examples use 3333. |
+| `CORS_ORIGINS` | Comma-separated origin allowlist; defaults include localhost ports 3000 and 5173 |
+| `LOG_FILE` | Optional JSON-line log file location |
+
+Environment values are intentionally omitted. The application loads `.env` relative to its working directory before dynamically importing AppModule.
+
+## Deployment
+
+```mermaid
+flowchart LR
+  subgraph Browser[User browser - hosting unverified]
+    React[React client]
+    Status[Backend-served status page]
+  end
+  subgraph Host[Backend host - README records Hostinger VPS]
+    API[Single Node.js process: Nest REST and Apollo GraphQL]
+    File[Local JSON-line log file]
+    Images[Local public upload directory]
+  end
+  DB[(External MongoDB / Atlas-compatible database)]
+  Google[Google identity provider and public signing keys]
+  Gmail[Gmail SMTP - runtime configuration required]
+  Migration[Offline migration CLI - separate operator Node process]
+  Migration -->|MongoDB wire protocol: read-only audit or offline transactional migration| DB
+  React -->|HTTP: JSON API requests and Bearer tokens; integration incomplete| API
+  API -->|HTTP: status HTML, CSS, JavaScript| Status
+  Status -->|HTTP fetch: API info and health JSON| API
+  API -->|MongoDB wire protocol: application records; production SRV/TLS requirement| DB
+  API -->|Node filesystem append: log events| File
+  React -->|HTTP multipart GraphQL: images and Bearer token; browser integration pending| API
+  API -->|Node filesystem streams: public image files| Images
+  API -->|HTTP GET /uploads: public image bytes| React
+  API -->|HTTPS: retrieve Google public signing keys| Google
+  API -->|SMTP over TLS port 465: verification/recovery mail| Gmail
+```
+
+No live deployment was inspected. Browser/backend HTTP transport is shown as implemented/recorded; a production TLS terminator is not established by repository code. The local Compose file proposes a Node 24.12.0 container, PORT_API mapping, and external Docker network, but its npm working directory is inconsistent with the repository. It is not shown as a verified running container. Google public-key retrieval is wired in backend code; live provider calls were not verified. Email providers, batch processes, queues, and hosted monitoring are not deployed components established by this source inspection.
+## Deployment and verification limits
+
+The [deployment diagram](#deployment) separates the browser, Node/Nest process, and external database. The README records a Hostinger VPS backend deployment; this documentation task did not contact it or verify the installed runtime, proxy, TLS, frontend hosting, or database.
+
+The backend's production scripts build with `npm run build` and start with `npm run start:prod` from `backend/`. Local ignored `docker-compose.yml` selects `node:24.12.0` and binds PORT_API, but runs npm from the repository root, where no package.json exists. `deploy.sh` hard-resets the checkout and selects `master`. These files require reconciliation before being treated as a repeatable deployment procedure; they were inspected, not executed or changed.
+
+Tests under `backend/test/` exercise HTTP/GraphQL behavior with simulated persistence; unit tests include slot calculation. Google authentication tests exercise the real token-verification library using locally signed RSA tokens and a substituted public-key fetch; persistence is simulated. Live Google/browser authentication, actual MongoDB race/index enforcement, and email delivery were not exercised. Frontend screens still include mock authentication and conflicting API clients/contracts; their existence does not demonstrate working backend integration.
+
+## Architecture concerns
+
+These scoped source observations are not a full runtime/security audit. Database URI selection was corrected in Step 2; other findings below remain proposals.
+
+| Finding and evidence | Impact | Proposed fix |
+| --- | --- | --- |
+| Corrected October 25: startup, DatabaseModule, MemberModule, AppointmentModule and BookingModule use `backend/src/database/database.config.ts`. | Prevents connection/registration disagreement and development fallback in production. | Selection tests cover explicit overrides, production precedence and invalid/missing settings. Production connectivity remains unverified. |
+| Historical Vite authentication mismatch (legacy `frontend/` application removed November 6, 2026). | The removed prototype used mock login and incompatible REST contracts. | This finding is retired with the Vite application; use the Next.js authentication flow and its documented verification limits. |
+| Local deployment workflow does not match source layout: ignored root `docker-compose.yml` runs npm in `/usr/src/medconnect`, while package.json is under backend/. `deploy.sh` hard-resets and selects master. | The recorded script cannot be assumed to build this checkout and can discard local changes when run. | Review the intended branch/release workflow, point container commands at backend/, and replace destructive checkout handling with an explicit release procedure. Validate configuration/build before attempting deployment. |
+
+Scheduling write ownership was established in Step 4: MemberService owns affiliation review and AppointmentScheduleService owns weekly/date schedule changes. AppointmentService retains explicit read dependencies and shares pure slot/override rules. No repository-wide service split was introduced.
+
+### Appointment service consolidation review — November 3, 2026
+
+Recommendation: retain the seven appointment service providers. The November 3
+implementation consolidates clinic/doctor/specialty/timezone eligibility in
+`backend/src/components/appointment/appointment-doctor.ts`, used by both booking
+and scheduling. A feature helper avoids injecting the schedule service and its
+unrelated model dependencies into booking. It receives the caller session, retains
+each API's validation order/errors and optional schedule specialty, and does not own
+a transaction. Service sources below are under `backend/src/components/appointment/`.
+The observations describe the pre-refactor review; further proposals remain deferred.
+
+| Observation and source | Consequence | Recommendation |
+| --- | --- | --- |
+| At review, `appointment.service.ts` was 1,049 lines, combining creation, transactional status/outbox writes, promotion eligibility and three read APIs. REST and GraphQL share it; commitment and worker services use its explicit transaction methods. | Merging another workflow here increases the responsibility and regression surface. | Keep the public facade and transaction interfaces. Consider a separate read provider only if that improves maintenance after the validation cleanup; preserve REST versus GraphQL ordering, limits and projections. |
+| `appointment-schedule.service.ts:doctor` and `appointment.service.ts:requireApprovedDoctor` both query active clinic/approved doctor, specialty and timezone. Both services also load hours/overrides, while already sharing `appointment-slot.ts` calculations. | Database eligibility checks can drift even though pure slot calculations are shared. | Implemented a shared session-aware appointment-doctor.ts helper for both services. Keep caller authorization, booking policy, reservation and occupancy checks in the mutation path. Preserve optional specialty for schedule management and required specialty for booking. |
+| `appointment-promotion.service.ts` and `appointment-waitlist-lifecycle.service.ts` share timer/shutdown scaffolding, but promotion uses durable claims, fencing and retry backoff; lifecycle also expires entries, processes cleanup and handles cutoff openings while promotion is disabled. | A combined worker would couple distinct controls and recovery paths. | Keep workers separate. Retain their feature flags, cutoff behavior and transaction ownership; do not introduce a generic worker framework just to remove short timer code. |
+| `appointment-commitment.service.ts` coordinates appointment/waitlist replacement in one BookingCoordinationService transaction. AppointmentService already injects WaitlistService. | Merging the orchestrator into WaitlistService would introduce a reverse service dependency; splitting replacement into independent calls would lose atomicity. | Retain the orchestrator in AppointmentModule. Clarify that a commitment means either a booked appointment or a waitlist place; avoid moving providers between modules solely to shorten names. |
+| `appointment-calendar.service.ts` owns authorized read snapshots, full-window revisions and pagination; `appointment-notification.service.ts` resolves owned notification targets through four existing services. | These are cohesive read workflows with different consistency and error contracts from booking writes. Moving notification context into NotificationService would reverse the current AppointmentModule-to-NotificationModule dependency. | Keep both services. A small orchestration service is justified here; optionally rename AppointmentNotificationService to AppointmentNotificationContextService to describe its actual role. |
+
+Review plan and implementation scope:
+
+1. Establish a fresh build/typecheck, unit/API and disposable MongoDB booking
+   integration baseline using the existing package scripts. Inspect existing
+   eligibility, replacement, calendar, notification and worker recovery cases before
+   adding tests; add only missing behavioral coverage.
+2. Implemented: consolidate clinic/doctor/specialty/timezone eligibility into a
+   session-aware feature helper, reused by schedule operations, booking validation
+   and reopening checks.
+   Preserve existing error contracts and the mutation's current transaction session;
+   never use advisory getAvailableSlots results to authorize a booking.
+3. Schedule loading remains separate: range-based advisory availability reads and
+   transaction-bound single-slot mutation checks have different query shapes. Their
+   pure slot/override rules already share appointment-slot.ts. Retain schedule-edit
+   commitment protection, doctor gates, slot reservations, unique indexes and outbox
+   writes in their current transactions.
+4. Deferred: optional notification-context renaming and further restructuring.
+   Defer read-service extraction and physical regrouping until there is a concrete
+   maintenance benefit. No immediate service merge is proposed.
+
+For any implemented step, rerun affected API and real-MongoDB integration cases,
+including weekday/timezone rules, concurrent booking versus schedule edits, failed
+replacement rollback, cutoff handling with promotion disabled, lease takeover,
+calendar revisions and notification ownership/error handling. November 3 verification:
+build/full TypeScript, 77 unit, 222 API and 193 disposable MongoDB integration tests
+passed. Lint retains only the pre-existing empty config.ts warning. Public API names,
+DTOs and feature flags remain unchanged; no schema migration is needed. Fresh browser
+and deployed runtime verification were not performed.
+
+### Step 12 operational acceptance — November 1
+
+The offline migration auditor and startup/read-only reconciliation now set cursor
+query timeouts explicitly; read-only auditing uses a snapshot session. This avoids
+transaction CSOT placing an invalid maxTimeMS on getMore in the installed driver.
+Offline writes remain transactional, retry-bounded and majority-committed. A real
+125-record regression covers multiple cursor batches. Status assets use a fixed
+filename and trusted root, avoiding Express dotfile rejection of `.worktrees` parents.
+
+Backend build/typecheck, 22 unit, 194 API E2E and 186 real-MongoDB integration checks
+passed; Next typecheck/50 tests/build and the native-worker patient-to-clinic browser
+pilot passed. Dump/restore and reviewed migration were rehearsed only on disposable
+data. The local demo has promotion enabled; production configuration is unchanged.
+Earlier step-specific notes describe their historical scope; this section supersedes
+pending Step 12 integration/recovery statements. Production deployment, external
+providers, workload/SLA validation and databases above the auditor limit remain outside
+this acceptance. See the operations runbook for pause/retry/reconciliation procedures.
+
+
+## Email verification release acceptance — November 13, 2026
+
+Step 5 passed backend build/full TypeScript/lint (existing empty-config warning only),
+96 unit/222 API/46 email integration/18 username integration tests, Next typecheck/
+125 tests and a final isolated production build without fixture API URLs: 507 tests.
+Fifteen actual proxy/API requests also passed retry/resend/expiry/binding/replay,
+signup/login/refresh and definitive/ambiguous mail failure with synthetic-address
+SMTP stubs. Existing Google policy remains covered automatically; no fresh live
+Google sign-in or production deployment is claimed.
+
+After explicit owner approval, the actual Next signup form requested one real Gmail
+code to the configured sender inbox. The owner supplied the received code and Chrome
+completed verification, signup, sign-out/login and reload-based session restoration.
+Read-only disposable MongoDB checks confirmed one account, one consumed proof,
+private email verification time, refresh-token rotation and unchanged fixed expiry.
+Step 4 separately covered keyboard/390px/error/draft preservation with stubbed mail.
+The browser signed out and closed; the owned stack and disposable database files
+were removed. FI-08 is Completed locally. Application database setup, coordinated
+production deployment, topology/TLS and throughput remain unverified. The owning
+[plan](../../backend/EMAIL_VERIFICATION_PLAN.md#coordinated-release-preparation)
+records operator prerequisites and verification limits.
+
+## Account deletion backend
+
+`MemberResolver` exposes guarded `accountDeletionReadiness` and the deletion branch
+of `updateMember`. `MemberService` owns account/session writes and automatic
+PENDING/APPROVED affiliation detachment. The exported
+`AccountDeletionCommitmentService` in `BookingModule` owns account-scoped blocker
+queries over source appointments, waitlists and `waitlist_cleanup`. This dependency
+keeps member deletion independent of `AppointmentModule`.
+
+Readiness uses one primary read-only snapshot, complete counts and independent
+`_id`-ordered pages with limits of 1–100. Source queries include legacy commitments
+and honor cleanup watermarks. Invalid nonterminal records fail with a safe conflict.
+Cancellation permissions include role, time and legacy-version restrictions.
+The detailed [contract](../../backend/ACCOUNT_DELETION_PLAN.md#step-1-contract-decisions--november-14-2026)
+defines exact status/time rules, DTO fields and safe GraphQL error extensions.
+
+Deletion shares patient or doctor gates with commitment writers and adds a clinic
+gate shared by booking, enrollment, replacement, allocation and affiliation changes.
+Every new commitment rechecks current account/clinic/doctor eligibility after gate
+acquisition. Doctor signup writes the clinic gate inside the existing email-proof
+transaction. Deletion writes DELETED/deletedAt, advances authVersion/__v, removes
+refresh sessions and detaches applicable affiliations atomically. Stored profiles,
+images, identifiers and historical care records remain retained.
+
+Email/Google credential issuance and refresh now write the current member's __v
+inside the same transaction as session insertion/rotation. This write conflicts
+with deletion and fences current status/authVersion. Invalid refresh sessions are
+removed transactionally. Refresh expiry retains its fixed lifetime. These paths
+require the configured replica set. The frontend dialog, cross-tab/cookie cleanup,
+browser acceptance and production rollout remain later delivery steps.
+
+November 14 local verification passed build/full TypeScript, 96 unit, 222 API,
+62 account-deletion, 193 booking/worker, 46 email and 18 username/Google identity
+checks. The database suites use owned disposable MongoDB processes. Lint retains
+its existing empty config.ts warning. These results cover backend/API behavior.
+
+
+### FI-03 final local acceptance — November 19, 2026
+
+Step 5 completes local recovery acceptance. Fresh 549 backend/167 Next tests pass,
+including the actual production Next proxy, normal Nest AppModule/validation and
+owned disposable MongoDB lifecycle with stub email and timer-worker replacement.
+The owner approved at most two real Gmail messages; one selected recipient received
+the reset link and confirmation and confirmed reset/sign-in worked. Sanitized fixture
+state confirms exactly two sends, committed reset, old access rejection and a
+post-reset session. Native Chrome request submission and visible confirmation email
+were observed; password entry/submission was handed to the owner. Prior Next Step4
+390px/desktop/keyboard evidence is retained. A separate post-sign-in reload visual
+check was inconclusive (blank native surface despite HTTP200), and is not reported
+as passed. Test tabs/processes and disposable Mongo files were cleaned. Production
+storage/proxy/TLS/capacity, integration and deployment remain unverified; recovery
+stays default off. Detailed operator procedures and evidence are in the recovery plan.
