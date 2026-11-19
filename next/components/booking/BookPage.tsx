@@ -478,7 +478,8 @@ function BookingForm() {
             <p className="care-meta">
               Times are shown in{' '}
               {clinic?.clinicTimezone || 'the clinic timezone'}. Each visit
-              lasts 30 minutes.
+              lasts 30 minutes. Weekday hours are 9:00 AM–5:00 PM, with lunch
+              from 12:00–1:30 PM.
             </p>
             {loading === 'times' ? (
               <p role="status">Checking available times…</p>
