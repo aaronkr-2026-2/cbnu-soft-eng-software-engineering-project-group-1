@@ -30,7 +30,8 @@
     "test:account-deletion:integration": "npm run build && node test/run-booking-integration.cjs test/jest-account-deletion.json",
     "test:email:integration": "npm run build && node test/run-booking-integration.cjs test/jest-email.json",
     "member:recovery:storage": "node --env-file-if-exists=.env dist/tools/password-recovery-storage.js",
-    "test:recovery:integration": "npm run build && node test/run-booking-integration.cjs test/jest-recovery.json"
+    "test:recovery:integration": "npm run build && node test/run-booking-integration.cjs test/jest-recovery.json",
+    "test:deployment": "node --test test/deployment.test.cjs"
   },
   "dependencies": {
     "@apollo/server": "^5.5.1",

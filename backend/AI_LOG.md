@@ -1229,3 +1229,37 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Empty weekly schedules now restore standard weekday hours; partial configured schedules still close omitted weekdays. Lunch/evenings/weekends cannot be reopened by custom or legacy hours.
 **Something the AI got wrong that I had to catch:** I clarified that standard hours were intended after the AI suggested manual schedule configuration. Automated checks also caught and corrected optional constant-field typing and outdated empty-schedule test assumptions.
 **One decision I can explain without AI:** Pass the entire weekly schedule to the shared helper so an intentionally closed weekday is distinguishable from a doctor with no saved schedule.
+
+
+## Enable production booking configuration — 2026-11-19
+
+**Tool(s) used:** Codex, shell, Node/Jest, existing js-yaml parser and official Docker Compose references.
+**What I asked for:** Allow production booking/waitlist operations and inspect Docker Compose and deployment production mode after the paused-booking screenshot.
+**Pre-planning:** Original local Compose already set NODE_ENV=production but did not enable booking flags, which default off. Local backend env flags were unset; live server settings remain uninspected. Ignored deploy script reset Git, selected master and omitted explicit env interpolation and health waiting.
+**Planning:** Make production configuration versioned, enable the complete booking stack in Compose, select production database explicitly and retain all existing migration/coordination checks. Build a production image and verify deployment failure paths without touching application data.
+**Implementation process:** Added root Compose/deploy, backend Dockerfile/.dockerignore, test:deployment and8mock command-flow tests. Updated .gitignore, README and backend architecture. Shell/JS syntax, YAML/settings and whitespace pass;8deployment and14booking/database config tests pass. No Compose plugin or Docker daemon is available locally, so actual image build/startup is not verified. Asked for live SSH host/user/repository path; deployment awaits that information. No production data/config changes or Git actions. No sprint covers this date.
+**What I kept as-is:** Bare-process flags still default off; strict boolean/dependency parsing, startup marker/snapshot/index checks and existing reviewed transactional migration remain enforced. Private backend/.env stays ignored.
+**What I changed or rejected, and why:** Production Compose defaults all six booking/waitlist flags on and maps MONGO_PROD explicitly. Replaced restart-time installs/source mounts with a compiled runtime image. Deployment uses ff-only main, explicit env, pre-activation audits and health waiting; initial migration is explicit and unresolved records stop activation.
+**Something the AI got wrong that I had to catch:** I pointed out the production booking flow still failed after the slot fix; the earlier task had not checked deployment activation flags.
+**One decision I can explain without AI:** Production mode and feature activation are separate settings. Enable the intended production features explicitly while preserving the database readiness gate.
+
+
+## Remove confirmed unused code — 2026-11-19
+
+**Tool(s) used:** Codex, shell, TypeScript, existing tests and oxlint.
+
+**What I asked for:** Sanitize the codebase and retain used code.
+
+**Pre-planning:** Checked references and the owning worktree instructions before deleting candidates identified in the review.
+
+**Planning:** Remove confirmed unused code first; keep active repeated code for a separately verified refactor.
+
+**Implementation process:** Deleted empty src/libs/config.ts and unreferenced src/libs/types/common.ts. Preserved existing deployment changes. TypeScript with noUnusedLocals/noUnusedParameters, lint and all 145 unit tests (10 suites) passed. Source/test/config reference checks found no consumers of either deleted file. No live integration/build checks were run.
+
+**What I kept as-is:** Public API behavior, dependencies, operational tools and framework entry points.
+
+**What I changed or rejected, and why:** Removed unused declarations rather than redesigning active behavior. No sprint covers November 19; closed sprint records remain unchanged.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A declaration with no ordinary caller can still be a framework entry point, so references must be checked before removal.

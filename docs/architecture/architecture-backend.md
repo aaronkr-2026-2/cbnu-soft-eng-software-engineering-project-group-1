@@ -1223,3 +1223,21 @@ check was inconclusive (blank native surface despite HTTP200), and is not report
 as passed. Test tabs/processes and disposable Mongo files were cleaned. Production
 storage/proxy/TLS/capacity, integration and deployment remain unverified; recovery
 stays default off. Detailed operator procedures and evidence are in the recovery plan.
+
+
+### Production booking activation — November 19, 2026
+
+Production Compose now explicitly selects NODE_ENV=production and MONGO_PROD, and
+defaults the booking, waitlist enrollment/replacement, in-app notification, lifecycle
+and promotion flags on. Application-level strict boolean parsing, dependency checks,
+replica-set coordination, migration readiness and startup snapshot auditing remain
+unchanged. A flag being enabled does not bypass these checks.
+
+The versioned multi-stage backend Dockerfile builds TypeScript with development
+tools and copies compiled output plus pruned production dependencies into the
+runtime image. Only uploads are host-mounted. The deploy script uses main with a
+fast-forward pull, explicit backend/.env interpolation, read-only booking readiness
+audit and Compose health waiting. An explicit initial-migration mode stops the
+managed writer before invoking the existing dry-run/apply CLI; unresolved records
+block activation. Other writers must be stopped by the operator before initial
+cutover. No production database or running VPS was changed during local preparation.
