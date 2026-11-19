@@ -104,13 +104,30 @@ export function isWorkingWeekday(weekday: number) {
   return Number.isInteger(weekday) && weekday >= 1 && weekday <= 5;
 }
 
-type Hours = { startMinute?: number | null; endMinute?: number | null };
+type Hours = {
+  weekday?: number;
+  startMinute?: number | null;
+  endMinute?: number | null;
+};
+
+// Clinic-local weekday hours, shared by slot discovery and every booking write.
+const STANDARD_HOURS: (Hours & { startMinute: number; endMinute: number })[] = [
+  { startMinute: 9 * 60, endMinute: 12 * 60 },
+  { startMinute: 13 * 60 + 30, endMinute: 17 * 60 },
+];
 export function slotFitsSchedule(
   slot: { weekday: number; startMinute: number; endMinute: number },
   hours: Hours[],
   overrides: (Hours & { type: AvailabilityOverrideType })[],
 ) {
-  if (!isWorkingWeekday(slot.weekday)) return false;
+  if (
+    !isWorkingWeekday(slot.weekday) ||
+    !STANDARD_HOURS.some(
+      (row) =>
+        row.startMinute <= slot.startMinute && row.endMinute >= slot.endMinute,
+    )
+  )
+    return false;
   const blocked = overrides.some(
     (row) =>
       row.type === AvailabilityOverrideType.UNAVAILABLE &&
@@ -123,8 +140,11 @@ export function slotFitsSchedule(
   );
   return (
     !blocked &&
-    (custom.length ? custom : hours).some(
+    // Only a completely unconfigured weekly schedule gets the default. A
+    // configured schedule may intentionally omit a weekday to keep it closed.
+    (custom.length ? custom : hours.length ? hours : STANDARD_HOURS).some(
       (row) =>
+        (row.weekday == null || row.weekday === slot.weekday) &&
         row.startMinute != null &&
         row.endMinute != null &&
         row.startMinute <= slot.startMinute &&

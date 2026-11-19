@@ -103,7 +103,7 @@ this does not establish deployed integration or enable automatic waitlist bookin
   creating an immediately CONFIRMED, specialty-aware 30-minute appointment. Writes
   require policy V2 activation and completed migration; disabled by default.
 - **Booking validation:** Approved doctor affiliation, active clinic/doctor checks,
-  clinic-timezone slot alignment, weekly working hours, date-specific overrides,
+  clinic-timezone slot alignment, weekday 09:00–17:00 hours with a 12:00–13:30 lunch break, weekly working hours, date-specific overrides,
   occupied-slot checks backed by a unique active-slot index, transactional 24-hour
   spacing at one clinic/specialty across doctors, and patient overlap prevention
   across clinics/specialties. Conflicts preserve existing commitments.
@@ -898,7 +898,7 @@ mutation Hours($input: DoctorWeeklyHoursInput!) {
     "doctorId": "<doctor-member-id>",
     "intervals": [
       { "weekday": 1, "startMinute": 540, "endMinute": 720 },
-      { "weekday": 1, "startMinute": 780, "endMinute": 1020 }
+      { "weekday": 1, "startMinute": 810, "endMinute": 1020 }
     ]
   }
 }
@@ -906,8 +906,14 @@ mutation Hours($input: DoctorWeeklyHoursInput!) {
 
 Weekdays are 0=Sunday through 6=Saturday; intervals use minutes since local
 midnight. They must be positive, aligned to 30 minutes and non-overlapping within
-a day (maximum 56 weekly intervals). These split hours generate 14 complete slots;
-none crosses lunch or closing time. Different doctors keep separate hours.
+a day (maximum 56 weekly intervals). Booking and slot reads always enforce Monday–Friday
+09:00–17:00 with lunch from 12:00–13:30, in the clinic timezone. These split hours
+generate 13 complete slots; none crosses lunch or closing time. Doctors with no
+weekly schedule use these standard hours automatically. Once any weekly intervals
+are configured, omitted weekdays are closed. Clearing all weekly intervals restores
+the standard hours; use UNAVAILABLE overrides for closures. Custom hours can change
+the schedule within the standard working windows, but cannot open lunch, evenings,
+or weekends. Different doctors keep separate hours.
 
 Date override input is `{ doctorId, date, overrides }`, with at most 16 rows.
 Each row has type CUSTOM_HOURS or UNAVAILABLE and optional startMinute/endMinute.
@@ -971,9 +977,11 @@ aligned to a clinic-local :00/:30 boundary. The server returns HTTP 201 with a
 CONFIRMED appointment, its recorded specialty, source ONLINE, and an opaque version.
 
 The active clinic and its active doctor must have APPROVED affiliation. Working
-hours must exist in doctor_availability or doctor_availability_overrides. Weekly
-hours use the clinic-local weekday; CUSTOM_HOURS replace weekly hours for that
-local date, and UNAVAILABLE blocks overlapping intervals or a whole day. The
+hours default to Monday–Friday 09:00–12:00 and 13:30–17:00 when no weekly
+schedule is saved. Configured weekly hours use the clinic-local weekday;
+CUSTOM_HOURS replace weekly hours for that local date, and UNAVAILABLE blocks
+overlapping intervals or a whole day. All schedules stay within those standard
+working windows. The
 complete 30-minute slot must fit. Clinics manage approval and schedules through
 the GraphQL operations above.
 

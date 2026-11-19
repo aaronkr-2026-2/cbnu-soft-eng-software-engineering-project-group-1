@@ -48,7 +48,6 @@ import DoctorAvailabilityOverrideSchema, {
 import {
   AppointmentStatus,
   AppointmentSource,
-  AvailabilityOverrideType,
   AppointmentOutcome,
   ClinicBookingSource,
   AppointmentEventType,
@@ -534,16 +533,9 @@ export class AppointmentService {
       .session(session)
       .lean()
       .exec();
-    const custom = overrides.filter(
-      (item) => item.type === AvailabilityOverrideType.CUSTOM_HOURS,
-    );
-    const hours = custom.length
-      ? custom
-      : await availability
-          .find({ ...scope, weekday: slot.weekday })
-          .session(session)
-          .lean()
-          .exec();
+    // Read the whole week so an intentionally omitted day is distinguishable
+    // from a doctor without a configured schedule (which uses standard hours).
+    const hours = await availability.find(scope).session(session).lean().exec();
     if (!slotFitsSchedule(slot, hours, overrides)) {
       throw new BookingConflictException('SLOT_UNAVAILABLE');
     }

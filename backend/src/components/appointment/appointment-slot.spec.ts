@@ -100,12 +100,92 @@ describe('weekday-only scheduling', () => {
     ).toBe(true);
   });
   it.each([
-    ['2030-01-06T15:00:00Z', 'Asia/Seoul', true],
-    ['2030-01-04T15:00:00Z', 'Asia/Seoul', false],
-    ['2030-01-05T01:00:00Z', 'America/New_York', true],
+    ['2030-01-07T00:00:00Z', 'Asia/Seoul', true],
+    ['2030-01-05T00:00:00Z', 'Asia/Seoul', false],
+    ['2030-01-04T14:00:00Z', 'America/New_York', true],
   ])('uses local weekday for %s in %s', (instant, zone, expected) => {
     expect(
       slotFitsSchedule(appointmentSlot(new Date(instant), zone), hours, []),
     ).toBe(expected);
   });
+});
+
+describe('standard clinic working hours', () => {
+  const slot = (startMinute: number, weekday = 1) => ({
+    weekday,
+    startMinute,
+    endMinute: startMinute + 30,
+  });
+  const allDay = [{ weekday: 1, startMinute: 0, endMinute: 1440 }];
+  const customAllDay = [
+    {
+      type: AvailabilityOverrideType.CUSTOM_HOURS,
+      startMinute: 0,
+      endMinute: 1440,
+    },
+  ];
+
+  it.each([1, 2, 3, 4, 5])(
+    'provides 13 default half-hour visits on weekday %s',
+    (weekday) => {
+      const starts = Array.from({ length: 48 }, (_, i) => i * 30).filter(
+        (minute) => slotFitsSchedule(slot(minute, weekday), [], []),
+      );
+      expect(starts).toEqual([
+        540, 570, 600, 630, 660, 690, 810, 840, 870, 900, 930, 960, 990,
+      ]);
+    },
+  );
+
+  it.each([510, 720, 750, 780, 1020])(
+    'blocks %s minutes even with legacy weekly hours or custom date hours',
+    (minute) => {
+      expect(slotFitsSchedule(slot(minute), [], [])).toBe(false);
+      expect(slotFitsSchedule(slot(minute), allDay, [])).toBe(false);
+      expect(slotFitsSchedule(slot(minute), [], customAllDay)).toBe(false);
+    },
+  );
+
+  it('does not reopen an omitted weekday in a configured week', () => {
+    expect(slotFitsSchedule(slot(600, 2), allDay, [])).toBe(false);
+    expect(slotFitsSchedule(slot(600), allDay, [])).toBe(true);
+  });
+
+  it('allows narrower configured hours and custom hours within standard bounds', () => {
+    const morning = [{ weekday: 1, startMinute: 600, endMinute: 660 }];
+    expect(slotFitsSchedule(slot(540), morning, [])).toBe(false);
+    expect(slotFitsSchedule(slot(600), morning, [])).toBe(true);
+    const custom = [{ ...customAllDay[0], startMinute: 840, endMinute: 900 }];
+    expect(slotFitsSchedule(slot(600), morning, custom)).toBe(false);
+    expect(slotFitsSchedule(slot(840), morning, custom)).toBe(true);
+  });
+
+  it('honors full-day and partial unavailability with default or custom hours', () => {
+    const closed = [{ type: AvailabilityOverrideType.UNAVAILABLE }];
+    const blocked = [{ ...closed[0], startMinute: 600, endMinute: 630 }];
+    expect(slotFitsSchedule(slot(600), [], closed)).toBe(false);
+    expect(slotFitsSchedule(slot(600), [], [...customAllDay, ...closed])).toBe(
+      false,
+    );
+    expect(slotFitsSchedule(slot(600), [], blocked)).toBe(false);
+    expect(slotFitsSchedule(slot(570), [], blocked)).toBe(true);
+    expect(slotFitsSchedule(slot(630), [], blocked)).toBe(true);
+  });
+
+  it.each([0, 6])('does not provide default hours on weekend %s', (weekday) => {
+    expect(slotFitsSchedule(slot(600, weekday), [], [])).toBe(false);
+  });
+
+  it.each(['Asia/Seoul', 'Asia/Kathmandu', 'America/New_York'])(
+    'generates standard hours in the clinic timezone %s',
+    (timezone) => {
+      const visits = [
+        ...appointmentCandidates('2030-01-07', '2030-01-07', timezone),
+      ].filter((candidate) => slotFitsSchedule(candidate, [], []));
+      expect(visits).toHaveLength(13);
+      expect(visits[0].startMinute).toBe(540);
+      expect(visits[6].startMinute).toBe(810);
+      expect(visits[12].endMinute).toBe(1020);
+    },
+  );
 });

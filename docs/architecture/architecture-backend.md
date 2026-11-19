@@ -321,6 +321,14 @@ AppointmentScheduleService replaces weekly hours or one date's overrides inside
 a doctor-gated transaction, verifies clinic ownership/current account state and
 checks future/in-progress appointments plus active waitlist ledger targets before
 narrowing hours. Invalidating edits conflict without changing those commitments.
+Slot reads and booking writes share a clinic-local Monday–Friday 09:00–17:00
+policy with a 12:00–13:30 lunch break. A doctor without any weekly rows receives
+these standard hours automatically; a configured weekly schedule closes omitted
+weekdays. Custom date hours remain bounded by the standard windows, and
+unavailability overrides still block slots. Clearing all weekly rows restores the
+default; full-day closures use UNAVAILABLE overrides. The shared helper receives
+the whole weekly schedule so an omitted weekday is not mistaken for an unconfigured
+doctor.
 Booking takes the same doctor gate before schedule reads, preventing write races.
 Later worker allocation paths must also include the doctor gate.
 
