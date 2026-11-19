@@ -12,6 +12,8 @@ reliance on phone calls and scattered messages.
 
 **Live site:** [MedConnect](https://cbnu-soft-group1.vercel.app/)
 
+**Research Methodology case study:** [Streamlit app](https://cbnu-research-final.streamlit.app/)
+
 The backend lives in `backend/` and uses NestJS, TypeScript, MongoDB/Mongoose, and
 GraphQL, with REST for member authentication and existing appointment routes.
 See this README's [backend setup](#requirements-and-quick-start) and
