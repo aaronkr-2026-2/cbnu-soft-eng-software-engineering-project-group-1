@@ -17,34 +17,3 @@ export const MEMBER_FIELDS = gql`
     doctorSpecializations
   }
 `;
-
-export const APPOINTMENT_FIELDS = gql`
-  fragment AppointmentFields on Appointment {
-    specialty
-    source
-    version
-    _id
-    doctorId
-    clinicId
-    patientId
-    startsAt
-    endsAt
-    durationMinutes
-    status
-    doctorChangeRequest {
-      type
-      status
-      proposedStartsAt
-      proposedEndsAt
-      reason
-      requestedAt
-      reviewedAt
-      reviewedBy
-    }
-    lastChangedBy
-    canceledBy
-    canceledAt
-    createdAt
-    updatedAt
-  }
-`;

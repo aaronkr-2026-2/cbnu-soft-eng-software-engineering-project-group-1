@@ -1058,3 +1058,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** The upgrade bootstrap and application target are different packages; I can use installed trusted assessment code and install the safe stable target while retaining quarantine.
+
+
+## Remove confirmed unused code — 2026-11-19
+
+**Tool(s) used:** Codex, shell, TypeScript, existing tests.
+
+**What I asked for:** Sanitize the codebase and retain used code.
+
+**Pre-planning:** Checked references and the owning worktree instructions before deleting candidates identified in the review.
+
+**Planning:** Remove confirmed unused code first; keep active repeated code for a separately verified refactor.
+
+**Implementation process:** Removed unused BOOK_APPOINTMENT, GET_APPOINTMENT, MY_APPOINTMENTS and their unused APPOINTMENT_FIELDS fragment; deleted apollo/user/mutation.ts. Active booking documents remain in apollo/user/booking.ts. TypeScript with noUnusedLocals/noUnusedParameters passed; all 167 existing tests passed. Symbol-aware export scan and source/test reference checks found no further removable exports outside framework entry points. No live integration/build checks were run.
+
+**What I kept as-is:** Public API behavior, dependencies, operational tools and framework entry points.
+
+**What I changed or rejected, and why:** Removed unused declarations rather than redesigning active behavior. No sprint covers November 19; closed sprint records remain unchanged.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A declaration with no ordinary caller can still be a framework entry point, so references must be checked before removal.
