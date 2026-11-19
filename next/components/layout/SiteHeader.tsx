@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Avatar, Button, Collapse, IconButton, Tooltip } from '@mui/material';
@@ -24,12 +24,33 @@ export function Brand() {
 }
 
 export function SiteHeader() {
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const header = headerRef.current;
+    const shell = header?.closest<HTMLElement>('.landing');
+    if (!header || !shell) return;
+    // Keep sticky panels and scroll targets below the actual navigation height,
+    // including responsive wrapping and the expanded mobile menu.
+    const updateHeight = () => {
+      shell.style.setProperty(
+        '--site-header-height',
+        `${header.getBoundingClientRect().height}px`,
+      );
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(header);
+    return () => {
+      observer.disconnect();
+      shell.style.removeProperty('--site-header-height');
+    };
+  }, []);
   const [menuOpen, setMenuOpen] = useState(false);
   const session = useSession();
   const workspace =
     session && ['CLINIC', 'DOCTOR'].includes(session.member.memberType);
   return (
-    <header className="landing-header">
+    <header ref={headerRef} className="landing-header">
       <div className="container header-inner">
         <Brand />
         <nav className="desktop-navigation" aria-label="Main navigation">

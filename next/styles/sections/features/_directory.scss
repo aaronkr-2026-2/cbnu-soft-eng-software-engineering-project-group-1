@@ -52,7 +52,7 @@
     margin-block: 1.25rem;
     color: v.$mutedTextColor;
     font-size: 0.9rem;
-    scroll-margin-top: 7rem;
+    scroll-margin-top: var(--sticky-content-top);
     &:focus-visible {
       outline: 2px solid v.$primary;
       outline-offset: 0.35rem;

@@ -1,6 +1,10 @@
 @use '../../variables' as v;
 
 .landing {
+  // Fallback includes the navigation's 88px minimum height and 1px border.
+  // SiteHeader measures its actual height after mounting and on resize.
+  --site-header-height: 89px;
+  --sticky-content-top: calc(var(--site-header-height) + 1rem);
   background: v.$whiteColor;
   color: v.$textColor;
   -webkit-font-smoothing: antialiased;
@@ -19,7 +23,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   [id] {
-    scroll-margin-top: 6rem;
+    scroll-margin-top: var(--sticky-content-top);
   }
   .eyebrow {
     color: v.$primary;
@@ -771,6 +775,7 @@
     }
   }
   @media (max-width: 48rem) {
+    --site-header-height: 75px;
     .header-inner {
       min-height: 74px;
       gap: 0.7rem;

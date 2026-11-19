@@ -1016,3 +1016,45 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** The initial diagnosis assumed the clinic should configure hours manually; I clarified standard hours were intended.
 
 **One decision I can explain without AI:** The backend owns slot rules; the frontend displays their meaning.
+
+
+## Keep sticky content below the navbar — 2026-11-19
+
+**Tool(s) used:** Codex, shell, Yarn, TypeScript, Sass and existing Node tests. Browser connection retry failed.
+
+**What I asked for:** Keep the booking Your visit card below the navbar while scrolling and apply the same rule to similar content.
+
+**Pre-planning:** The screenshot showed the card behind the sticky header. Its top offset was1rem while the header minimum height was88px plus border. Source search found no other sticky content panels; section anchors and directory results also used fixed scroll offsets.
+
+**Planning:** Publish actual header height as a shell-scoped CSS token, add1rem clearance and reuse it for sticky/scroll targets. Keep mobile flow unchanged.
+
+**Implementation process:** SiteHeader now observes rendered height with ResizeObserver and cleans up on unmount. Landing styles provide desktop/mobile fallback heights and a shared offset. Booking summary, section anchors and directory count scrolling consume it. TypeScript/all167tests/Sass entry compilation and git diff --check passed. Browser host remains unavailable, so visual scrolling/resize verification and deployment are unverified. No sprint covers this date. No backend/dependencies/environment/deployment/staging/commit/push changes.
+
+**What I kept as-is:** Navbar stacking, booking state, appointments, responsive grid and mobile non-sticky summary.
+
+**What I changed or rejected, and why:** Replaced independent fixed offsets with the actual header height so navigation wrapping or menu expansion can adjust clearance.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Sticky content must reserve the header's actual height; raising its z-index would not provide the requested spacing.
+
+
+## Next.js security upgrade — 2026-11-19
+
+**Tool(s) used:** Codex, Next upgrade CLI and installed security assessor, Yarn4.18.1, GitHub read connector, TypeScript, Node tests, Webpack build, npm advisory audit and local HTTP check.
+
+**What I asked for:** Run next upgrade --agent=security and follow its instructions.
+
+**Pre-planning:** Local dev reported installed Next16.4.1 vulnerable although manifest/lock specified16.4.5. Saved existing sticky navbar edits; stopped owned dev server before dependency writes. Read shared/same-major upgrade instructions and performed duplicate checks across app, branches/history, remote heads and open GitHub PRs; no equivalent work found. gh unavailable, connector supplied provider lookup.
+
+**Planning:** Use stable security target and pinned Yarn; preserve existing source changes, dependency quarantine and package-manager policy. No major-version codemod needed.
+
+**Implementation process:** Requested CLI could not fetch metadata inside sandbox; network-approved rerun reached Yarn but latest canary16.5.0-canary.55 was quarantined. Used already-installed prepareUpgrade security assessor instead of downloading quarantined code; it selected stable16.4.6. yarn add next@16.4.6 succeeded and updated manifest/lock/runtime dependencies. Added next.config.ts with experimental.agentUpgrade=security as directed by upgrade guide. Typecheck/all167tests/production Webpack build passed; recursive audit exited0 with no findings. Patched assessor reports unaffected/no update needed. Dev restarted onlocalhost3000 using16.4.6; HTTP checked separately. No commit/push/PR/deploy, backend/environment or unrelated source changes. No sprint covers this date.
+
+**What I kept as-is:** Existing navbar fixes, Pages Router, React versions, pinned Yarn/node-modules policy and strict package quarantine.
+
+**What I changed or rejected, and why:** Applied only the stable patch target and explicit future security-reminder policy. Did not bypass the canary quarantine or run a major upgrade/codemod.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** The upgrade bootstrap and application target are different packages; I can use installed trusted assessment code and install the safe stable target while retaining quarantine.

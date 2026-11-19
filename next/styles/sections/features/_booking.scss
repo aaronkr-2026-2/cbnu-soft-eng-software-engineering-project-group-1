@@ -53,7 +53,7 @@
   }
   .care-summary {
     position: sticky;
-    top: 1rem;
+    top: var(--sticky-content-top);
     border-top: 4px solid v.$secondaryColor;
   }
   .care-step {
