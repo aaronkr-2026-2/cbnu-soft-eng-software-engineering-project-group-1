@@ -37,7 +37,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                                 | —                 |
 | FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`               | November 5, 2026  |
 | FI-08 | Email verification                         | Verify email ownership with an expiring code before creating a new email/password account                       | Medium         | **Completed** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md)       | November 13, 2026 |
-| FI-09 | Package adoption and modular refactoring | Reduce custom infrastructure and split large backend/frontend functions while preserving existing behavior | Larger | **Planned** | [Refactoring plan](PACKAGE_REFACTORING_PLAN.md) | — |
+| FI-09 | Package adoption and modular refactoring | Reduce custom infrastructure and split large backend/frontend functions while preserving existing behavior | Larger | **In progress** | [Refactoring plan](PACKAGE_REFACTORING_PLAN.md) | — |
 
 ## Scope notes for future plans
 
@@ -175,7 +175,7 @@ Completed locally November 13, 2026. Disposable data/processes were removed;
 application database setup and coordinated production deployment remain unperformed.
 This item is separate from FI-03 password recovery and FI-02 reminders.
 
-### FI-09 — Package adoption and modular refactoring — Planned
+### FI-09 — Package adoption and modular refactoring — In progress
 
 The [dedicated plan](PACKAGE_REFACTORING_PLAN.md) defines eight steps: baseline,
 logging, scheduling, configuration, timezone evaluation, backend function splits,
@@ -185,8 +185,14 @@ one step at a time. Evaluate compatible packages rather than copying MediBridge'
 dependency list. Preserve API contracts, authorization, transaction boundaries,
 worker recovery and uncertain-response handling. Luxon adoption is conditional;
 BullMQ/Redis implementation is deferred pending a concrete operational need and
-a separate agreed design. Implementation, dependency changes and deployment have
-not started. Detailed acceptance checks and proposed commit boundaries are in the
+a separate agreed design. Step 1 baseline completed locally November 21, 2026:
+backend build/full types/lint, 895 backend tests, 167 frontend tests, frontend
+types/isolated build and a zero-finding backend runtime audit passed. Initial
+sandbox socket/DNS restrictions cleared on approved reruns; Mongoose/VM warnings
+remain. The plan records source inventory, function sizes and package compatibility,
+including the current Pino adapter's Nest patch mismatch. Application refactoring,
+dependency changes and deployment have not started. Stop after Step 1; Step 2 is
+next when requested. Detailed evidence, limits and commit boundaries are in the
 plan; no deadline or line-reduction target is claimed.
 
 ## Modular delivery workflow

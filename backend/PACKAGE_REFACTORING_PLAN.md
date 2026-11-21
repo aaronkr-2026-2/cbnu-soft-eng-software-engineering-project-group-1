@@ -2,9 +2,9 @@
 
 Date: November 21, 2026 (Asia/Seoul)
 
-Status: **Planned.** The roadmap entry and implementation plan are prepared.
-No refactoring, dependency installation, baseline test run or deployment has been
-performed for this item. All implementation checkboxes below remain pending.
+Status: **In progress — Step 1 complete locally November 21, 2026.** The verified
+baseline and dependency shortlist are recorded below. Steps 2–8 remain pending.
+No application source, installed dependencies, lockfiles or deployment changed.
 
 ## Goal
 
@@ -56,12 +56,12 @@ adding bcrypt or Passport is outside this refactor.
 
 ### Step 1 — Establish the baseline
 
-- [ ] Confirm branch/worktree state and preserve unrelated changes.
-- [ ] Inventory logging, worker timers, environment reads and timezone helpers.
-- [ ] Recheck the identified large functions and their actual callers.
-- [ ] Run relevant existing backend and frontend checks; distinguish pre-existing
+- [x] Confirm branch/worktree state and preserve unrelated changes.
+- [x] Inventory logging, worker timers, environment reads and timezone helpers.
+- [x] Recheck the identified large functions and their actual callers.
+- [x] Run relevant existing backend and frontend checks; distinguish pre-existing
   failures and unavailable runtime checks from regressions.
-- [ ] Record baseline results and a compatible dependency shortlist in this plan.
+- [x] Record baseline results and a compatible dependency shortlist in this plan.
 
 Acceptance: identify affected files, interfaces, worker semantics and test commands;
 record actual results without borrowing historical pass counts. Define how to
@@ -213,3 +213,178 @@ recorded adopt/defer outcomes. Update this plan and the roadmap with actual evid
 No source-line reduction percentage, delivery date or implementation result is
 promised. Existing behavior, smaller responsibilities and less custom infrastructure
 are the success criteria.
+
+## Step 1 baseline — November 21, 2026
+
+### Checkout and tooling
+
+Both application worktrees started clean: backend `1e891c4` on `backend`, and
+Next.js `77c63de` on `next`. The outer `main` checkout is `f79f81f` and was not
+modified. This baseline changes only this plan and the roadmap in the backend
+worktree. No package install, lockfile change, application edit, live email,
+production database action, staging, commit, push or deployment was performed.
+
+Execution tooling: Node 26.5.0, npm 12.0.2 and Yarn 4.18.1. Installed backend:
+Nest common/core/platform-express 12.0.1, GraphQL integration 14.0.0,
+Mongoose 9.12.1, MongoDB driver 7.8.0, TypeScript 6.0.3 and Jest 30.5.1.
+Installed frontend: Next.js 16.4.6, React 19.3.1 and TypeScript 5.9.3.
+The backend Dockerfile targets Node 24.12.0; these local results do not substitute
+for container/runtime verification on that version.
+
+### Verification results
+
+| Check | Actual command or execution | Result |
+| --- | --- | --- |
+| Backend build | `npm run build` | Passed, including configured assets |
+| Backend full TypeScript | `./node_modules/.bin/tsc --noEmit --incremental false` | Passed, including test types |
+| Backend lint | `npm run lint` | Passed; no warning reported in this run |
+| Backend unit tests | `npm test -- --runInBand` | 145 passed, 10 suites |
+| Backend HTTP/GraphQL tests | `npm run test:e2e -- --runInBand` | 232 passed, 8 suites; fixture dependencies |
+| Booking transactions/workers | `node test/run-booking-integration.cjs` | 195 passed, 2 suites; disposable replica set and standalone MongoDB |
+| Directory, usernames, deletion, email and recovery | Same disposable runner with a temporary combined profile selecting the existing seven suites | 315 passed, 7 suites |
+| Deployment script regression | `npm run test:deployment` | 8 passed; mocked deployment checks, not a real deploy |
+| Next.js types | `yarn typecheck` | Passed |
+| Next.js tests | `yarn test` | 167 passed |
+| Next.js production build | Installed Next CLI, `build <isolated-copy> --webpack` | Passed using tracked source, no copied environment files and the existing installed dependencies |
+| Existing backend runtime dependency audit | `npm audit --omit=dev --json` | Zero reported vulnerabilities; development dependencies and prospective packages were not audited by this command |
+
+Total automated tests passed: **895 backend + 167 frontend = 1,062**. These counts
+are fresh results, not historical totals. The temporary combined profile selects
+directory, member-username, account-deletion, email-verification and the three
+password-recovery integration suites; it does not include the separate combined
+Next/Nest recovery acceptance suite. Delivery providers in the selected tests are
+stubbed. Browser journeys, live providers, deployed integration, Docker image and
+production behavior were not verified in Step 1.
+
+Initial sandbox API/socket and MongoDB startup attempts failed with local-port
+`EPERM`; approved reruns passed without source changes. The first registry lookup
+failed with DNS `ENOTFOUND`; approved read-only metadata queries succeeded. These
+were environment restrictions, not application test regressions. Existing
+experimental VM-module and deprecated Mongoose `new`-option warnings appeared;
+no test failures remained after reruns.
+
+Temporary logs, metadata, inventory and the isolated frontend build are under
+`/private/tmp/medconnect-fi09-baseline-ryZ0hj/`. They are local, disposable evidence,
+not committed artifacts. The existing MongoDB runner owns and cleans its temporary
+database processes and files. To repeat the combined integration run, copy an
+existing integration JSON profile to a temporary path, set its `rootDir` to the
+absolute backend `test/` directory and select
+`(directory|member-username|account-deletion|email-verification|password-recovery(?:-delivery|-reset)?)\.integration-spec\.ts$`.
+Pass that profile's absolute path to `node test/run-booking-integration.cjs`.
+
+### Infrastructure inventory and constraints
+
+**Logging:** `src/libs/logger/file-logger.service.ts` is 49 physical lines;
+`src/libs/interceptor/logging.interceptor.ts` is 46. `src/main.ts` installs the
+logger and global interceptor, and `src/app.module.ts` registers the provider.
+The logger writes JSON to `LOG_FILE` (default `logs/medconnect.log`) and colored
+terminal output. The interceptor records HTTP/GraphQL routing metadata, duration
+and failures without request arguments/bodies or response data; its error path
+includes message/stack text. Preserve existing exclusions and explicitly assess
+error redaction in Step 2. Existing member API tests assert log labels and absence
+of private fields. Compose mounts uploads, not logs, so durable log collection is
+not established by the checked-in container configuration. Define output handling
+before removing file output; no production logging verification was performed.
+
+**Workers:** the three waitlist-related services share a completion-driven,
+one-second recursive timeout pattern. It is not a fixed wall-clock interval.
+
+| Worker source | Current scheduling and ownership behavior to retain |
+| --- | --- |
+| `src/components/notification/notification.service.ts` | Enabled/migrated startup; poll up to 25 deliveries, then wait one second; tracked running promise and destroy wait; fenced delivery claims and retries |
+| `src/components/appointment/appointment-waitlist-lifecycle.service.ts` | Enabled/migrated startup; poll up to 25 lifecycle operations, then wait one second; tracked running promise and destroy wait |
+| `src/components/appointment/appointment-promotion.service.ts` | Enabled startup; one bounded claim/candidate-processing run, then wait one second; tracked running promise and destroy wait; 30-second claim lease and generation fencing |
+| `src/components/auth/password-recovery.service.ts` | Enabled/storage-ready startup; initial zero-delay tick, then one-second delay after work; `inFlight` coalesces callers; application-shutdown waits; durable leases, definitive retries and ambiguous-outcome handling |
+
+All four unreference timers and check stop/enablement state. `main.ts` currently
+does not call `enableShutdownHooks`; automatic signal-driven shutdown must be
+assessed separately from hooks invoked by `app.close()` in tests. Scheduler
+adoption must not silently change polling throughput, introduce overlapping work,
+or claim cross-process safety without the existing database coordination.
+
+**Configuration:** 13 non-test `.ts`/`.js` files under `backend/src` contain direct
+`process.env` references: `main.ts`, `database/database.config.ts`,
+`libs/graphql/graphql.config.ts`, `libs/logger/file-logger.service.ts`,
+`components/booking/booking.config.ts`, `components/member/member.module.ts`,
+`components/member/member.controller.ts`, `components/upload/upload.service.ts`,
+and auth's `email-verification.service.ts`, `password-recovery-policy.ts`,
+`password-recovery.service.ts`, `email-delivery.service.ts`, and
+`google-auth.service.ts`. This is a file count, not a count of settings or all
+indirect configuration consumers. Several modules also evaluate `getMongoUri()`
+at import time. Bootstrap loads `.env` before dynamically importing `AppModule`;
+preserve that ordering, optional-feature requirements and direct test injection.
+Native defaults and Compose overrides differ: Compose explicitly defaults six
+booking/waitlist flags to true. Do not change either behavior accidentally.
+
+**Timezones:** `src/components/appointment/appointment-slot.ts` is 154 physical
+lines. `appointmentSlot`, `appointmentCandidates` and `slotFitsSchedule` are reused
+by booking writes and schedule discovery. Existing helper tests cover DST,
+quarter-hour offsets and standard-hours restrictions. Frontend
+`next/libs/booking.ts`, `booking-calendar.ts` and `workspace.ts` also implement
+display/local-date/calendar calculations; do not transfer trusted booking policy
+to the browser when simplifying these helpers.
+
+**MediBridge reference:** inspected root `package.json`, API `src/app.module.ts`,
+and batch `src/batch.module.ts`/`batch.controller.ts` in the local reference.
+Configuration is global there and scheduling is actually used in the batch
+application through `ScheduleModule`, `@Cron` and `@Timeout`. Its daily jobs do
+not demonstrate MedConnect's non-overlapping completion-driven polling behavior.
+
+### Function sizes and actual interfaces
+
+The TypeScript parser measured inclusive physical lines from function/method start
+through its end. Counts include comments, whitespace, nested callbacks and JSX;
+they are not executable statement counts. Compare with the same method later and
+also report helper/component size, duplication and new dependency overhead.
+
+| Function | Source | Baseline lines |
+| --- | --- | ---: |
+| `MemberService.updateMember` | `backend/src/components/member/member.service.ts:885` | 158 |
+| `AppointmentService.transitionInTransaction` | `backend/src/components/appointment/appointment.service.ts:708` | 151 |
+| `BookingCoordinationService.run` | `backend/src/components/booking/booking-coordination.service.ts:96` | 190 |
+| `AppointmentPromotionService.runOnce` | `backend/src/components/appointment/appointment-promotion.service.ts:82` | 192 |
+| `NotificationService.runOnce` | `backend/src/components/notification/notification.service.ts:266` | 127 |
+| `BookingForm` | `next/components/booking/BookPage.tsx:44` | 557 |
+| `PersonalInfo` | `next/components/mypage/MyPage.tsx:136` | 558 |
+| `TeamSchedules` | `next/components/workspace/TeamSchedules.tsx:52` | 469 |
+| `ActionDialog` | `next/components/booking/ActionDialog.tsx:31` | 392 |
+
+Backend REST and GraphQL booking entry points both call
+`AppointmentService.bookAppointment` behind `MemberAccessGuard`. The member
+resolver delegates profile updates to `MemberService.updateMember`. Commitment
+replacement calls `cancelInTransaction` and `bookInTransaction`; promotion also
+calls `checkPromotionEligibility` and `bookInTransaction`. These are real internal
+consumers: preserve their service interfaces and original `BookingTransaction`.
+Frontend booking, workspace and notification adapters already share `careRequest`
+from `next/libs/api/booking.ts`; retain that reuse. Preserve uncertain mutation
+results, baseline reads and explicit reconciliation rather than automatic replay.
+
+### Dependency shortlist and decisions
+
+Read-only npm registry metadata was checked November 21, 2026. No candidate was
+installed, resolved into a new lockfile, audited as a prospective dependency tree,
+or runtime-tested. Peer/engine compatibility below is a shortlist, not acceptance.
+
+| Candidate | Observed metadata and decision |
+| --- | --- |
+| Pino `10.4.0` | Framework-independent logger candidate; evaluate a small Nest `LoggerService` adapter if a full Nest integration would require an unnecessary framework upgrade. No install or runtime compatibility claim yet. |
+| `nestjs-pino` `5.3.2` | Requires Nest common/core `^11.0.8 || ^12.0.2`, Node `>=22.12.0`, Pino `^10` and pino-http `^11`. Installed Nest 12.0.1 fails its peer range. Do not force-install: Step 2 must choose direct Pino or a separately verified coherent Nest patch update before using this adapter. |
+| `@nestjs/schedule` `12.0.4` | Declares Nest common/core `^11 || ^12` and Node `>=20.19.0`; metadata matches installed Nest and both local/container Node versions. ESM integration and exact polling semantics still need Step 3 verification. |
+| `@nestjs/config` `12.1.1` | Declares Nest common `^11 || ^12` and RxJS `^7.1`; matches installed peer versions. ESM/bootstrap ordering and test injection still need Step 4 verification. |
+| Luxon `3.7.2` | Declares Node `>=12`, with no Nest coupling. Conditional Step 5 prototype only; check TypeScript declarations and exact timezone equivalence before adoption. |
+| BullMQ/Nest queue integration | Deferred; no package/version selected. Introducing Redis is outside this baseline and requires the Step 8 operational/outbox design decision. |
+
+The current backend runtime audit reports no findings; that does not certify the
+uninstalled candidates. Recheck release metadata, advisories and the resolved tree
+when selecting each dependency. Do not use force/legacy-peer-deps to bypass a
+version mismatch. No existing hashing, rate-limit or Google-auth package needs
+replacement for this work.
+
+Reference documentation: [Pino](https://github.com/pinojs/pino),
+[Nest Pino adapter](https://github.com/iamolegga/nestjs-pino),
+[Nest scheduling](https://docs.nestjs.com/techniques/task-scheduling),
+[Nest configuration](https://docs.nestjs.com/techniques/configuration), and
+[Luxon](https://moment.github.io/luxon/api-docs/index.html).
+
+Step 1 acceptance is complete locally. Stop here; Step 2 is the next agreed
+implementation boundary. Proposed manual commit: `docs(backend): record refactoring baseline`.
