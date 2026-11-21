@@ -35,6 +35,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const logger = app.get(FileLogger);
   app.useLogger(logger);
+  app.enableShutdownHooks();
   app.useGlobalInterceptors(new LoggingInterceptor(logger));
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,

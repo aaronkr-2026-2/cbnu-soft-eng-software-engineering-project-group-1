@@ -1,3 +1,5 @@
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { WorkerScheduler } from '../src/libs/scheduling/worker-scheduler.service.js';
 import { EmailDeliveryService } from '../src/components/auth/email-delivery.service.js';
 import { setupEmailVerificationStorage } from '../src/schemas/email-verification.model.js';
 import { AppointmentScheduleService } from '../src/components/appointment/appointment-schedule.service.js';
@@ -3199,6 +3201,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         );
       const freshWorker = () => {
         const instance = new AppointmentPromotionService(
+          new WorkerScheduler(new SchedulerRegistry()),
           app.get(BookingCoordinationService),
           app.get(BookingPolicyService),
           app.get(WaitlistService),
@@ -4185,6 +4188,7 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         };
         const freshDelivery = () => {
           const worker = new NotificationService(
+            new WorkerScheduler(new SchedulerRegistry()),
             app.get(BookingPolicyService),
             connection,
             connection.model<InferSchemaType<typeof NotificationOutboxSchema>>(

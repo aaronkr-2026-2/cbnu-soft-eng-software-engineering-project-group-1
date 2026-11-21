@@ -1283,3 +1283,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** Automated tests caught an introduced shutdown hang after a failed asynchronous file open. The corrected adapter opens once at startup and writes asynchronously. A separate test assertion also captured an unrelated VM warning and was narrowed to application diagnostics. These were caught by verification, not by me manually.
 
 **One decision I can explain without AI:** A package should own generic serialization and stream output, while the application retains privacy and lifecycle policy. A smaller maintenance burden does not necessarily mean fewer adapter lines.
+
+
+## FI-09 Step 3 — Background worker scheduling — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Nest scheduling documentation, npm, TypeScript, Jest, Supertest, oxlint and disposable MongoDB runners.
+
+**What I asked for:** Implement PACKAGE_REFACTORING_PLAN.md Step 3 and stop at that delivery boundary.
+
+**Pre-planning:** Reviewed the clean backend worktree, session/bug records, four worker loops, module wiring, direct test constructors and existing integration coverage. Verified package peers/source and found no MediBridge scheduler pattern to reuse.
+
+**Planning:** Use exact @nestjs/schedule12.0.4 and its dynamic timeout registry with one shared completion-loop helper. Keep a full second after work finishes rather than change polling throughput with fixed intervals. Retain durable MongoDB coordination.
+
+**Implementation process:** Added WorkerSchedulingModule/WorkerScheduler, migrated notification/lifecycle/promotion/recovery timing, updated independent fixtures, enabled signal hooks and moved recovery draining before database teardown. Build/full types/lint,167unit233API195booking71recovery tests (666), compiled CommonJS SIGTERM drain smoke and zero-finding runtime audit pass. Final focused12/recovery71 reruns pass. Updated plan, roadmap and existing architecture. Initial socket/DNS restrictions were handled by approved execution and installed-source inspection; no production/provider/frontend checks claimed.
+
+**What I kept as-is:** Feature flags/readiness, completion cadence and startup delays, batches, recovery coalescing, API contracts, leases/fences/transactions, retry/backoff and uncertain-result handling. Existing locked package entries are unchanged; no Redis is introduced.
+
+**What I changed or rejected, and why:** Centralized scheduling/stop/drain mechanics while retaining separate business workers. Shutdown signals now invoke Nest hooks; active work finishes before database connections close. Cron/Luxon are transitive dependencies only; timezone adoption remains a later evaluation. No sprint covers this date; closed history is preserved. No application database, live email, release flag, staging, commit, push, merge or deployment changes.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A scheduling package owns local wakeups, while MongoDB claims and fencing still decide which process owns a durable event. Replacing timers must preserve both the completion-based delay and orderly draining.

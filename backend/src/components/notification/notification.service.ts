@@ -1,3 +1,7 @@
+import {
+  WorkerScheduler,
+  type WorkerLoop,
+} from '../../libs/scheduling/worker-scheduler.service.js';
 import type { Notice } from '../../libs/types/notification.types.js';
 import {
   BadRequestException,
@@ -56,10 +60,10 @@ const messages: Record<string, string> = {
 export class NotificationService implements OnModuleInit, OnModuleDestroy {
   private initialization?: Promise<void>;
   private readonly logger = new Logger(NotificationService.name);
-  private timer?: ReturnType<typeof setTimeout>;
-  private running?: Promise<boolean>;
+  private loop?: WorkerLoop;
   private stopped = false;
   constructor(
+    private readonly scheduler: WorkerScheduler,
     private readonly policy: BookingPolicyService,
     @Optional() @InjectConnection() private readonly connection?: Connection,
     @Optional()
@@ -78,28 +82,18 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     if (this.isEnabled()) {
       await this.policy.assertMigrated();
       await this.prepare();
-      this.schedule();
+      this.loop = this.scheduler.start(
+        'notification-delivery',
+        () => this.poll(),
+        () => this.logger.error('WAITLIST_NOTICE_POLL_FAILED'),
+      );
     }
   }
   async onModuleDestroy() {
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    await this.running;
+    await this.loop?.stop();
   }
-  private schedule() {
-    this.timer = setTimeout(() => {
-      this.running = this.poll()
-        .catch(() => {
-          this.logger.error('WAITLIST_NOTICE_POLL_FAILED');
-          return false;
-        })
-        .finally(() => {
-          this.running = undefined;
-          if (!this.stopped) this.schedule();
-        });
-    }, 1000);
-    this.timer.unref();
-  }
+
   private async poll() {
     let worked = false;
     for (let n = 0; n < 25 && !this.stopped; n++) {

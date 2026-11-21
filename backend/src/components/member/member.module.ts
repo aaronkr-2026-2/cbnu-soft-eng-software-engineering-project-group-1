@@ -1,3 +1,4 @@
+import { WorkerSchedulingModule } from '../../libs/scheduling/worker-scheduling.module.js';
 import {
   Module,
   RequestMethod,
@@ -39,6 +40,7 @@ const mongoUri = getMongoUri();
 
 @Module({
   imports: [
+    WorkerSchedulingModule,
     UploadStorageModule,
     BookingModule,
     ...(mongoUri

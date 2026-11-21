@@ -1,4 +1,8 @@
 import {
+  WorkerScheduler,
+  type WorkerLoop,
+} from '../../libs/scheduling/worker-scheduler.service.js';
+import {
   Injectable,
   Optional,
   Logger,
@@ -38,10 +42,10 @@ export class AppointmentPromotionService
   implements OnModuleInit, OnModuleDestroy
 {
   private readonly logger = new Logger(AppointmentPromotionService.name);
-  private timer?: ReturnType<typeof setTimeout>;
+  private loop?: WorkerLoop;
   private stopped = false;
-  private running?: Promise<boolean>;
   constructor(
+    private readonly scheduler: WorkerScheduler,
     private readonly coordination: BookingCoordinationService,
     private readonly policy: BookingPolicyService,
     private readonly waitlists: WaitlistService,
@@ -57,26 +61,16 @@ export class AppointmentPromotionService
   }
 
   onModuleInit() {
-    if (this.isEnabled()) this.schedule();
+    if (this.isEnabled())
+      this.loop = this.scheduler.start(
+        'waitlist-promotion',
+        () => this.runOnce(),
+        () => this.logger.error('WAITLIST_PROMOTION_POLL_FAILED'),
+      );
   }
   async onModuleDestroy() {
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    await this.running;
-  }
-  private schedule() {
-    this.timer = setTimeout(() => {
-      this.running = this.runOnce()
-        .catch(() => {
-          this.logger.error('WAITLIST_PROMOTION_POLL_FAILED');
-          return false;
-        })
-        .finally(() => {
-          this.running = undefined;
-          if (!this.stopped) this.schedule();
-        });
-    }, 1000);
-    this.timer.unref();
+    await this.loop?.stop();
   }
 
   async runOnce(): Promise<boolean> {

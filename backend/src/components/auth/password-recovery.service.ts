@@ -1,9 +1,14 @@
 import {
+  WorkerScheduler,
+  type WorkerLoop,
+} from '../../libs/scheduling/worker-scheduler.service.js';
+import {
   Injectable,
   HttpException,
   Logger,
   Optional,
   type OnModuleInit,
+  type OnModuleDestroy,
   type OnApplicationShutdown,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
@@ -63,11 +68,11 @@ type Outcome = 'ACCEPTED' | 'AMBIGUOUS' | 'REJECTED';
 
 @Injectable()
 export class PasswordRecoveryService
-  implements OnModuleInit, OnApplicationShutdown
+  implements OnModuleInit, OnModuleDestroy, OnApplicationShutdown
 {
   private readonly logger = new Logger(PasswordRecoveryService.name);
   private ready?: Promise<Storage>;
-  private timer?: ReturnType<typeof setTimeout>;
+  private loop?: WorkerLoop;
   private stopping = false;
   private inFlight?: Promise<void>;
   private readonly metrics = {
@@ -82,6 +87,7 @@ export class PasswordRecoveryService
   private preferConfirmation = true;
 
   constructor(
+    private readonly scheduler: WorkerScheduler,
     private readonly delivery: EmailDeliveryService,
     @Optional()
     @InjectModel(MEMBER)
@@ -589,21 +595,24 @@ export class PasswordRecoveryService
   async onModuleInit() {
     if (!this.enabled()) return;
     await this.storage();
-    const tick = async () => {
-      if (this.stopping) return;
-      await this.runOnce();
-      if (!this.stopping) {
-        this.timer = setTimeout(() => void tick(), 1_000);
-        this.timer.unref();
-      }
-    };
-    this.timer = setTimeout(() => void tick(), 0);
-    this.timer.unref();
+    this.loop = this.scheduler.start(
+      'password-recovery-delivery',
+      () => this.runOnce(),
+      () =>
+        this.logger.warn(
+          'Password recovery worker could not process its next job',
+        ),
+      0,
+    );
+  }
+
+  async onModuleDestroy() {
+    await this.onApplicationShutdown();
   }
 
   async onApplicationShutdown() {
     this.stopping = true;
-    if (this.timer) clearTimeout(this.timer);
+    await this.loop?.stop();
     await this.inFlight;
   }
 }

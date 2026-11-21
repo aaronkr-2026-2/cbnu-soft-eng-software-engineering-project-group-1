@@ -2,9 +2,9 @@
 
 Date: November 21, 2026 (Asia/Seoul)
 
-Status: **In progress — Steps 1–2 complete locally November 21, 2026.** Baseline
-and logging acceptance are recorded below. Steps 3–8 remain pending. Pino logging
-is implemented locally; deployment and production log collection remain unverified.
+Status: **In progress — Steps 1–3 complete locally November 21, 2026.** Baseline,
+logging and scheduling acceptance are recorded below. Steps 4–8 remain pending.
+Deployment, production log collection and shutdown grace periods remain unverified.
 
 ## Goal
 
@@ -88,11 +88,11 @@ Proposed commit: `refactor(backend): standardize application logging`.
 
 ### Step 3 — Standardize worker scheduling
 
-- [ ] Introduce compatible `@nestjs/schedule` integration.
-- [ ] Migrate notification delivery, waitlist lifecycle, promotion and password
+- [x] Introduce compatible `@nestjs/schedule` integration.
+- [x] Migrate notification delivery, waitlist lifecycle, promotion and password
   recovery delivery individually, with focused verification after each migration.
-- [ ] Remove repeated timer setup/cleanup only where the scheduler replaces it.
-- [ ] Preserve non-overlapping runs, feature gates, polling cadence, database
+- [x] Remove repeated timer setup/cleanup only where the scheduler replaces it.
+- [x] Preserve non-overlapping runs, feature gates, polling cadence, database
   claims/leases, retry/backoff behavior and graceful shutdown.
 
 Acceptance: slow runs do not overlap within a process; competing workers retain
@@ -449,3 +449,84 @@ commit, push or merge actions were performed. No sprint covers this date; closed
 sprint history is preserved. Stop after Step 2; scheduling is Step 3 when requested.
 
 Proposed manual commit: `refactor(backend): standardize logging with Pino`.
+
+
+## Step 3 acceptance — November 21, 2026
+
+Implemented in the backend worktree from clean `6cb134f` on `backend`. Exact
+`@nestjs/schedule` **12.0.4** accepts Nest common/core `^11 || ^12` and Node
+`>=20.19.0`, compatible with installed Nest 12.0.1 and the declared container Node
+24.12.0. Existing locked package versions were preserved. The package brings
+cron 4.4.0, Luxon 3.7.2 and its typings transitively; application timezone helpers
+remain unchanged and Step 5 is still pending. No Redis/deployment service is added.
+Installed package source/metadata and the official
+[Nest dynamic-timeout documentation](https://docs.nestjs.com/techniques/task-scheduling#dynamic-timeouts)
+were checked. The inspected MediBridge API contained no scheduler integration to
+reuse; its dependency set was not copied.
+
+### Implementation and preserved behavior
+
+- `src/libs/scheduling/worker-scheduling.module.ts` supplies one shared Nest schedule
+  module and `WorkerScheduler`; member, appointment and notification modules import
+  it explicitly, including when tests instantiate those feature modules directly.
+- `worker-scheduler.service.ts` centralizes named, unreferenced registry timeouts,
+  failure recovery, stop and active-work draining. A completed run waits **one full
+  second** before the next run, preserving completion-driven polling rather than
+  adopting a fixed wall-clock interval. Recovery starts at zero delay; the other
+  three workers first wait one second. Fired entries are removed from the registry.
+- Notification delivery, waitlist lifecycle, promotion and password recovery now
+  delegate only their timing to that helper. Feature gates, startup readiness,
+  bounded batches, safe error codes, recovery `inFlight` coalescing, transactional
+  operations, durable claims/leases/generation fences and retry/backoff are intact.
+- Each service stops and drains in `onModuleDestroy`. Recovery also retains its
+  idempotent application-shutdown entry point for independent fixtures. Draining
+  now precedes Mongoose's application-shutdown connection close. `main.ts` enables
+  Nest shutdown hooks so process signals invoke the existing graceful lifecycle.
+  No drain deadline or cancellation/replay of uncertain provider work was added.
+- Independent-worker fixtures explicitly supply a scheduler/registry. New focused
+  checks cover timing, errors, timer cancellation, Nest registration/close and the
+  notification, lifecycle and promotion services' disabled/slow/shutdown behavior.
+  The existing actual recovery timer test now exercises `onModuleDestroy`.
+
+### Verification and limits
+
+| Check | Actual result |
+| --- | --- |
+| `npm run build` | Passed, including configured assets |
+| `./node_modules/.bin/tsc --noEmit --incremental false` | Passed, including fixture types |
+| `npm run lint` | Passed without warnings |
+| `npm test -- --runInBand` | 167 passed in 14 suites; includes 12 new scheduling/lifecycle checks |
+| `npm run test:e2e -- --runInBand` | 233 passed in 9 suites |
+| `node test/run-booking-integration.cjs` | 195 passed in 2 suites using disposable MongoDB, including contention, abandoned claims, restart/fencing and deduplication |
+| `node test/run-booking-integration.cjs test/jest-recovery.json` | 71 passed in 3 suites; stubbed delivery, real MongoDB leases/retries/timer/shutdown |
+| Compiled CommonJS signal smoke | Real Nest context/NotificationService and shared scheduling module waited on blocked work after SIGTERM, drained after release, then exited with SIGTERM |
+| `npm audit --omit=dev --json` | Zero runtime vulnerabilities reported |
+
+**666 automated tests passed.** Focused checks and recovery were rerun after their
+final test refinements; their counts are included once. The build and compiled
+smoke establish local Node 26 CommonJS/ESM interoperability, not a tested container
+runtime. The signal fixture is local disposable evidence at
+`/private/tmp/medconnect-fi09-step3-signal.cjs`; audit output is at
+`/private/tmp/medconnect-fi09-step3-audit.json`.
+
+The initial sandbox MongoDB runner could not bind a local socket (`EPERM`); the
+approved run passed. An initial metadata lookup had DNS restrictions; approved
+installation and installed metadata/source inspection succeeded. These were
+environment restrictions, not application failures. The package installation
+reported nine moderate development-tree advisories; only the runtime tree was
+explicitly audited here. Existing Mongoose deprecation and VM-module warnings
+remain. No new agent error or application regression was identified.
+
+The prior four service-local timer loops are removed. Timing now has one owner;
+business processing and MongoDB ownership remain separate. The new helper is a
+small completion-loop adapter over the package registry, not a queue framework or
+a rewrite of the durable workers. No line-reduction percentage is claimed.
+
+Existing backend architecture, roadmap and implementation records are updated.
+README entry/setup information is unchanged. No sprint covers November 21; closed
+sprint history is preserved. No frontend, application database, live email,
+release flag, deployment, staging, commit, push or merge changes were made.
+Production signal grace periods, provider behavior and container deployment remain
+unverified. Stop after Step 3; Step 4 configuration work requires its own request.
+
+Proposed manual commit: `refactor(backend): consolidate background worker scheduling`.

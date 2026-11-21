@@ -1,4 +1,8 @@
 import {
+  WorkerScheduler,
+  type WorkerLoop,
+} from '../../libs/scheduling/worker-scheduler.service.js';
+import {
   Injectable,
   Logger,
   Optional,
@@ -28,10 +32,10 @@ export class AppointmentWaitlistLifecycleService
   private readonly logger = new Logger(
     AppointmentWaitlistLifecycleService.name,
   );
-  private timer?: ReturnType<typeof setTimeout>;
-  private running?: Promise<boolean>;
+  private loop?: WorkerLoop;
   private stopped = false;
   constructor(
+    private readonly scheduler: WorkerScheduler,
     private readonly coordination: BookingCoordinationService,
     private readonly policy: BookingPolicyService,
     private readonly waitlists: WaitlistService,
@@ -49,28 +53,18 @@ export class AppointmentWaitlistLifecycleService
     if (this.isEnabled()) {
       await this.policy.assertMigrated();
       await this.appointments.prepareLifecycle();
-      this.schedule();
+      this.loop = this.scheduler.start(
+        'waitlist-lifecycle',
+        () => this.poll(),
+        () => this.logger.error('WAITLIST_LIFECYCLE_RETRY'),
+      );
     }
   }
   async onModuleDestroy() {
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    await this.running;
+    await this.loop?.stop();
   }
-  private schedule() {
-    this.timer = setTimeout(() => {
-      this.running = this.poll()
-        .catch(() => {
-          this.logger.error('WAITLIST_LIFECYCLE_RETRY');
-          return false;
-        })
-        .finally(() => {
-          this.running = undefined;
-          if (!this.stopped) this.schedule();
-        });
-    }, 1000);
-    this.timer.unref();
-  }
+
   private async poll() {
     let worked = false;
     for (let n = 0; n < 25 && !this.stopped; n++) {

@@ -1017,6 +1017,37 @@ authentication. No live MongoDB or deployment was exercised for this addition.
 
 The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor records HTTP route templates or GraphQL parent/field names, timing and failure status. It excludes raw URLs, bodies, tokens, GraphQL arguments/query text, response data and raw exception messages/stacks. Application-authored log strings must still exclude secrets; this is not a universal string-redaction service.
 
+### Background worker scheduling
+
+FI-09 Step 3 uses exact `@nestjs/schedule` 12.0.4 through
+`backend/src/libs/scheduling/worker-scheduling.module.ts`, imported by the member,
+appointment and notification modules. Nest deduplicates this shared module; one
+`ScheduleModule.forRoot()` registry owns the named dynamic timeouts.
+`worker-scheduler.service.ts` centralizes the completion-driven loop: remove the
+fired timeout, await work, then register an unreferenced timeout one second later.
+Fixed intervals/cron would change the existing completion-to-next-run cadence.
+Recovery retains its zero-delay first tick; the other workers first wait one second.
+
+Notification delivery, waitlist lifecycle, promotion and recovery retain separate
+services, feature gates, startup readiness checks, bounded batches, safe failure
+messages and MongoDB claims/leases/fencing/transactions. The scheduler provides
+process-local timing only. Cross-process coordination and crash recovery still
+belong to MongoDB. Recovery keeps its existing `inFlight` coalescing for explicit
+and scheduled callers. No Redis or new infrastructure is required. Cron/Luxon are
+transitive package dependencies; appointment timezone policy has not migrated.
+
+Each service stops its loop and drains active work in `onModuleDestroy` before
+Mongoose closes connections in `onApplicationShutdown`. Recovery retains an
+idempotent application-shutdown hook for independently owned instances.
+`main.ts` now enables Nest shutdown hooks so SIGTERM/SIGINT invoke this lifecycle,
+as does `app.close()`. Shutdown waits for active operations; no new drain timeout
+or cancellation of an uncertain provider result was introduced. This does not
+establish deployment grace-period adequacy or production acceptance. Local Step 3
+verification passed build/full types/lint, 167 unit, 233 API, 195 disposable booking
+and 71 disposable recovery tests, plus a compiled SIGTERM active-work drain smoke.
+Runtime dependency audit reported no vulnerabilities; live providers and containers
+were not exercised.
+
 ### Application logging
 
 FI-09 Step 2 was accepted locally November 21, 2026. Existing `main.ts` and
@@ -1145,7 +1176,7 @@ The observations describe the pre-refactor review; further proposals remain defe
 | --- | --- | --- |
 | At review, `appointment.service.ts` was 1,049 lines, combining creation, transactional status/outbox writes, promotion eligibility and three read APIs. REST and GraphQL share it; commitment and worker services use its explicit transaction methods. | Merging another workflow here increases the responsibility and regression surface. | Keep the public facade and transaction interfaces. Consider a separate read provider only if that improves maintenance after the validation cleanup; preserve REST versus GraphQL ordering, limits and projections. |
 | `appointment-schedule.service.ts:doctor` and `appointment.service.ts:requireApprovedDoctor` both query active clinic/approved doctor, specialty and timezone. Both services also load hours/overrides, while already sharing `appointment-slot.ts` calculations. | Database eligibility checks can drift even though pure slot calculations are shared. | Implemented a shared session-aware appointment-doctor.ts helper for both services. Keep caller authorization, booking policy, reservation and occupancy checks in the mutation path. Preserve optional specialty for schedule management and required specialty for booking. |
-| `appointment-promotion.service.ts` and `appointment-waitlist-lifecycle.service.ts` share timer/shutdown scaffolding, but promotion uses durable claims, fencing and retry backoff; lifecycle also expires entries, processes cleanup and handles cutoff openings while promotion is disabled. | A combined worker would couple distinct controls and recovery paths. | Keep workers separate. Retain their feature flags, cutoff behavior and transaction ownership; do not introduce a generic worker framework just to remove short timer code. |
+| Promotion and lifecycle retain distinct durable claims, fencing, cutoff and retry responsibilities. FI-09 Step 3 centralizes timing in WorkerScheduler using the Nest scheduler registry. | A combined business worker would still couple distinct controls and recovery paths. | Keep business workers separate and preserve MongoDB ownership; shared scheduling must remain limited to timing and draining. |
 | `appointment-commitment.service.ts` coordinates appointment/waitlist replacement in one BookingCoordinationService transaction. AppointmentService already injects WaitlistService. | Merging the orchestrator into WaitlistService would introduce a reverse service dependency; splitting replacement into independent calls would lose atomicity. | Retain the orchestrator in AppointmentModule. Clarify that a commitment means either a booked appointment or a waitlist place; avoid moving providers between modules solely to shorten names. |
 | `appointment-calendar.service.ts` owns authorized read snapshots, full-window revisions and pagination; `appointment-notification.service.ts` resolves owned notification targets through four existing services. | These are cohesive read workflows with different consistency and error contracts from booking writes. Moving notification context into NotificationService would reverse the current AppointmentModule-to-NotificationModule dependency. | Keep both services. A small orchestration service is justified here; optionally rename AppointmentNotificationService to AppointmentNotificationContextService to describe its actual role. |
 

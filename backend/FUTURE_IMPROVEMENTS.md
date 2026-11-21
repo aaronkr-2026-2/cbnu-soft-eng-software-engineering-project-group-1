@@ -199,9 +199,18 @@ failure statuses and file-error fallback/draining. No existing dependency versio
 changed. Build/full types/lint, 155 unit and 233 API tests (388 total), compiled
 logger smoke and zero-finding runtime audit passed. The documented log schema now
 uses Pino numeric levels/ISO `time`; raw exceptions/URLs are omitted. Production
-collection/container behavior remains unverified. Stop after Step 2; scheduling is
-Step 3 when requested. Detailed evidence, limits and commit boundaries are in the
-plan; no deadline or source-line reduction is claimed.
+collection/container behavior remains unverified.
+
+Step 3 completed locally November 21: exact @nestjs/schedule 12.0.4 supplies a
+shared registry for notification, lifecycle, promotion and recovery timeouts.
+Completion-driven cadence, non-overlap, gates, claims/leases/fencing and retry
+behavior are preserved; workers drain before database shutdown, and bootstrap
+now enables signal hooks. Build/full types/lint, 167 unit, 233 API, 195 booking and
+71 recovery tests (666 total), compiled SIGTERM drain smoke and a zero-finding
+runtime audit passed. Production grace periods/providers/container behavior remain
+unverified. Stop after Step 3; typed configuration is Step 4 when requested.
+Detailed evidence, limits and commit boundaries are in the plan; no deadline or
+source-line reduction is claimed.
 
 ## Modular delivery workflow
 
