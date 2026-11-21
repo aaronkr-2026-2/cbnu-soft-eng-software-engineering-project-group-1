@@ -917,6 +917,14 @@ password, and session-version writes. The response is MemberUpdateResult with an
 authenticated MemberSelf (private contact fields), requiresLogin, and
 imageCleanupPending. Public Member fields remain unchanged.
 
+FI-09 Step6's first service slice keeps this public facade and extracts three
+private MemberService responsibilities: `validateProfilePasswordChange`,
+`buildProfileUpdate` and `saveProfileUpdate`. The guarded write receives the same
+member snapshot/model and retains its version/status/type filters and validators.
+The facade still owns image claiming, definitive-versus-uncertain write recovery,
+post-save cleanup and response mapping. No provider/module/transaction boundary
+or API contract changes; deletion and reset flows remain in their existing paths.
+
 Allowed edits are name, nickname, phone, image, address and description; clinic name
 and city are clinic-only. Affiliation, approval, email/provider and role/status changes
 are outside this API. Password changes require currentPassword, newPassword and

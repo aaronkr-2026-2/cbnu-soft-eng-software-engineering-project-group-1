@@ -4,7 +4,8 @@ Date: November 21, 2026 (Asia/Seoul)
 
 Status: **In progress — Steps 1–5 complete locally November 21, 2026.** Baseline,
 logging, scheduling, configuration and timezone evaluation are recorded below.
-Luxon adoption is deferred; Steps 6–8 remain pending.
+Luxon adoption is deferred. Step 6 is in progress: the MemberService slice is
+complete; appointment, coordination and promotion slices remain. Steps 7–8 are pending.
 Deployment, production log collection and shutdown grace periods remain unverified.
 
 ## Goal
@@ -136,7 +137,7 @@ Proposed commit: `refactor(backend): simplify clinic timezone helpers`, or
 
 ### Step 6 — Split backend business functions
 
-- [ ] `MemberService.updateMember`: extract password validation, patch construction
+- [x] `MemberService.updateMember`: extract password validation, patch construction
   and guarded persistence; keep image-claim and cleanup ordering explicit.
 - [ ] Appointment transitions: extract validation, canceled-slot handling and
   deterministic outbox event creation.
@@ -755,3 +756,81 @@ defer decision. README setup/feature information is unchanged. Stop after Step 5
 Step 6 is pending and its service changes must still be delivered individually.
 
 Proposed manual commit: `docs(backend): record timezone library evaluation`.
+
+
+## Step 6a acceptance — MemberService — November 21, 2026
+
+**First service slice complete; Step 6 as a whole remains in progress.** Started
+from clean backend `88196c8`. The plan requires one coherent service change at a
+time, so this delivery stops at MemberService for review/manual commit. Appointment
+transitions are next; coordination and promotion also remain pending. No work on
+Steps 7/8 is included.
+
+`MemberService.updateMember` now delegates three existing responsibilities to
+private methods in the same service:
+
+- `validateProfilePasswordChange` preserves field-presence/confirmation checks,
+  email-provider restriction and verification against the original member snapshot.
+- `buildProfileUpdate` retains the exact field allowlist, username normalization,
+  conditional password hashing and empty-update rejection in their original order.
+- `saveProfileUpdate` receives the original model and member snapshot. Its single
+  conditional update retains ACTIVE/nondeleted/type/version filters, legacy missing
+  version handling, `runValidators`, query context, `__v` increment and conditional
+  `authVersion` increment. It introduces no transaction or retry.
+
+The public method still handles deletion dispatch, fresh-principal checks, clinic
+field authorization, image claiming, write-error classification/release, stale-write
+conflicts, old-image cleanup and response mapping. Password/patch validation still
+precedes image claims; the write completes before previous-image deletion. Known
+validation/duplicate/stale outcomes release pending claims; unknown outcomes retain
+claims for reconciliation. Password changes still revoke old credentials through
+the existing version checks. No session policy, deletion/reset path, provider,
+transport contract, dependency or module wiring was changed.
+
+The inspected MediBridge update method uses an allowlist followed by guarded
+persistence, but lacks this project's image/password/version guarantees. No weaker
+validation, logging or persistence behavior was copied. This refactor keeps private
+helpers rather than adding an injected service/repository without concrete reuse.
+
+TypeScript AST source-span measurement: `updateMember` **158 → 100 physical lines**;
+new helpers are 27/26/28 lines respectively. The service gains signatures/spacing;
+this is a responsibility split, not a claim of total source-line reduction.
+
+### Verification
+
+| Check | Actual result |
+| --- | --- |
+| Full TypeScript | `./node_modules/.bin/tsc --noEmit --incremental false` passed |
+| Lint | `npm run lint` passed without warnings |
+| Unit tests | `npm test -- --runInBand`: 191 passed, 16 suites |
+| HTTP/GraphQL tests | `npm run test:e2e -- --runInBand`: 236 passed, 9 suites, including all 64 member-update checks |
+| Disposable MongoDB | Username, account deletion and password-reset suites: 110 passed, 3 suites |
+| Build | `npm run build` passed on approved rerun, including assets |
+| Whitespace | `git diff --check` passed |
+
+**537 tests passed.** Three added API regressions exercise actual disk image markers:
+unknown writes without a commit and after a committed write with a lost response
+retain the new claim and defer old-image deletion; a definitive validation error
+releases the claim for a successful retry. Existing coverage verifies password
+invalidation, concurrent password change/version conflicts, role restrictions,
+normalized username uniqueness, profile/reset/deletion races and image cleanup.
+The new cases test public behavior, not private helper implementation.
+
+Initial focused API setup could not bind localhost (`EPERM`); the approved full API
+run passed. The sandbox build hit the known asset-watch EMFILE restriction; the
+approved rerun passed. These were environment restrictions, not application test
+regressions. Existing VM-module/Mongoose warnings remain. No new agent/application
+error was identified. The database runner used only its owned disposable databases;
+provider delivery was stubbed. The combined profile is
+`/private/tmp/medconnect-fi09-step6-member.json`; from backend/ rerun with
+`node test/run-booking-integration.cjs /private/tmp/medconnect-fi09-step6-member.json`.
+
+Updated this plan, FI-09 roadmap, existing backend architecture and implementation
+records. README entry/setup information is unchanged. No sprint covers this date;
+closed history is preserved. No frontend, application database, live provider,
+credentials/env, flag, dependency, deployment, staging, commit, push or merge changes.
+Booking replacement/FIFO/cutoff/event-dedup checks for the remaining service slices
+are not claimed as newly run here. Production/browser/container checks were not run.
+
+Proposed manual commit:
+`refactor(backend): separate member profile update responsibilities`.

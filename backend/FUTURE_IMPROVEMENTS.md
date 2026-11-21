@@ -227,7 +227,16 @@ historical-year output differences. The small conversion simplification does not
 remove UTC scanning or clinic policy and does not justify compatibility work.
 Build/full types/lint,34 helper and195 disposable booking checks passed. Application
 source and dependencies remain unchanged; the plan records the prototype, limits
-and B-033 edge case. Stop after Step5; Step6 service splits are next when requested.
+and B-033 edge case.
+
+Step 6 is **in progress**. Its MemberService slice completed locally November21:
+private password validation, patch construction and conditional persistence helpers
+reduce updateMember's source span from158 to100 lines. The facade retains image
+claims/recovery/cleanup ordering, authorization and deletion dispatch; version-based
+credential revocation remains intact. Build/full types/lint,191unit236API110realDB
+checks pass (537), including3new image-outcome regressions. No behavior/dependency
+or deployment changes. Stop at this service boundary for review; appointment
+transitions, coordination and promotion slices remain pending.
 Detailed evidence, limits and commit boundaries are in the plan; no deadline or
 source-line reduction is claimed.
 

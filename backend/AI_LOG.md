@@ -1346,3 +1346,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task. The low-year issue is pre-existing and was found by comparison, not introduced by the prototype or reported by me manually.
 
 **One decision I can explain without AI:** A date library can simplify field access without replacing clinic scheduling rules. A behavior-preserving migration needs a clear maintenance benefit and must account for accepted inputs that produce different results.
+
+
+## FI-09 Step 6a — Member profile update responsibilities — 2026-11-21
+
+**Tool(s) used:** Codex, shell, TypeScript AST/typecheck, Jest, Supertest, oxlint, actual temporary upload files and disposable MongoDB runner.
+
+**What I asked for:** Start Step6 of the package refactoring plan, delivering one coherent service change at a time.
+
+**Pre-planning:** Verified clean backend88196c8, instructions/session/bug records, updateMember's resolver/DTO/model/upload/auth paths, existing profile and race tests, and the MediBridge reference. Kept stronger current validation/version/image rules instead of copying its simpler update method.
+
+**Planning:** Extract private password validation, patch construction and guarded persistence methods in MemberService. Keep catches and image-claim/cleanup ownership in the facade; preserve the original snapshot/model and query options without a new provider or transaction.
+
+**Implementation process:** Extracted3helpers and reduced updateMember's source span158→100lines. Added3API regressions for uncertain image writes with/without commit and known validation-failure claim release. Full types/lint/build,191unit236API110disposableDB tests pass (537). Initial localhost EPERM and build watcher EMFILE restrictions cleared on approved reruns; existing VM/Mongoose warnings remain. Updated plan/roadmap/existing architecture and session records. No sprint covers this date.
+
+**What I kept as-is:** Deletion dispatch, fresh-principal/role checks, password/username validation order, allowed fields, query validators/type/version/status filters, authVersion increment and old-token rejection, uncertain-outcome image claims, confirmed-write cleanup ordering and API responses.
+
+**What I changed or rejected, and why:** Split responsibilities within the existing service; avoided an injected abstraction/repository without reuse. No total-line reduction claim. Step6 remains in progress: appointment transitions, coordination and promotion are pending under the plan's per-service review boundary. No README setup, frontend, appDB/env/flag/dependency/live mail/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Image recovery belongs with the orchestration that knows whether a database write definitely failed or may have committed. A persistence helper should preserve that distinction and leave uncertain claims intact.
