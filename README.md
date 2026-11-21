@@ -4,6 +4,7 @@
   <img src="next/public/logo.png" alt="MedConnect logo" width="480" />
 </p>
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/aaronkr-2026-2/cbnu-soft-eng-software-engineering-project-group-1) <br>
 [![Ask DeepWiki](https://img.shields.io/badge/DeepWiki-docs-blue)](https://deepwiki.com/aaronkr-2026-2/cbnu-soft-eng-software-engineering-project-group-1)
 
 MedConnect is a healthcare appointment platform for patients, doctors, and clinics.
