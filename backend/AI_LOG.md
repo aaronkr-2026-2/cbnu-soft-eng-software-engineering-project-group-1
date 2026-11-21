@@ -1325,3 +1325,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** Full unit verification caught a native-loader fixture expecting process.loadEnvFile to update Jest's process.env proxy. The corrected test uses a real Node subprocess and synthetic values; no production loader change was needed (B-032). This was caught by automated verification, not by me manually.
 
 **One decision I can explain without AI:** Environment loading must finish before modules decide which database models exist. A configuration package should provide typed access and validation without changing that ordering or requiring credentials for disabled features.
+
+
+## FI-09 Step 5 — Timezone library evaluation — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Luxon documentation/source, installed Luxon3.7.2, Node assertions, TypeScript, Jest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Complete Step5's timezone simplification evaluation, adopting Luxon only if behavior and maintainability justify it.
+
+**Pre-planning:** Verified clean backend7471b99 and local guidance; traced appointment-slot helpers through discovery, booking writes and schedule edits. Inspected existing34 helper tests and package/source metadata; no relevant Luxon helper existed in the inspected MediBridge API.
+
+**Planning:** Prototype only explicit-instant conversion and keep the existing range parser, UTC scan and clinic policy. Compare DST/date boundaries, quarter-hour offsets, alignment, weekdays/lunch and overrides before deciding.
+
+**Implementation process:** Built a disposable prototype/harness.25,354instant88candidate1,188schedule-write6range comparisons matched the selected matrix. Four historical probes found existing unpadded-year/NaN-weekday behavior (B-033), disproving unrestricted equivalence. Build/full types/lint,34helper195disposable booking checks passed (229). Recorded the prototype, evidence and defer decision in the plan, roadmap and existing architecture. No application source or dependencies changed.
+
+**What I kept as-is:** Explicit UTC instants, current date/range validation, shared read/write slot policy, half-hour/continuity rules, standard weekday hours/lunch/overrides, transaction/lease boundaries, flags and frontend behavior.
+
+**What I changed or rejected, and why:** Deferred Luxon adoption because shorter field access leaves the scanning/policy code and requires compatibility handling. Luxon remains transitive only; no new direct import or package install. No speed or exhaustive-equivalence claim. Historical helper normalization needs a separately scoped choice; no fix attempted. No sprint covers this date; no appDB/env/live mail/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. The low-year issue is pre-existing and was found by comparison, not introduced by the prototype or reported by me manually.
+
+**One decision I can explain without AI:** A date library can simplify field access without replacing clinic scheduling rules. A behavior-preserving migration needs a clear maintenance benefit and must account for accepted inputs that produce different results.

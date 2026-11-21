@@ -2,8 +2,9 @@
 
 Date: November 21, 2026 (Asia/Seoul)
 
-Status: **In progress — Steps 1–4 complete locally November 21, 2026.** Baseline,
-logging, scheduling and configuration acceptance are recorded below. Steps 5–8 remain pending.
+Status: **In progress — Steps 1–5 complete locally November 21, 2026.** Baseline,
+logging, scheduling, configuration and timezone evaluation are recorded below.
+Luxon adoption is deferred; Steps 6–8 remain pending.
 Deployment, production log collection and shutdown grace periods remain unverified.
 
 ## Goal
@@ -119,11 +120,11 @@ Proposed commit: `refactor(backend): centralize validated configuration`.
 
 ### Step 5 — Evaluate timezone simplification
 
-- [ ] Prototype Luxon against a limited existing helper, without changing policy.
-- [ ] Compare results and readability against `appointment-slot.ts` and its callers.
-- [ ] Cover UTC date boundaries, clinic-local dates, DST gaps/repeated hours,
+- [x] Prototype Luxon against a limited existing helper, without changing policy.
+- [x] Compare results and readability against `appointment-slot.ts` and its callers.
+- [x] Cover UTC date boundaries, clinic-local dates, DST gaps/repeated hours,
   half-hour alignment, weekdays, lunch breaks and date overrides.
-- [ ] Adopt only if equivalent behavior and clearer maintenance are demonstrated;
+- [x] Adopt only if equivalent behavior and clearer maintenance are demonstrated;
   otherwise retain the helpers and record the reason.
 
 Acceptance: discovery and booking writes agree on availability. Preserve explicit
@@ -627,3 +628,130 @@ staging, commit, push or merge changes were made. No timezone or business-functi
 refactoring is included. Stop after Step 4; Step 5 remains pending.
 
 Proposed manual commit: `refactor(backend): centralize validated configuration`.
+
+
+## Step 5 acceptance — November 21, 2026
+
+**Decision: defer Luxon adoption; retain the existing application helpers.** This
+completes the conditional evaluation, not a timezone migration. Work started from
+clean backend `7471b99`. No application source, manifest or lockfile was changed.
+Luxon **3.7.2**, already installed transitively through `@nestjs/schedule` → cron,
+was used only in a disposable prototype. A future production import would need a
+declared direct dependency; transitive availability is not an application contract.
+No package install or new runtime dependency was needed for this evaluation.
+
+### Prototype and comparison
+
+Inspected `appointment-slot.ts`, its 34 existing tests, the shared doctor/timezone
+lookup and actual callers. `AppointmentScheduleService.getAvailableSlots` scans
+explicit UTC instants, scopes overrides to each clinic-local date and filters with
+`slotFitsSchedule`. `AppointmentService` recalculates the explicit slot and invokes
+that same policy using transaction-bound hours/overrides. Schedule edits also reuse
+these calculations. The inspected MediBridge API had no Luxon timezone helper to
+adopt. No frontend change is involved.
+
+The limited prototype replaces formatting-to-parts and date-based weekday parsing
+with `DateTime.fromJSDate`, `fromMillis`, `toISODate`, hour/minute fields and
+`weekday % 7`. It retains the original instant, elapsed 30-minute duration,
+end-minus-one-millisecond continuity checks, alignment rules and exception shapes.
+It uses `IANAZone.create` validation rather than Luxon's general zone-string
+normalization: a direct string replacement accepts `local`, `system`, `default`
+and `UTC+9`, which the existing native validator rejects on this runtime.
+
+The core evaluated adapter is reproduced here (the complete candidate generator
+and differential harness are in the local artifact described below):
+
+```js
+function prototypeWithZone(startsAt, zone) {
+  if (!zone.isValid)
+    throw new BadRequestException('Clinic timezone is invalid');
+  if (!Number.isFinite(+startsAt)) throw new RangeError('Invalid time value');
+  const endsAt = new Date(+startsAt + 30 * 60_000);
+  const start = DateTime.fromJSDate(startsAt, { zone });
+  const last = DateTime.fromMillis(+endsAt - 1, { zone });
+  const minute = start.hour * 60 + start.minute;
+  if (startsAt.getUTCSeconds() !== 0 ||
+      startsAt.getUTCMilliseconds() !== 0 || minute % 30 !== 0 ||
+      last.toISODate() !== start.toISODate() ||
+      last.hour * 60 + last.minute !== minute + 29)
+    throw new BadRequestException(
+      'Choose a 30-minute slot aligned to clinic local time');
+  return { endsAt, date: start.toISODate(), weekday: start.weekday % 7,
+    startMinute: minute, endMinute: minute + 30 };
+}
+// One-slot caller: prototypeWithZone(instant, IANAZone.create(timezone)).
+// Candidate generation reuses that zone for the unchanged 15-minute UTC scan.
+```
+
+The prototype deliberately reuses `appointmentDateRange` and `slotFitsSchedule`;
+it does not pretend a date library supplies clinic business policy. The public
+Luxon [API](https://moment.github.io/luxon/api-docs/index.html),
+[zone guidance](https://github.com/moment/luxon/blob/master/docs/zones.md) and
+[invalid-value behavior](https://github.com/moment/luxon/blob/master/docs/validity.md)
+were checked against installed source. Explicit instants avoid choosing a local
+DST occurrence; local-time construction would require different ambiguity policy.
+Invalid DateTime objects also require deliberate handling rather than assuming
+all library failures throw our existing exceptions.
+
+### Fresh results and limits
+
+| Check | Result |
+| --- | --- |
+| `npm test -- --runInBand src/components/appointment/appointment-slot.spec.ts` | 34 passed |
+| `npm run build` | Passed, including configured assets |
+| `./node_modules/.bin/tsc --noEmit --incremental false` | Passed |
+| `npm run lint` | Passed without warnings |
+| `node test/run-booking-integration.cjs` | 195 passed in 2 suites on disposable MongoDB; includes discovery/write/schedule/override and transaction/worker regressions |
+| Differential explicit-instant checks | 25,354 matched return values or exception type/status/message |
+| Candidate day-window comparisons | 88 matched full ordered results |
+| Shared schedule/write comparisons | 1,188 accepted discovery results matched recalculated write-policy results |
+| Range/date checks | 6 matched, including valid 31-day range, leap date, malformed/impossible date, reversed and excessive range |
+
+**229 existing automated tests passed**, plus the separately counted differential
+checks. The prototype was not installed into the API; database regressions exercise
+the retained native implementation. The selected matrix covers UTC, Seoul, Kathmandu, New York, Berlin, Lord
+Howe, Chatham, Apia, Kiritimati, Pago Pago and native `+09:00`; eight day windows
+cover normal dates, 2030 DST transition dates and Apia's skipped 2011-12-30.
+It exercises quarter-hour offsets, UTC/local date boundaries, repeated/skipped
+hours, New York's 50/46 candidate counts, seconds/milliseconds/misalignment,
+weekdays/weekends, default and partial weekly hours, lunch/standard boundaries,
+full/partial UNAVAILABLE and CUSTOM_HOURS overrides. Override arrays are date-scoped
+per tested day, matching the actual caller. This is a bounded matrix, not proof
+for all instants, zones or future timezone-database releases.
+
+Four additional historical-year probes found a real compatibility difference:
+`appointmentDateRange` accepts years 0001/0099/0999, but the existing numeric Intl
+year produces unpadded dates such as `1-01-07` and an invalid weekday (`NaN`), while
+Luxon returns padded ISO dates and numeric weekdays. Year 1000 matches. This is a
+pre-existing helper edge case (B-033), not an introduced regression; current new
+booking paths reject past starts. No ancient-date API failure was exercised or
+claimed. Preserving or correcting that behavior requires an explicit scoped
+choice; this behavior-preserving evaluation does neither.
+
+### Why defer
+
+Luxon makes field access shorter, but does not remove the UTC scan, strict range
+parser, continuity/alignment checks, weekend/standard-hour/lunch/override rules or
+the shared read/write policy. Zone/invalid-input compatibility still needs care,
+and the historical-year probes disprove unrestricted drop-in equivalence. For
+this small conversion helper the remaining compatibility and dependency ownership
+cost outweighs the demonstrated simplification. No performance benchmark or speed
+claim is made. Reconsider with a concrete broader timezone need or an explicitly
+scoped normalization change and equivalent read/write regression coverage.
+
+Local disposable evidence is at `/private/tmp/medconnect-fi09-step5.cjs`,
+`/private/tmp/medconnect-fi09-step5-result.json` and
+`/private/tmp/medconnect-fi09-step5-edges.json`. Run the harness from backend/ after
+building: `node /private/tmp/medconnect-fi09-step5.cjs`. The harness compares compiled
+current helpers, uses synthetic dates/settings, and never connects to a database.
+Only the existing integration runner writes to its own disposable MongoDB instances.
+Existing VM-module warnings appeared. No application database, live provider,
+frontend/browser/container/production verification or new dependency audit was
+performed. No application, credentials/env or flag changes, deployment, staging,
+commit, push or merge actions were performed. No sprint covers this date; closed history remains intact.
+
+Plan, FI-09 roadmap, existing architecture and implementation records now carry the
+defer decision. README setup/feature information is unchanged. Stop after Step 5;
+Step 6 is pending and its service changes must still be delivered individually.
+
+Proposed manual commit: `docs(backend): record timezone library evaluation`.

@@ -218,8 +218,16 @@ types/lint, 191 unit, 233 API, 510 disposable database and 8 deployment-script
 checks (942 total), compiled bootstrap/configuration smoke and zero-finding runtime
 audit passed. The native loader test was corrected to use a real Node process;
 the final sandbox build watcher limit cleared on approved rerun. No runtime flag,
-application database, live provider or deployment changes. Stop after Step 4;
-timezone evaluation is Step 5 when requested.
+application database, live provider or deployment changes.
+
+Step 5 completed November 21 with **Luxon adoption deferred**. A limited Luxon3.7.2
+prototype matched 25,354 instant checks, 88 candidate windows, 1,188 schedule/write
+checks and six date/range cases in the selected matrix. Broader probes found
+historical-year output differences. The small conversion simplification does not
+remove UTC scanning or clinic policy and does not justify compatibility work.
+Build/full types/lint,34 helper and195 disposable booking checks passed. Application
+source and dependencies remain unchanged; the plan records the prototype, limits
+and B-033 edge case. Stop after Step5; Step6 service splits are next when requested.
 Detailed evidence, limits and commit boundaries are in the plan; no deadline or
 source-line reduction is claimed.
 

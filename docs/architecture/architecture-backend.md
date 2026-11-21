@@ -1017,6 +1017,28 @@ authentication. No live MongoDB or deployment was exercised for this addition.
 
 The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor records HTTP route templates or GraphQL parent/field names, timing and failure status. It excludes raw URLs, bodies, tokens, GraphQL arguments/query text, response data and raw exception messages/stacks. Application-authored log strings must still exclude secrets; this is not a universal string-redaction service.
 
+### Timezone library evaluation
+
+FI-09 Step 5 (November 21, 2026) **defers Luxon adoption**. Production continues
+using `backend/src/components/appointment/appointment-slot.ts`: explicit UTC
+instants, native clinic-zone formatting, a bounded UTC candidate scan and shared
+range/schedule policy. Discovery and booking writes still call the same helpers;
+transactional availability reads and ownership remain in their existing services.
+
+A disposable Luxon3.7.2 prototype matched the selected modern-date matrix (25,354
+instant checks,88 candidate windows,1,188 schedule/write checks and six ranges),
+including DST/quarter-hour offsets and schedule overrides. It improves field
+access but retains scanning, alignment/continuity, strict date validation and all
+clinic rules. Zone normalization needs restriction to preserve accepted inputs;
+probes of years0001/0099/0999 also differ from the existing unpadded-year/NaN-weekday
+behavior (local B-033). That edge case was not changed; past starts cannot create
+new bookings. Equivalence is bounded, so no unrestricted replacement is claimed.
+
+Build/full types/lint,34 helper and195 disposable integration tests passed.
+Luxon remains only a transitive cron dependency; no application import, manifest,
+API or deployment change was made. The [refactoring plan](../../backend/PACKAGE_REFACTORING_PLAN.md#step-5-acceptance--november-21-2026)
+records the prototype, matrix, limits and reconsideration criteria.
+
 ### Typed configuration
 
 FI-09 Step 4 centralizes environment settings in
