@@ -243,7 +243,7 @@ describe('Get User, Doctor, and Clinic member profiles', () => {
     Object.assign(member, overrides);
     const graphql = await getGraphql().expect(200);
     expect(graphql.body.errors[0].message).toBe('Member not found');
-    expect(logger.error).toHaveBeenCalledWith(expect.stringMatching(/^GraphQL Query\.getMember failed in \d+ms: Member not found$/), expect.any(String), 'MemberResolver.getMember');
+    expect(logger.error).toHaveBeenCalledWith(expect.stringMatching(/^GraphQL Query\.getMember failed in \d+ms \(status 404\)$/), undefined, 'MemberResolver.getMember');
     expect(graphql.body.errors[0].extensions.code).toBe('NOT_FOUND');
     expect(graphql.body.data).toBeNull();
   });

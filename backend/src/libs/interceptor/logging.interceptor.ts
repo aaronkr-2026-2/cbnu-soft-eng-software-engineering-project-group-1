@@ -1,4 +1,4 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { CallHandler, ExecutionContext, HttpException, Injectable, NestInterceptor } from '@nestjs/common';
 import { GqlExecutionContext, type GqlContextType } from '@nestjs/graphql';
 import type { GraphQLResolveInfo } from 'graphql';
 import type { Request, Response } from 'express';
@@ -24,7 +24,9 @@ export class LoggingInterceptor implements NestInterceptor {
     } else {
       const request = context.switchToHttp().getRequest<Request>();
       response = context.switchToHttp().getResponse<Response>();
-      label = `${request.method} ${request.path}`;
+      // Route templates exclude patient IDs, tokens and query strings in URLs.
+      const route = request.route as { path?: unknown } | undefined;
+      label = `${request.method} ${typeof route?.path === 'string' ? route.path : '[unmatched]'}`;
     }
     this.logger.log(`${label} started`, target);
 
@@ -33,10 +35,10 @@ export class LoggingInterceptor implements NestInterceptor {
         `${label} completed${response ? ` ${response.statusCode}` : ''} in ${Date.now() - startedAt}ms`, target,
       )),
       catchError((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
+        const status = error instanceof HttpException ? error.getStatus() : 500;
         this.logger.error(
-          `${label} failed in ${Date.now() - startedAt}ms: ${message}`,
-          error instanceof Error ? error.stack : undefined,
+          `${label} failed in ${Date.now() - startedAt}ms (status ${status})`,
+          undefined,
           target,
         );
         return throwError(() => error);

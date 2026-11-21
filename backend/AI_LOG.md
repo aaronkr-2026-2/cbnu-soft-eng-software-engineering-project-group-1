@@ -1263,3 +1263,23 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** A declaration with no ordinary caller can still be a framework entry point, so references must be checked before removal.
+
+## FI-09 Step 2 — Pino application logging — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Pino documentation, npm, TypeScript, Jest, Supertest and oxlint.
+
+**What I asked for:** Implement Step 2 of the package-adoption/refactoring plan and stop before scheduling work.
+
+**Pre-planning:** Reviewed the clean backend worktree, baseline, logger callers, HTTP/GraphQL interception, file output and current Nest versions.
+
+**Planning:** Use exact Pino10.4.0 through the existing Nest adapter because the current nestjs-pino peer range excludes Nest12.0.1. Retain file/stdout output and document operational schema changes rather than upgrade the framework for logging.
+
+**Implementation process:** Replaced custom serialization/color/append mechanics with Pino streams and added safe route/status logging, static file-failure fallback and shutdown draining. Build/full types/lint,155unit233API tests (388), compiled CommonJS smoke and runtime audit with zero findings passed. The sandbox asset watcher needed an approved build rerun. Updated plan, roadmap, README and existing architecture. No live provider, appDB, frontend, deployment or Git changes; no sprint covers this date.
+
+**What I kept as-is:** Nest versions, logger registration, HTTP/GraphQL response contracts, LOG_FILE default, booking transactions, worker timing and release flags.
+
+**What I changed or rejected, and why:** Removed handwritten log formatting/output mechanics and avoided a framework upgrade. Raw exception payloads/stacks and URL values are withheld; status/timing/context remain. Strings supplied by application callers must still be safe. Pino numeric levels/ISO time and JSON stdout are documented. Production log persistence remains unverified.
+
+**Something the AI got wrong that I had to catch:** Automated tests caught an introduced shutdown hang after a failed asynchronous file open. The corrected adapter opens once at startup and writes asynchronously. A separate test assertion also captured an unrelated VM warning and was narrowed to application diagnostics. These were caught by verification, not by me manually.
+
+**One decision I can explain without AI:** A package should own generic serialization and stream output, while the application retains privacy and lifecycle policy. A smaller maintenance burden does not necessarily mean fewer adapter lines.

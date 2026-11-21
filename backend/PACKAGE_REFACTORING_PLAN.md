@@ -2,9 +2,9 @@
 
 Date: November 21, 2026 (Asia/Seoul)
 
-Status: **In progress — Step 1 complete locally November 21, 2026.** The verified
-baseline and dependency shortlist are recorded below. Steps 2–8 remain pending.
-No application source, installed dependencies, lockfiles or deployment changed.
+Status: **In progress — Steps 1–2 complete locally November 21, 2026.** Baseline
+and logging acceptance are recorded below. Steps 3–8 remain pending. Pino logging
+is implemented locally; deployment and production log collection remain unverified.
 
 ## Goal
 
@@ -71,13 +71,13 @@ Proposed commit, if baseline documentation changes: `docs(backend): record FI-09
 
 ### Step 2 — Replace custom logging
 
-- [ ] Evaluate Pino with a compatible Nest adapter such as `nestjs-pino`.
-- [ ] Replace `backend/src/libs/logger/file-logger.service.ts` output/formatting
+- [x] Evaluate Pino with a compatible Nest adapter such as `nestjs-pino`.
+- [x] Replace `backend/src/libs/logger/file-logger.service.ts` output/formatting
   plumbing and adjust logger wiring.
-- [ ] Preserve useful context, levels, error visibility and current redaction.
-- [ ] Select stdout collection or configured file output based on verified hosting
+- [x] Preserve useful context, levels, error visibility and current redaction.
+- [x] Select stdout collection or configured file output based on verified hosting
   requirements; do not silently remove required persistence.
-- [ ] Remove redundant logging code only after callers are migrated.
+- [x] Remove redundant logging code only after callers are migrated.
 
 Acceptance: successful and failing HTTP/GraphQL requests produce useful logs
 without duplicate request entries, tokens, passwords, GraphQL arguments/response
@@ -386,5 +386,66 @@ Reference documentation: [Pino](https://github.com/pinojs/pino),
 [Nest configuration](https://docs.nestjs.com/techniques/configuration), and
 [Luxon](https://moment.github.io/luxon/api-docs/index.html).
 
-Step 1 acceptance is complete locally. Stop here; Step 2 is the next agreed
-implementation boundary. Proposed manual commit: `docs(backend): record refactoring baseline`.
+At Step 1 completion, Step 2 remained the next agreed implementation boundary.
+The proposed baseline commit was `docs(backend): record refactoring baseline`.
+
+## Step 2 acceptance — November 21, 2026
+
+Started from clean backend `50e3ec3`. Added exact runtime dependency Pino `10.4.0`
+with lifecycle scripts disabled during installation. The lockfile gained 13 package
+entries; no existing locked package version or Nest version changed. The
+`nestjs-pino` adapter remains uninstalled because its current peer range excludes
+Nest 12.0.1. Existing Nest logger/interceptor registration is retained, avoiding a
+framework upgrade or a duplicate HTTP auto-logger.
+
+`FileLogger` is now a small Nest adapter over Pino serialization, levels,
+multi-stream output and asynchronous destination writes. Custom JSON formatting,
+terminal coloring and per-entry filesystem appends were removed. Retained stdout
+and configured file output because verified hosted collection is unavailable;
+default `LOG_FILE` remains `logs/medconnect.log`. File errors switch to stdout with
+a static stderr diagnostic, and orderly module destruction drains/closes the file.
+File loss during an output failure is not replayed. Container log persistence and
+signal-hook behavior were not changed or verified in production.
+
+Operational log format changes are intentional and documented: numeric Pino
+severity, ISO `time` (instead of `timestamp`), `message` and optional `context`;
+JSON stdout at every level, without ANSI colors, replaces split stdout/stderr
+application logging. New directories/files use 0700/0600 without rewriting existing
+permissions. Unknown objects/Error contents and supplied stacks are not serialized.
+HTTP logs use route templates; GraphQL logs use canonical field names. Failure logs
+retain status/timing/context rather than raw exception messages or stacks. The
+database connection error callback now uses a static message. Callers must still
+keep sensitive information out of application-authored strings.
+
+Verified locally:
+
+- Build passed after an approved rerun of the sandbox asset-watcher `EMFILE` failure.
+- Full TypeScript and lint passed.
+- All **155 unit tests** and **233 HTTP/GraphQL API tests** passed (**388 total**).
+  Ten new unit cases cover logger/interceptor privacy, severity mapping, output
+  failures, permissions, unknown thrown values and shutdown. One new loopback API
+  case exercises real Pino/Nest HTTP and GraphQL success/failure paths, asserts
+  one start/result per operation in each sink and verifies unchanged responses.
+- Compiled CommonJS logger smoke passed. Runtime dependency audit reported zero
+  vulnerabilities in the resolved tree; this is not an audit of dev dependencies.
+- Existing transaction/browser/production acceptance was not rerun or claimed;
+  no booking rules, worker scheduling, frontend source or release flags changed.
+
+Focused tests caught an introduced async file-open/shutdown race and a test harness
+assertion that captured an unrelated VM warning. The implementation now opens the
+file once synchronously at startup and writes asynchronously; the invalid-file and
+immediate-shutdown cases pass. Local evidence is under
+`/private/tmp/medconnect-fi09-step2-Zmh3Id/` and is not a committed artifact.
+
+The logger adapter is 69 physical lines versus 49 before; the interceptor is 48
+versus 46. This step removes hand-maintained serialization/output mechanics, not
+application policy, and does not claim a source-line reduction. Added lines cover
+privacy boundaries, failed-output handling and orderly close. Larger function
+splits remain Step 6/7 work.
+
+README, existing backend architecture, roadmap and implementation records reflect
+the delivered scope. No live email, application database, deployment, staging,
+commit, push or merge actions were performed. No sprint covers this date; closed
+sprint history is preserved. Stop after Step 2; scheduling is Step 3 when requested.
+
+Proposed manual commit: `refactor(backend): standardize logging with Pino`.

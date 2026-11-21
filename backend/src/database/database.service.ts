@@ -19,7 +19,7 @@ export class DatabaseService {
 
     this.connection?.on('connected', () => this.logger.log('MongoDB connected'));
     this.connection?.on('disconnected', () => this.logger.warn('MongoDB disconnected'));
-    this.connection?.on('error', (error: Error) => this.logger.error(`MongoDB connection error: ${error.message}`));
+    this.connection?.on('error', () => this.logger.error('MongoDB connection error'));
   }
 
   getStatus(): DatabaseStatus {

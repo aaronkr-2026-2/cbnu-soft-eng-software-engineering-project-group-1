@@ -191,9 +191,17 @@ types/isolated build and a zero-finding backend runtime audit passed. Initial
 sandbox socket/DNS restrictions cleared on approved reruns; Mongoose/VM warnings
 remain. The plan records source inventory, function sizes and package compatibility,
 including the current Pino adapter's Nest patch mismatch. Application refactoring,
-dependency changes and deployment have not started. Stop after Step 1; Step 2 is
-next when requested. Detailed evidence, limits and commit boundaries are in the
-plan; no deadline or line-reduction target is claimed.
+dependency changes and deployment had not started at Step 1 acceptance.
+
+Step 2 completed locally November 21: Pino 10.4.0 now supplies logging through the
+existing Nest adapter, with stdout/configured-file output, safe request metadata,
+failure statuses and file-error fallback/draining. No existing dependency versions
+changed. Build/full types/lint, 155 unit and 233 API tests (388 total), compiled
+logger smoke and zero-finding runtime audit passed. The documented log schema now
+uses Pino numeric levels/ISO `time`; raw exceptions/URLs are omitted. Production
+collection/container behavior remains unverified. Stop after Step 2; scheduling is
+Step 3 when requested. Detailed evidence, limits and commit boundaries are in the
+plan; no deadline or source-line reduction is claimed.
 
 ## Modular delivery workflow
 

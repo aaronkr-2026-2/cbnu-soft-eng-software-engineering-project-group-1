@@ -129,8 +129,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   doctor, or clinic, with ownership checks.
 - **API documentation:** Swagger UI and OpenAPI JSON for REST, plus a GraphQL
   schema and development GraphiQL interface.
-- **Request logging:** HTTP and GraphQL execution logging, including timings and
-  failures, without logging GraphQL arguments or response data.
+- **Request logging:** Pino JSON logs on stdout and in the configured file, with
+  HTTP/GraphQL timings and failure statuses; request payloads and raw exceptions
+  are excluded. See [logging configuration](docs/architecture/architecture-backend.md#application-logging).
 - **Service monitoring:** API information, liveness and database readiness checks,
   and a public status page with manual refresh and automatic polling.
 - **Next.js discovery:** `/doctors` and `/clinics` share server name/city/specialty
@@ -561,6 +562,7 @@ Signup defaults to `USER` when `memberType` is omitted; those accounts are also
 returned by this query. Resolver execution logs include
 `MemberResolver.getMember` and `GraphQL Query.getMember` start/completion/failure
 messages without logging GraphQL arguments, query text, or response data.
+Failure records include the status, with raw exception messages/stacks omitted.
 
 ### Public doctor directory
 

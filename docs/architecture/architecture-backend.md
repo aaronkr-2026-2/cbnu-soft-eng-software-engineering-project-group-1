@@ -31,7 +31,7 @@ Versions below are declared dependency ranges in [backend/package.json](../../ba
 | Input handling | `class-validator` `^0.15.1`, `class-transformer` `^0.5.1` | Global validation/transform pipe and DTO rules |
 | API documentation | Nest Swagger `^12.0.2` | REST UI at `/docs`, OpenAPI JSON at `/docs-json` |
 | Abuse controls | `express-rate-limit` `^8.7.0` | In-memory auth request limits per process |
-| Async execution and logs | RxJS `^7.8.1`, custom `FileLogger`, Node filesystem APIs | HTTP/GraphQL timing/error interception, JSON-line file logs and terminal output |
+| Async execution and logs | RxJS `^7.8.1`, Pino `10.4.0`, Nest `FileLogger` adapter | HTTP/GraphQL timing/status interception, Pino JSON serialization and asynchronous file output |
 | Verification/tooling | Jest 30, ts-jest 29, Supertest 7, Nest CLI, Oxlint, Prettier | Unit/HTTP tests, compilation, linting, formatting; exact ranges are in package.json |
 | Browser client context | Next.js Pages Router, React, TypeScript and MUI | Frontend lives in `next/`; see [Next.js architecture](architecture-next.md). The legacy React/Vite `frontend/` application was removed on November 6, 2026. |
 
@@ -70,7 +70,7 @@ flowchart TD
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
   Health[Health controllers and DatabaseService]
-  Logs[LoggingInterceptor and FileLogger]
+  Logs[LoggingInterceptor and Pino-backed FileLogger]
   UI -->|In-process calls: navigation and session state| Session
   UI -->|In-process calls: auth payloads| Client
   Session -->|In-process read: access token| Client
@@ -588,7 +588,7 @@ Here, shared services include reusable in-process capabilities and external prov
 | Email delivery | Signup verification locally accepted; recovery request delivery implemented, default off | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
 | External medical, pharmacy, maps, or payment APIs | No implemented integration found | No outbound business HTTP client/service found in backend source. Do not present these as existing capabilities. |
-| Logging | Implemented internally | FileLogger writes JSON lines to `LOG_FILE` or `logs/medconnect.log`; LoggingInterceptor records transport execution metadata. No hosted log service is configured in this code. |
+| Logging | Pino integration implemented and locally verified | The Nest FileLogger adapter delegates JSON serialization and asynchronous writes to Pino 10.4.0. Stdout and `LOG_FILE` (default `logs/medconnect.log`) receive the same records; file failures fall back to stdout. No hosted log service is configured. |
 | Health monitoring | Implemented internally | DatabaseService supplies connection status; `/status` polls this application's JSON endpoints using browser fetch. No external monitoring provider is established. |
 | Cache, queue, scheduler, batch service | Not implemented | No Redis/shared rate-limit store, mail queue, or batch runtime wired into AppModule. |
 
@@ -1015,7 +1015,55 @@ authentication. No live MongoDB or deployment was exercised for this addition.
 
 ## Security and configuration
 
-The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor excludes bodies, tokens, GraphQL arguments/query text, and response data, but records request paths and exception messages/stacks; this is not a universal redaction service.
+The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor records HTTP route templates or GraphQL parent/field names, timing and failure status. It excludes raw URLs, bodies, tokens, GraphQL arguments/query text, response data and raw exception messages/stacks. Application-authored log strings must still exclude secrets; this is not a universal string-redaction service.
+
+### Application logging
+
+FI-09 Step 2 was accepted locally November 21, 2026. Existing `main.ts` and
+`AppModule` wiring still installs `FileLogger` as the Nest logger and uses one
+global `LoggingInterceptor`. Pino supplies serialization, severity handling,
+multi-stream fan-out and asynchronous file writes. Direct Pino was selected because
+the current `nestjs-pino` adapter requires Nest 12.0.2+, while this application
+retains Nest 12.0.1. No HTTP auto-logger or second request interceptor was added.
+
+Both sinks now use Pino JSON: numeric `level`, ISO `time`, `message` and optional
+`context`. This replaces string levels/`timestamp`, colored terminal lines and
+error-only stderr routing. All application levels now use stdout plus the file;
+stderr is reserved here for a static file-output failure diagnostic. Nest `log`
+maps to info (30), warn to 40, debug to 20, verbose to trace (10), error to 50 and
+fatal to 60. Log consumers must account for the schema/output change; API response
+and error contracts are unchanged.
+
+`LOG_FILE` retains its working-directory-relative default `logs/medconnect.log`.
+Missing directories/new files are created with modes 0700/0600 respectively;
+permissions on existing paths are not rewritten. The file is opened once during
+logger construction; writes are asynchronous and drained/closed by the module
+destroy hook on `app.close()`. If opening or later writing fails, logging continues
+on stdout with a static stderr diagnostic that omits filesystem details. File
+records lost during an output failure are not replayed. No rotation or hosted
+collector is configured. The current Compose file does not mount logs, so durable
+collection across container replacement still needs deployment configuration.
+Signal-hook activation was not changed; a process killed without orderly close
+does not gain a new delivery guarantee from this refactor.
+
+The adapter accepts application-authored strings and context only; unknown object
+payloads and Error contents are replaced with static messages, and supplied stacks
+are discarded. Database connection error events likewise log a static message.
+The interceptor records exception status (500 for unknown errors) and rethrows the
+original error unchanged. Global framework errors outside intercepted handlers may
+produce their own records; the one-start/one-result assertion covers intercepted
+operations, not every possible bootstrap/guard failure.
+
+Verification: 155 unit tests, 233 API tests including real loopback HTTP/GraphQL
+success/failure logs in both sinks, full TypeScript, lint and build passed. Focused
+checks cover severity mapping, private-field exclusion, failed file output,
+permissions and shutdown draining. A compiled CommonJS smoke passed, and the
+resolved backend runtime audit reported zero findings. Initial tests caught and
+corrected an async-open shutdown race before delivery; the sandbox asset watcher
+build needed an approved rerun. Local execution used Node 26.5.0; the Node 24.12.0
+container image, production log collection and deployment were not verified.
+
+### Configuration and abuse controls
 
 Auth endpoints share a 20-request/minute/IP/process limiter. It is not a distributed abuse-control system and does not cover every query. Public profile access and its projected fields must be considered when changing privacy requirements.
 
