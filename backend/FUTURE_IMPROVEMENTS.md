@@ -235,8 +235,16 @@ reduce updateMember's source span from158 to100 lines. The facade retains image
 claims/recovery/cleanup ordering, authorization and deletion dispatch; version-based
 credential revocation remains intact. Build/full types/lint,191unit236API110realDB
 checks pass (537), including3new image-outcome regressions. No behavior/dependency
-or deployment changes. Stop at this service boundary for review; appointment
-transitions, coordination and promotion slices remain pending.
+or deployment changes.
+
+The appointment-transition slice also completed November21: private snapshot/time
+validation, canceled-slot handling and deterministic event construction reduce the
+transition orchestrator from151 to73 lines. Original session, gates, captured time,
+conditional writes, replay order, event IDs and atomic replacement/outbox behavior
+remain intact. Build/full types/lint,191unit236API257realDB tests pass (684).
+A new test assertion was corrected to the existing stored event type; no production
+behavior changed. Stop at this service boundary for review; booking coordination
+and promotion processing remain pending.
 Detailed evidence, limits and commit boundaries are in the plan; no deadline or
 source-line reduction is claimed.
 

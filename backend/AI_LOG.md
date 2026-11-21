@@ -1367,3 +1367,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** Image recovery belongs with the orchestration that knows whether a database write definitely failed or may have committed. A persistence helper should preserve that distinction and leave uncertain claims intact.
+
+
+## FI-09 Step 6b — Appointment transition responsibilities — 2026-11-21
+
+**Tool(s) used:** Codex, shell, TypeScript AST/typecheck, Jest, Supertest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Continue with the next Step6 slice after clarifying that Step7 would skip unfinished backend slices.
+
+**Pre-planning:** Verified clean backendd77b40e, instructions/session/bug records and the transition call chain from resolver/participant guard through cancellation/replacement and booking transactions. Inspected schemas, outbox/slot operations, existing rollback/race tests and the MediBridge cancellation reference. No frontend changes had been made during Step7 inspection.
+
+**Planning:** Keep transitionInTransaction as orchestration and extract private snapshot/time validation, canceled-slot handling and deterministic event building. Pass the existing tx/session and captured timestamp; preserve validation/replay/write ordering and version generation without a new provider/transaction.
+
+**Implementation process:** Added private helpers and typed transition/release context; transition method span151→73lines. Strengthened existing cancellation/outcome API/database tests for exact event IDs and persisted metadata. Build/full types/lint,191unit236API257disposableDB tests pass (684). Initial new enum-literal assertions failed2cases and were corrected (B-034); final257DB checks pass. Updated plan/roadmap/existing architecture and session/bug records; no sprint covers this date.
+
+**What I kept as-is:** Participant/current-account enforcement, migration checks, expected-version and idempotent replay order, conditional status/version writes, ledger release, queue/cutoff/schedule decisions, generation fencing, notification IDs, shared session, transactional outbox and replacement rollback.
+
+**What I changed or rejected, and why:** Extracted service-private responsibilities; retained explicit ordered outbox insertion in the orchestrator. Did not copy the reference's weaker direct update or change UUID call sites, schema, API, dependencies, flags or business policy. No total-source reduction/performance claim. Coordination and promotion slices remain pending. No appDB/env/live mail/frontend/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** The new outcome assertion confused the STATUS_CHANGED enum key with its APPOINTMENT_STATUS_CHANGED stored value. Automated real-MongoDB tests caught it; the assertion was corrected without changing production behavior. This was not caught by me manually.
+
+**One decision I can explain without AI:** Helpers must use the caller's transaction and captured time so appointment, ledger, slot generation and outbox changes either commit together or roll back together. Stable event IDs must remain identical for replay and downstream deduplication.

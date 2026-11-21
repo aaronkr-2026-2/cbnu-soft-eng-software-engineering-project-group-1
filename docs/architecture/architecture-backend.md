@@ -392,6 +392,19 @@ Outbox initialization/indexing occurs before the transaction; failures inside it
 roll back appointment, ledger, generation and events. Creation can be paused while
 migrated commitments remain cancellable through assertMigrated.
 
+FI-09 Step6's appointment slice keeps `transitionInTransaction` as the owner of
+fresh participant/state reads, the guarded write, ledger release and session-bound
+ordered outbox insertion. Private helpers separate snapshot/version validation,
+status/time validation, canceled-slot handling and event construction/IDs. They
+reuse the original BookingTransaction/session and captured transition timestamp;
+no independent transaction, clock refresh, catch or retry is added. Snapshot/version
+checks still precede idempotent return; status/time checks remain after that return
+and before writes. Cancellation and replacement continue through the existing
+public service methods. Local verification passed build/full types/lint,
+191 unit,236 API and257 disposable booking/deletion checks. Cancellation/outcome
+regressions assert persisted event IDs/payloads and existing rollback/replay/race
+coverage remains intact; no live/production acceptance is implied.
+
 Cancellation increments slot generation and writes SLOT_RELEASED plus a status
 change event with stable IDs. A queue at >=48h retains the allocation hold;
 manual openings release it. Closed/ineligible schedules produce UNAVAILABLE hints

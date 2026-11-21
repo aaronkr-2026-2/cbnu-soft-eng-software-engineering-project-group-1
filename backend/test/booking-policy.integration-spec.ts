@@ -1502,6 +1502,26 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       .toArray();
     expect(events).toHaveLength(2);
     expect(events.every((event) => event.state === 'PENDING')).toBe(true);
+    const transitionVersion = results[0].body.data.cancelAppointment.version;
+    expect(events.map((event) => event._id).sort()).toEqual([
+      `release:${original._id.toLowerCase()}:${transitionVersion}`,
+      `status:${original._id.toLowerCase()}:${transitionVersion}`,
+    ]);
+    for (const event of events) {
+      expect(event).toMatchObject({
+        appointmentId: new Types.ObjectId(original._id),
+        appointmentVersion: transitionVersion,
+        appointmentStatus: 'CANCELED',
+        actorId: patient,
+        patientId: patient,
+        clinicId: clinic,
+        doctorId: doctor,
+        startsAt: start,
+        endsAt: new Date(+start + 30 * 60_000),
+      });
+      expect(event.occurredAt).toEqual(events[0].occurredAt);
+    }
+
     const released = events.find((event) => event.type === 'SLOT_RELEASED')!;
     expect(released.releaseMode).toBe('MANUAL');
     await rest().expect(201);
@@ -1723,6 +1743,17 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
       expect(
         await connection.db!.collection('appointment_events').countDocuments(),
       ).toBe(1);
+      const event = await connection.db!.collection('appointment_events').findOne({});
+      expect(event).toMatchObject({
+        _id: `status:${String(row._id).toLowerCase()}:${result.body.data.setAppointmentOutcome.version}`,
+        type: 'APPOINTMENT_STATUS_CHANGED',
+        appointmentVersion: result.body.data.setAppointmentOutcome.version,
+        appointmentStatus: outcome,
+        actorId: clinic,
+        appointmentId: row._id,
+      });
+      expect(event).not.toHaveProperty('slotGeneration');
+      expect(event).not.toHaveProperty('releaseMode');
       const flip = await clinicGraphql(outcomeQuery, {
         id: String(row._id),
         outcome: outcome === 'COMPLETED' ? 'NO_SHOW' : 'COMPLETED',

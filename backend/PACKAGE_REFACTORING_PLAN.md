@@ -4,8 +4,8 @@ Date: November 21, 2026 (Asia/Seoul)
 
 Status: **In progress — Steps 1–5 complete locally November 21, 2026.** Baseline,
 logging, scheduling, configuration and timezone evaluation are recorded below.
-Luxon adoption is deferred. Step 6 is in progress: the MemberService slice is
-complete; appointment, coordination and promotion slices remain. Steps 7–8 are pending.
+Luxon adoption is deferred. Step 6 is in progress: MemberService and appointment
+transition slices are complete; coordination and promotion remain. Steps 7–8 are pending.
 Deployment, production log collection and shutdown grace periods remain unverified.
 
 ## Goal
@@ -139,7 +139,7 @@ Proposed commit: `refactor(backend): simplify clinic timezone helpers`, or
 
 - [x] `MemberService.updateMember`: extract password validation, patch construction
   and guarded persistence; keep image-claim and cleanup ordering explicit.
-- [ ] Appointment transitions: extract validation, canceled-slot handling and
+- [x] Appointment transitions: extract validation, canceled-slot handling and
   deterministic outbox event creation.
 - [ ] `BookingCoordinationService.run`: extract key construction, gate acquisition
   and transaction-operation construction.
@@ -834,3 +834,85 @@ are not claimed as newly run here. Production/browser/container checks were not 
 
 Proposed manual commit:
 `refactor(backend): separate member profile update responsibilities`.
+
+
+## Step 6b acceptance — Appointment transitions — November 21, 2026
+
+**Second service slice complete; Step 6 remains in progress.** Started from clean
+backend `d77b40e`, with the MemberService slice already committed by the owner.
+BookingCoordinationService is next; promotion processing remains after it. The
+intervening Step7 request resulted in inspection only and no frontend changes;
+the owner explicitly returned to the next Step6 slice.
+
+`AppointmentService.transitionInTransaction` now delegates snapshot/version checks,
+status/time validation, canceled-slot handling and deterministic event construction
+to private methods in the same service. A small event-ID helper is shared by
+release notifications and outbox construction. A typed transition context carries
+the existing status, version, actor and captured timestamp. No provider, repository,
+public interface, schema, dependency, configuration or transaction is added.
+
+Preserved order and ownership:
+
+- Fresh migration/actor checks and scoped appointment reads still use `tx.session`.
+  Snapshot/expected-version checks precede idempotent return. Timing/current-status
+  and migration-version checks remain after that return and before ledger/write
+  effects. The timestamp is captured at the same point; helpers do not refresh it.
+- The original participant scope, version/CONFIRMED filters and update options remain intact.
+  Ledger release, guarded appointment update, canceled-slot operations and ordered
+  outbox insert stay in the original transaction. Replacement's public
+  `cancelInTransaction` still participates in its caller's transaction.
+- Cancellation still holds a generation, reads queued commitments in the original
+  session, checks the current schedule, chooses UNAVAILABLE/QUEUE/MANUAL, resolves
+  only when no queue is retained and emits eligible inside-cutoff opening notices.
+  Existing infrastructure errors propagate for rollback; no new catch/retry exists.
+- Existing `status:<lowercase-id>:<version>` and `release:<lowercase-id>:<version>`
+  IDs, event fields/order and legacy source fallback are unchanged. Outcome actions
+  emit only a status event. Version generation remains at its existing call sites.
+
+The MediBridge cancellation reference was inspected; its simpler direct update/cache
+invalidation does not replace this project's gates, fencing or transactional outbox.
+Private methods keep the current service boundary and trusted interfaces intact.
+TypeScript AST measurement: `transitionInTransaction` **151 → 73 physical lines**;
+helpers are 17/15/37/7/35 lines. Added signatures/context improve ownership, not total
+source-line count. No total source reduction or performance gain is claimed.
+
+### Verification
+
+| Check | Actual result |
+| --- | --- |
+| Build | `npm run build` passed, including assets |
+| Full TypeScript | `./node_modules/.bin/tsc --noEmit --incremental false` passed |
+| Lint | `npm run lint` passed without warnings |
+| Unit tests | `npm test -- --runInBand`: 191 passed, 16 suites |
+| HTTP/GraphQL | `npm run test:e2e -- --runInBand`: 236 passed, 9 suites |
+| Disposable MongoDB | Booking policy/coordination and account-deletion suites: 257 passed, 3 suites |
+| Whitespace/source review | Passed; original session-bound checks and ordered outbox insertion retained |
+
+**684 automated tests passed.** Existing cancellation and both outcome regressions
+now also assert exact deterministic event IDs and persisted actor/version/payload;
+cancellation checks a common event timestamp, while outcomes exclude slot-release
+metadata. Tests exercise the public API and real storage rather than private methods.
+Existing coverage verifies ownership, replay/concurrent cancellation, paused-booking
+cancellation, timing boundaries, 48-hour queue behavior, unavailable slots, atomic
+outbox-failure rollback, replacement rollback/stale versions, FIFO/cutoff races,
+worker recovery and event deduplication.
+
+The first database run had 255 passes and two failures in a new assertion: the enum
+key STATUS_CHANGED was incorrectly used as the stored value. The existing enum
+stores `APPOINTMENT_STATUS_CHANGED`; correcting that expectation made all257 pass
+(B-034). Production event behavior was never changed to fit the assertion. Final
+types/lint were rerun after correction. Existing VM-module/Mongoose warnings and
+an expected upload-limit error from a passing negative API test remain. No live
+provider, browser, container or production verification is claimed.
+
+The local repeatable profile is
+`/private/tmp/medconnect-fi09-step6-transitions.json`; run from backend/ with
+`node test/run-booking-integration.cjs /private/tmp/medconnect-fi09-step6-transitions.json`.
+The runner owns disposable MongoDB instances and cleanup. No application DB/env,
+flags, frontend, dependency, live email, deployment, staging, commit, push or merge
+changes were made. Updated plan, FI-09 roadmap, existing architecture and records;
+README setup/features are unchanged. No sprint covers this date; closed history
+is preserved. Stop at this service boundary; Step6c coordination remains pending.
+
+Proposed manual commit:
+`refactor(backend): separate appointment transition responsibilities`.
