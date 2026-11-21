@@ -1,3 +1,4 @@
+import { ApplicationConfigModule } from '../libs/config/application-config.module.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DatabaseService } from './database.service.js';
@@ -9,6 +10,7 @@ const mongoUri = getMongoUri();
   // Allows tests to run without a database. main.ts refuses to start without one.
   imports: mongoUri
     ? [
+        ApplicationConfigModule,
         MongooseModule.forRoot(mongoUri, {
           serverSelectionTimeoutMS: 10_000,
           connectTimeoutMS: 10_000,
@@ -16,7 +18,7 @@ const mongoUri = getMongoUri();
           w: 'majority',
         }),
       ]
-    : [],
+    : [ApplicationConfigModule],
   providers: [DatabaseService],
   exports: [DatabaseService],
 })

@@ -8,32 +8,18 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import { configureUploads } from './components/upload/upload.http.js';
-import { requireMongoUri } from './database/database.config.js';
-
-function loadEnvironment(): void {
-  try {
-    process.loadEnvFile('.env');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-  }
-}
-
-function validateConfiguration(): void {
-  const jwtSecret = process.env.JWT_ACCESS_SECRET;
-  if (!jwtSecret || Buffer.byteLength(jwtSecret) < 32) {
-    throw new Error('JWT_ACCESS_SECRET must contain at least 32 bytes');
-  }
-  requireMongoUri();
-}
+import { environmentConfig, ApplicationConfig } from './libs/config/application-config.service.js';
+import { loadEnvironment } from './libs/config/load-environment.js';
 
 async function bootstrap() {
   loadEnvironment();
-  validateConfiguration();
+  environmentConfig.validateStartup();
   const { AppModule } = await import('./app.module.js');
   const { FileLogger } = await import('./libs/logger/file-logger.service.js');
   const { LoggingInterceptor } = await import('./libs/interceptor/logging.interceptor.js');
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const logger = app.get(FileLogger);
+  const config = app.get(ApplicationConfig);
   app.useLogger(logger);
   app.enableShutdownHooks();
   app.useGlobalInterceptors(new LoggingInterceptor(logger));
@@ -45,10 +31,7 @@ async function bootstrap() {
   }));
   app.getHttpAdapter().getInstance().disable('x-powered-by');
 
-  const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:3000,http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const allowedOrigins = config.corsOrigins;
   app.enableCors({
     origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) =>
       callback(null, !origin || allowedOrigins.includes(origin)),
@@ -63,7 +46,7 @@ async function bootstrap() {
     next();
   });
   configureUploads(app);
-  const port = Number(process.env.PORT_API ?? process.env.PORT ?? 3000);
+  const port = config.port;
   const swaggerConfig = new DocumentBuilder()
     .setTitle('MedConnect API')
     .setDescription('MedConnect REST API documentation. GraphQL is available at /graphql.')

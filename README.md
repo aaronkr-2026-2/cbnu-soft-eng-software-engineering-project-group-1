@@ -253,12 +253,18 @@ npm --prefix backend run start:dev
 
 ## Environment configuration
 
-The backend loads `.env` from its working directory before loading application modules.
+The backend uses Node's native loader for its working-directory `.env` before
+loading application modules; existing exported variables take precedence.
+`@nestjs/config` supplies typed reads without loading another file. Startup validates
+the required database/signing settings and worker flags with secret-safe errors.
+Optional SMTP/Google credentials remain required only when their features are used;
+enabled password recovery validates its origin and mail prerequisites at startup.
+See [typed configuration](docs/architecture/architecture-backend.md#typed-configuration).
 
 | Variable | Purpose | Default or requirement |
 |---|---|---|
 | `NODE_ENV` | Runtime environment | Set `development` locally; `production` on the server |
-| `PORT_API` | API listening port | Falls back to `PORT`, then 3000 |
+| `PORT_API` | API listening port | Falls back to `PORT`, then 3000; selected value must be an integer from 0–65535 (0 requests an ephemeral port) |
 | `MONGO_URI` | Explicit MongoDB connection override | Takes precedence in all environments |
 | `MONGO_DEV` | Development/test MongoDB connection | Used outside production when `MONGO_URI` is unset |
 | `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_URI` is unset; use `mongodb+srv://` |

@@ -208,7 +208,18 @@ behavior are preserved; workers drain before database shutdown, and bootstrap
 now enables signal hooks. Build/full types/lint, 167 unit, 233 API, 195 booking and
 71 recovery tests (666 total), compiled SIGTERM drain smoke and a zero-finding
 runtime audit passed. Production grace periods/providers/container behavior remain
-unverified. Stop after Step 3; typed configuration is Step 4 when requested.
+unverified.
+
+Step 4 completed locally November 21: exact @nestjs/config 12.1.1 and typed
+ApplicationConfig centralize environment reads and secret-safe startup validation.
+Native env loading/import order, URI precedence, lazy credentials and default-off
+worker gates remain intact; invalid selected ports now fail early. Build/full
+types/lint, 191 unit, 233 API, 510 disposable database and 8 deployment-script
+checks (942 total), compiled bootstrap/configuration smoke and zero-finding runtime
+audit passed. The native loader test was corrected to use a real Node process;
+the final sandbox build watcher limit cleared on approved rerun. No runtime flag,
+application database, live provider or deployment changes. Stop after Step 4;
+timezone evaluation is Step 5 when requested.
 Detailed evidence, limits and commit boundaries are in the plan; no deadline or
 source-line reduction is claimed.
 

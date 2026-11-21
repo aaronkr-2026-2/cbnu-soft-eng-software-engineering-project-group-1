@@ -2,8 +2,8 @@
 
 Date: November 21, 2026 (Asia/Seoul)
 
-Status: **In progress — Steps 1–3 complete locally November 21, 2026.** Baseline,
-logging and scheduling acceptance are recorded below. Steps 4–8 remain pending.
+Status: **In progress — Steps 1–4 complete locally November 21, 2026.** Baseline,
+logging, scheduling and configuration acceptance are recorded below. Steps 5–8 remain pending.
 Deployment, production log collection and shutdown grace periods remain unverified.
 
 ## Goal
@@ -104,12 +104,12 @@ Proposed commit: `refactor(backend): consolidate background worker scheduling`.
 
 ### Step 4 — Centralize validated configuration
 
-- [ ] Introduce compatible `@nestjs/config` with typed configuration and startup
+- [x] Introduce compatible `@nestjs/config` with typed configuration and startup
   validation, using existing validators where appropriate.
-- [ ] Migrate database, authentication, email and worker settings in small groups.
-- [ ] Preserve environment precedence, defaults, default-off gates and readiness
+- [x] Migrate database, authentication, email and worker settings in small groups.
+- [x] Preserve environment precedence, defaults, default-off gates and readiness
   checks. Inspect module evaluation order before replacing environment reads.
-- [ ] Remove obsolete helpers after confirming all consumers have migrated.
+- [x] Remove obsolete helpers after confirming all consumers have migrated.
 
 Acceptance: valid development/production configurations resolve as before; invalid
 required values fail clearly without secrets in errors. Disabled optional features
@@ -530,3 +530,100 @@ Production signal grace periods, provider behavior and container deployment rema
 unverified. Stop after Step 3; Step 4 configuration work requires its own request.
 
 Proposed manual commit: `refactor(backend): consolidate background worker scheduling`.
+
+
+## Step 4 acceptance — November 21, 2026
+
+Implemented from clean backend `95f78e7` (Step 3 committed by the owner). Exact
+`@nestjs/config` **12.1.1** accepts Nest common `^11 || ^12` and RxJS `^7.1`, matching
+installed Nest 12.0.1/RxJS. Installed package metadata/source and the official
+[Nest configuration documentation](https://docs.nestjs.com/techniques/configuration)
+were checked. The lockfile adds the package and four dependencies (dotenv,
+dotenv-expand, es-toolkit and Standard Schema typings); every previously locked
+package entry remains unchanged. No schema-validation package was added. Existing
+class-validator email validation and existing flag/origin/URI policies are reused.
+MediBridge's shared global ConfigModule was inspected; its automatic file loading
+was deliberately not copied because this app selects models during import.
+
+### Configuration ownership and preserved timing
+
+- `src/libs/config/application-config.module.ts` imports ConfigModule with
+  `ignoreEnvFile: true`, uncached reads and an injected typed `ApplicationConfig`.
+  Root/database/booking/member modules explicitly import the shared global module.
+- `load-environment.ts` keeps native `process.loadEnvFile` behavior. Bootstrap loads
+  the working-directory `.env`, validates required settings, then dynamically
+  imports AppModule. Existing exports win; missing files remain allowed. ConfigModule
+  does not load a second file or expand environment values differently.
+- The typed service centralizes database/JWT/Google/Gmail/recovery/worker/server,
+  CORS, upload and logging settings. All four workers and auth/email services use
+  injected configuration, with a default for independent instances. Database/model
+  registration still selects the URI at module evaluation; those adapters and
+  GraphQL's production options read the same central source after native loading.
+- `database.config.ts` and `booking.config.ts` remain consumed CLI/pure-call adapters;
+  their former parsers now have one owner under `libs/config`. Recovery origin
+  validation moved there too. No direct `process.env` reads remain in non-test app
+  source; ConfigService provides environment access. Native loading is the explicit
+  boundary. Existing CLI scripts still use their documented Node env-file flags.
+- Normal startup requires a 32-byte JWT secret and the selected MongoDB URI. Module
+  initialization validates selected port, flag syntax/dependencies and configured
+  infrastructure, retaining database-free feature tests. Flags still default off;
+  booking flags remain strict and recovery retains its existing trim/empty rules.
+  SMTP/Google remain lazy, while explicitly enabled recovery validates origin/mail
+  settings and retains service-owned storage readiness. No credentials are required
+  merely because a disabled feature exists.
+- Existing URI precedence, empty override behavior, production SRV requirement,
+  CORS defaults, production cookies, log/upload paths and API error contracts remain.
+  Selected ports now fail early with a static error for blank, nonnumeric,
+  fractional or out-of-range input; 0–65535 is accepted, including ephemeral port 0.
+  This validation is documented rather than silently coercing a blank port to 0.
+- `configurationFor(explicitEnvironment)` reads only that object. Tests can also
+  override ConfigService/ApplicationConfig; normal runtime reads stay uncached so
+  existing gate/credential rechecks continue to work. Validation errors contain
+  setting names/policy only, never rejected values. Required validation does not
+  replace MongoDB migration/readiness, transactions or leases.
+
+### Verification
+
+| Check | Actual result |
+| --- | --- |
+| `npm run build` | Passed, including assets; final sandbox watcher limit cleared on approved rerun |
+| `./node_modules/.bin/tsc --noEmit --incremental false` | Passed including test types |
+| `npm run lint` | Passed without warnings after correcting new unused-expression warnings |
+| `npm test -- --runInBand` | 191 passed, 16 suites; 24 new configuration/native-loader checks |
+| `npm run test:e2e -- --runInBand` | 233 passed, 9 suites |
+| Disposable combined booking-policy/directory/username/deletion/email/recovery run | 492 passed, 8 suites |
+| Disposable booking-coordination run | 18 passed, 1 suite; selected separately because the combined profile omitted it |
+| `npm run test:deployment` | 8 passed; mocked deployment, no live release |
+| Compiled CommonJS/ESM subprocess checks | Passed native export/file precedence, loaded-before-import DB registration, no unexpected file loading through ConfigModule, credential-free module startup and secret-safe bootstrap rejection |
+| `npm audit --omit=dev --json` | Zero runtime vulnerability findings |
+
+**942 automated tests passed**, including **510 disposable MongoDB integration
+checks**. Focused configuration checks were rerun after the final test refinement;
+counts are included once. The first loader test incorrectly expected native
+`loadEnvFile` to mutate Jest's environment proxy. Full unit tests caught it; the
+corrected test runs the actual loader in a real Node subprocess with a minimal
+synthetic environment (B-032). No production loader change was needed for that
+failure. Initial unused-expression lint warnings were removed; final lint is clean.
+The final build's sandbox EMFILE watcher error was an environment restriction;
+the approved rerun passed. Existing VM-module/Mongoose warnings remain.
+
+Temporary profiles/evidence:
+`/private/tmp/medconnect-fi09-step4-integration.json`,
+`/private/tmp/medconnect-fi09-step4-coordination.json`,
+`/private/tmp/medconnect-fi09-step4-smoke.cjs` and
+`/private/tmp/medconnect-fi09-step4-audit.json`. Rerun a profile with
+`node test/run-booking-integration.cjs <absolute-profile-path>` from backend/;
+profiles use absolute test roots and the existing disposable runner owns cleanup.
+The normal `test:booking:integration`, directory/username/deletion/email/recovery
+commands remain available. SMTP/provider calls were stubbed; no live mail was sent.
+The runtime audit excludes development dependencies; installation reported the
+existing nine moderate development-tree advisories. Local Node 26 verification
+does not establish the declared Node 24 container or production behavior.
+
+README configuration guidance, existing architecture, roadmap and project records
+are updated. No sprint covers this date; closed records remain unchanged. No
+application database, release flags, credentials/env files, frontend, deployment,
+staging, commit, push or merge changes were made. No timezone or business-function
+refactoring is included. Stop after Step 4; Step 5 remains pending.
+
+Proposed manual commit: `refactor(backend): centralize validated configuration`.

@@ -1,4 +1,8 @@
 import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
   Body,
   Controller,
   Header,
@@ -62,6 +66,7 @@ export class MemberController {
     private readonly googleAuth: GoogleAuthService,
     @Optional() private readonly emailVerification?: EmailVerificationService,
     @Optional() private readonly passwordRecovery?: PasswordRecoveryService,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
   ) {}
 
   @Post('username/availability')
@@ -96,7 +101,7 @@ export class MemberController {
   }
 
   private get nonceCookie() {
-    const secure = process.env.NODE_ENV === 'production';
+    const secure = this.config.production;
     return {
       name: secure
         ? '__Host-medconnect_google_nonce'

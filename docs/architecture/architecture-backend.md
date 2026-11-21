@@ -1017,6 +1017,52 @@ authentication. No live MongoDB or deployment was exercised for this addition.
 
 The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor records HTTP route templates or GraphQL parent/field names, timing and failure status. It excludes raw URLs, bodies, tokens, GraphQL arguments/query text, response data and raw exception messages/stacks. Application-authored log strings must still exclude secrets; this is not a universal string-redaction service.
 
+### Typed configuration
+
+FI-09 Step 4 centralizes environment settings in
+`backend/src/libs/config/application-config.service.ts` using exact
+`@nestjs/config` 12.1.1 and its injected `ConfigService`. The shared global
+`ApplicationConfigModule` is imported explicitly by root, database, booking and
+member modules. MediBridge's global-module pattern was inspected; its default
+file-loading behavior was not copied.
+
+`main.ts` calls the native `load-environment.ts` helper, validates normal startup,
+then dynamically imports AppModule. Existing exports override `.env`; missing
+files remain allowed. ConfigModule uses `ignoreEnvFile: true` and uncached reads,
+so importing a feature or CLI does not unexpectedly load credentials from disk.
+Database/model registration still uses the selected URI at module evaluation;
+loading environment values first remains essential. `database.config.ts` and
+`booking.config.ts` retain their consumed helper signatures as adapters to the
+central configuration policy for CLI/pure callers. No obsolete second parser is
+retained. Explicit environment objects are isolated from process fallback.
+
+ApplicationConfig owns typed database, JWT, Google, Gmail, recovery, worker,
+server/CORS, upload and logging settings. Auth/email and all four background workers
+accept injected configuration; independently owned instances use the uncached
+process-backed default unless an explicit instance is supplied. Recovery-origin
+and booking-flag validators were relocated, preserving their policies. SMTP and
+Google configuration remain lazy; enabled recovery requires its origin, provider
+configuration and existing storage readiness. Default-off flags, strict booking
+boolean syntax, recovery trimming, dependency checks, URI override precedence,
+production SRV selection, cookie security and optional-feature error contracts
+remain intact. Port validation now rejects blank, nonnumeric, fractional and
+out-of-range values with a static error; port 0 remains allowed for ephemeral binds.
+
+Normal startup requires MongoDB and a 32-byte JWT secret before constructing Nest.
+The configuration module's initialization validates flags/port and configured
+infrastructure while retaining database-free feature-module tests. Database
+migrations, operational readiness and worker ownership still belong to their
+existing services, not configuration validation. No configuration values are
+included in validation errors. Tests can override ConfigService/ApplicationConfig
+or use `configurationFor(explicitEnvironment)` without consulting local credentials.
+
+Local acceptance passed build/full types/lint, 191 unit, 233 API, 510 disposable
+MongoDB integration and 8 mocked deployment checks. Real Node subprocesses checked
+native loading precedence, import-time database registration, ignored `.env` files
+for module-only consumers and static startup failures. The runtime dependency
+audit reported no findings. Live providers, containers and deployment were not
+exercised.
+
 ### Background worker scheduling
 
 FI-09 Step 3 uses exact `@nestjs/schedule` 12.0.4 through
@@ -1074,8 +1120,8 @@ on stdout with a static stderr diagnostic that omits filesystem details. File
 records lost during an output failure are not replayed. No rotation or hosted
 collector is configured. The current Compose file does not mount logs, so durable
 collection across container replacement still needs deployment configuration.
-Signal-hook activation was not changed; a process killed without orderly close
-does not gain a new delivery guarantee from this refactor.
+Step 3 subsequently enabled signal hooks; forcible process termination still
+does not provide a log-delivery guarantee.
 
 The adapter accepts application-authored strings and context only; unknown object
 payloads and Error contents are replaced with static messages, and supplied stacks

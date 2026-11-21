@@ -1,4 +1,8 @@
 import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
   WorkerScheduler,
   type WorkerLoop,
 } from '../../libs/scheduling/worker-scheduler.service.js';
@@ -29,7 +33,6 @@ import {
   NotificationOutboxSchema,
 } from '../../schemas/notification.model.js';
 import { BookingPolicyService } from '../booking/booking-policy.service.js';
-import { waitlistNotificationsEnabled } from '../booking/booking.config.js';
 import { MemberType } from '../../libs/enum/member.enum.js';
 import type { MemberPrincipal } from '../../libs/types/member.types.js';
 import type { MyNotificationsInput } from '../../libs/dto/notification/notification.js';
@@ -74,9 +77,10 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @InjectModel(NOTIFICATION)
     private readonly inbox?: Model<InferSchemaType<typeof NotificationSchema>>,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
   ) {}
   isEnabled() {
-    return waitlistNotificationsEnabled();
+    return this.config.notificationsEnabled;
   }
   async onModuleInit() {
     if (this.isEnabled()) {

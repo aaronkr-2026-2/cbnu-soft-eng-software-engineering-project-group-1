@@ -1,4 +1,8 @@
 import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
   WorkerScheduler,
   type WorkerLoop,
 } from '../../libs/scheduling/worker-scheduler.service.js';
@@ -22,7 +26,6 @@ import {
 import { DoctorSpecialization } from '../../libs/enum/member.enum.js';
 import { BookingCoordinationService } from '../booking/booking-coordination.service.js';
 import { BookingPolicyService } from '../booking/booking-policy.service.js';
-import { waitlistLifecycleEnabled } from '../booking/booking.config.js';
 import { WaitlistService } from '../waitlist/waitlist.service.js';
 import { AppointmentService } from './appointment.service.js';
 @Injectable()
@@ -45,9 +48,10 @@ export class AppointmentWaitlistLifecycleService
     private readonly events?: Model<
       InferSchemaType<typeof AppointmentEventSchema>
     >,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
   ) {}
   isEnabled() {
-    return waitlistLifecycleEnabled();
+    return this.config.lifecycleEnabled;
   }
   async onModuleInit() {
     if (this.isEnabled()) {

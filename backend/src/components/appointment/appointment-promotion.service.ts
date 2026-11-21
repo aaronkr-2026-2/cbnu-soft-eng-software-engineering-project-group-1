@@ -1,4 +1,8 @@
 import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
   WorkerScheduler,
   type WorkerLoop,
 } from '../../libs/scheduling/worker-scheduler.service.js';
@@ -23,7 +27,6 @@ import {
   WaitlistStatus,
 } from '../../libs/enum/appointment.enum.js';
 import type { BookingTransaction } from '../../libs/types/booking.types.js';
-import { waitlistPromotionEnabled } from '../booking/booking.config.js';
 import { BookingCoordinationService } from '../booking/booking-coordination.service.js';
 import { BookingPolicyService } from '../booking/booking-policy.service.js';
 import { WaitlistService } from '../waitlist/waitlist.service.js';
@@ -53,11 +56,12 @@ export class AppointmentPromotionService
     @Optional()
     @InjectModel(APPOINTMENT_EVENT)
     private readonly events?: Model<ReleaseEvent>,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
   ) {}
 
   // No HTTP/GraphQL entry point. Configuration validates rollout dependencies.
   isEnabled() {
-    return waitlistPromotionEnabled();
+    return this.config.promotionEnabled;
   }
 
   onModuleInit() {

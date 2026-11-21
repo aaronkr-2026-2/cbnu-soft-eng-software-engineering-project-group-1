@@ -1304,3 +1304,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** A scheduling package owns local wakeups, while MongoDB claims and fencing still decide which process owns a durable event. Replacing timers must preserve both the completion-based delay and orderly draining.
+
+
+## FI-09 Step 4 — Typed application configuration — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Nest documentation, npm, TypeScript, Jest, Supertest, oxlint, disposable MongoDB and Node subprocesses.
+
+**What I asked for:** Implement Step4 of PACKAGE_REFACTORING_PLAN.md and stop before timezone evaluation.
+
+**Pre-planning:** Reviewed clean backend95f78e7, project/session/bug instructions, every environment read, import-time model selection and lazy authentication/email/worker consumers. Checked MediBridge's global configuration pattern and package compatibility.
+
+**Planning:** Install exact @nestjs/config12.1.1, retain Node's native loading before dynamic AppModule import, and use a typed injected service with uncached reads. Keep explicit pure/CLI environment adapters and existing validators; avoid changing optional-feature credential requirements or database readiness ownership.
+
+**Implementation process:** Centralized database/auth/email/recovery/worker/server/CORS/upload/log settings, injected service consumers and added secret-safe startup validation. Added24meaningful configuration/native-loader checks. Build/full types/lint,191unit233API510disposableDB8deployment checks pass (942), compiled loading/import/isolation/bootstrap smokes and zero-finding runtime audit pass. Final focused checks rerun. A final sandbox EMFILE asset-watch error cleared on approved build rerun. Updated README, plan, roadmap and existing architecture; no sprint covers this date.
+
+**What I kept as-is:** Native file/export precedence, module evaluation order, URI aliases/production policy, default-off flags, runtime rechecks, lazy SMTP/Google credentials, recovery readiness, API errors, worker timing, leases/transactions and all existing locked package entries. No frontend, application database, credentials/env, flags, live emails or deployment changed.
+
+**What I changed or rejected, and why:** Added one typed policy owner using ConfigService without automatic dotenv loading or value expansion. Consumed database/booking helper signatures remain thin adapters. Invalid selected ports now fail early with a static validation error, including blank/fractional/out-of-range values; ephemeral0 remains valid. Kept operational storage/migration checks in their owning services. Local tests do not establish container/production behavior.
+
+**Something the AI got wrong that I had to catch:** Full unit verification caught a native-loader fixture expecting process.loadEnvFile to update Jest's process.env proxy. The corrected test uses a real Node subprocess and synthetic values; no production loader change was needed (B-032). This was caught by automated verification, not by me manually.
+
+**One decision I can explain without AI:** Environment loading must finish before modules decide which database models exist. A configuration package should provide typed access and validation without changing that ordering or requiring credentials for disabled features.

@@ -1,4 +1,5 @@
-import { Injectable, type LoggerService, type OnModuleDestroy } from '@nestjs/common';
+import { ApplicationConfig, environmentConfig } from '../config/application-config.service.js';
+import { Injectable, Optional, type LoggerService, type OnModuleDestroy } from '@nestjs/common';
 import { mkdirSync, openSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import pino, { type Level, type LoggerOptions } from 'pino';
@@ -15,9 +16,9 @@ export class FileLogger implements LoggerService, OnModuleDestroy {
   private logger = pino(options, process.stdout);
   private file?: ReturnType<typeof pino.destination>;
 
-  constructor() {
+  constructor(@Optional() config: ApplicationConfig = environmentConfig) {
     try {
-      const path = resolve(process.env.LOG_FILE ?? 'logs/medconnect.log');
+      const path = resolve(config.logFile);
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
       // Open once at startup so a failed async open cannot strand shutdown.
       const file = pino.destination({ fd: openSync(path, 'a', 0o600), sync: false });

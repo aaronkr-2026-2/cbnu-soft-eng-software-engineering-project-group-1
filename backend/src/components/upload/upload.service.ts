@@ -1,3 +1,4 @@
+import { environmentConfig } from '../../libs/config/application-config.service.js';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
@@ -10,7 +11,7 @@ import type { FileUpload } from 'graphql-upload-ts';
 export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
 export const MAX_UPLOAD_FILES = 5;
 export const uploadDirectory = () =>
-  resolve(process.env.UPLOAD_DIR ?? 'uploads');
+  resolve(environmentConfig.uploadDirectory);
 const extensions: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',

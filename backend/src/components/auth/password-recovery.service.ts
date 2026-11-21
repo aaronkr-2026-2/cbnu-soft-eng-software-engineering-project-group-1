@@ -1,4 +1,8 @@
 import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
   WorkerScheduler,
   type WorkerLoop,
 } from '../../libs/scheduling/worker-scheduler.service.js';
@@ -50,7 +54,6 @@ import {
   RECOVERY_MAX_DELIVERY_ATTEMPTS,
   newRecoveryToken,
   recoveryTokenHash,
-  recoveryWebOrigin,
   RECOVERY_TOKEN_PATTERN,
 } from './password-recovery-policy.js';
 import { deliverRecoveryConfirmation } from './password-recovery-confirmation.js';
@@ -92,6 +95,7 @@ export class PasswordRecoveryService
     @Optional()
     @InjectModel(MEMBER)
     private readonly members?: Model<MemberEntity>,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
   ) {}
 
   now() {
@@ -105,10 +109,11 @@ export class PasswordRecoveryService
   }
 
   private enabled() {
-    const value = process.env.PASSWORD_RECOVERY_ENABLED?.trim();
-    if (!value || value === 'false') return false;
-    if (value !== 'true') throw unavailable();
-    return true;
+    try {
+      return this.config.recoveryEnabled;
+    } catch {
+      throw unavailable();
+    }
   }
 
   private collections(): Storage {
@@ -129,7 +134,7 @@ export class PasswordRecoveryService
 
   private async storage() {
     if (!this.enabled()) throw unavailable();
-    recoveryWebOrigin();
+    void this.config.recoveryOrigin;
     this.delivery.assertConfigured();
     this.ready ??= (async () => {
       const storage = this.collections();

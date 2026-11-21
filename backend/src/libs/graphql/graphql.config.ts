@@ -1,3 +1,4 @@
+import { environmentConfig } from '../config/application-config.service.js';
 import { AccountDeletionException } from '../../components/booking/account-deletion-error.js';
 import { HttpException } from '@nestjs/common';
 import { ApolloDriver, type ApolloDriverConfig } from '@nestjs/apollo';
@@ -14,8 +15,8 @@ export const graphqlConfig: ApolloDriverConfig = {
   path: '/graphql',
   autoSchemaFile: true,
   sortSchema: true,
-  graphiql: process.env.NODE_ENV !== 'production',
-  introspection: process.env.NODE_ENV !== 'production',
+  graphiql: !environmentConfig.production,
+  introspection: !environmentConfig.production,
   includeStacktraceInErrorResponses: false,
   allowBatchedHttpRequests: false,
   context: ({ req, res }: { req: Request; res: Response }) => {

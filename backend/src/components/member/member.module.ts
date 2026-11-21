@@ -1,3 +1,5 @@
+import { ApplicationConfig } from '../../libs/config/application-config.service.js';
+import { ApplicationConfigModule } from '../../libs/config/application-config.module.js';
 import { WorkerSchedulingModule } from '../../libs/scheduling/worker-scheduling.module.js';
 import {
   Module,
@@ -40,6 +42,7 @@ const mongoUri = getMongoUri();
 
 @Module({
   imports: [
+    ApplicationConfigModule,
     WorkerSchedulingModule,
     UploadStorageModule,
     BookingModule,
@@ -52,11 +55,11 @@ const mongoUri = getMongoUri();
         ]
       : []),
     JwtModule.registerAsync({
-      useFactory: () => {
-        const secret = process.env.JWT_ACCESS_SECRET;
-        if (mongoUri && (!secret || Buffer.byteLength(secret) < 32)) {
-          throw new Error('JWT_ACCESS_SECRET must contain at least 32 bytes');
-        }
+      imports: [ApplicationConfigModule],
+      inject: [ApplicationConfig],
+      useFactory: (config: ApplicationConfig) => {
+        const secret = config.jwtSecret;
+        if (mongoUri) config.requireJwtSecret();
         return {
           secret,
           signOptions: {
