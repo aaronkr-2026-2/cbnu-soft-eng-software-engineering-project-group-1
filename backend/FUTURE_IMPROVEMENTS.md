@@ -243,8 +243,15 @@ transition orchestrator from151 to73 lines. Original session, gates, captured ti
 conditional writes, replay order, event IDs and atomic replacement/outbox behavior
 remain intact. Build/full types/lint,191unit236API257realDB tests pass (684).
 A new test assertion was corrected to the existing stored event type; no production
-behavior changed. Stop at this service boundary for review; booking coordination
-and promotion processing remain pending.
+behavior changed.
+
+The booking-coordination slice completed November22: private key construction,
+sequential gate acquisition and transaction-operation construction reduce run from
+190 to36 lines. The original session, sorted scope, retry bounds/options, cleanup,
+reservation rules and generation/queue fencing remain intact. Build/full types/lint,
+191unit236API266disposableDB tests pass (693), including9new empty/foreign-scope
+cases and strengthened retry/session cleanup assertions. Stop at this service
+boundary for review; promotion processing remains pending.
 Detailed evidence, limits and commit boundaries are in the plan; no deadline or
 source-line reduction is claimed.
 

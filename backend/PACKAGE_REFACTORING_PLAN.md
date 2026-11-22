@@ -1,11 +1,11 @@
 # Package adoption and modular refactoring plan — FI-09
 
-Date: November 21, 2026 (Asia/Seoul)
+Date: November 22, 2026 (Asia/Seoul)
 
 Status: **In progress — Steps 1–5 complete locally November 21, 2026.** Baseline,
 logging, scheduling, configuration and timezone evaluation are recorded below.
-Luxon adoption is deferred. Step 6 is in progress: MemberService and appointment
-transition slices are complete; coordination and promotion remain. Steps 7–8 are pending.
+Luxon adoption is deferred. Step 6 is in progress: MemberService, appointment
+transition and coordination slices are complete; promotion remains. Steps 7–8 are pending.
 Deployment, production log collection and shutdown grace periods remain unverified.
 
 ## Goal
@@ -141,7 +141,7 @@ Proposed commit: `refactor(backend): simplify clinic timezone helpers`, or
   and guarded persistence; keep image-claim and cleanup ordering explicit.
 - [x] Appointment transitions: extract validation, canceled-slot handling and
   deterministic outbox event creation.
-- [ ] `BookingCoordinationService.run`: extract key construction, gate acquisition
+- [x] `BookingCoordinationService.run`: extract key construction, gate acquisition
   and transaction-operation construction.
 - [ ] Promotion processing: separate claims, candidate processing, cutoff handling
   and retry orchestration after the scheduling migration.
@@ -916,3 +916,64 @@ is preserved. Stop at this service boundary; Step6c coordination remains pending
 
 Proposed manual commit:
 `refactor(backend): separate appointment transition responsibilities`.
+
+
+## Step 6c acceptance — Booking coordination — November 22, 2026
+
+**Third service slice complete; Step 6 remains in progress.** Started from clean
+backend `2b2cd54`. Promotion processing is the remaining backend service slice;
+Steps 7–8 remain pending. Stop here for review and manual commit.
+
+`BookingCoordinationService.run` now delegates to three private methods:
+`coordinationKeys` constructs, deduplicates and sorts the original clinic/doctor/
+patient/slot keys and rejects empty scopes; `acquireGates` sequentially increments
+all gate revisions inside the current transaction; `createTransaction` constructs
+the existing scoped operations using the original session and captured models.
+No new provider or public interface was introduced. AST source-span measurement:
+`run` **190 → 36 physical lines**; helpers are 13/20/133 lines. This separates
+responsibilities and does not claim a reduction in total source or runtime cost.
+
+Preparation and gate seeding remain outside the transaction. The retry counter,
+eight-callback bound, snapshot/majority/primary settings, 10-second deadline,
+five-second commit limit and finally-based session cleanup stay in `run`.
+Operations are reconstructed after gate acquisition on each driver attempt.
+All original operation expressions match after extraction under TypeScript AST
+printing; scope checks, read/write ordering, query filters, generation fencing,
+queue bounds, conflict classification and reservation policy are unchanged.
+Helpers open no transactions and catch no errors.
+
+| Check | Actual result |
+| --- | --- |
+| Build | `npm run build` passed on approved rerun, including configured assets |
+| Full TypeScript | `./node_modules/.bin/tsc --noEmit --incremental false` passed |
+| Lint | `npm run lint` passed without warnings |
+| Unit | `npm test -- --runInBand`: 191 passed, 16 suites |
+| HTTP/GraphQL | `npm run test:e2e -- --runInBand`: 236 passed, 9 suites |
+| Disposable MongoDB | Booking policy/coordination and account deletion: 266 passed, 3 suites |
+| Source/whitespace review | Operation AST comparison and `git diff --check` passed |
+
+**693 tests passed.** Nine added database cases cover empty-scope refusal and all
+eight operations rejecting foreign scope while preserving the existing commitment
+and rolling back acquired gate revisions. The existing transient-retry regression
+also checks reuse of the session and cleanup after completion. Existing database
+coverage exercises first-use contention, concurrent booking, 24-hour/overlap rules,
+atomic replacement and outbox rollback, stale versions/generations, FIFO promotion,
+cutoff crossing, worker recovery, event deduplication and account-deletion races.
+The repeatable local profile is `/private/tmp/medconnect-fi09-step6c.json`; run from
+backend/ using `node test/run-booking-integration.cjs <profile-path>`. The runner
+owns its disposable databases/processes and cleanup; delivery providers are stubbed.
+
+The first build hit the known sandbox asset-watcher EMFILE restriction; its approved
+rerun passed. Existing VM-module/Mongoose warnings and an expected upload-limit
+error in a passing API negative test remain. An initial edit command used a
+repository-relative path from the backend application directory; it failed before
+writing and was corrected (B-035). No application regression was identified.
+No browser, live provider, container or production verification is claimed.
+
+Plan, FI-09 roadmap, existing architecture and project records are updated. README
+setup/features remain accurate. No sprint covers this date; closed history is
+preserved. No application DB, credentials/env, flags, dependencies, frontend,
+deployment, staging, commit, push or merge changes were made.
+
+Proposed manual commit:
+`refactor(backend): separate booking coordination responsibilities`.

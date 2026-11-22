@@ -250,6 +250,14 @@ Callers must validate slots through `appointment-slot.ts` in the clinic timezone
 and recheck authorization, doctor eligibility, schedule, cutoff and consent in the
 transaction. Coordination is not a replacement for those domain checks.
 
+FI-09 Step6's coordination slice (November 22, 2026) keeps `run` responsible for
+preparation, session lifetime, bounded driver retries and transaction options.
+Private `coordinationKeys`, `acquireGates` and `createTransaction` helpers handle
+sorted/deduplicated scope, sequential revision writes and the scoped operation
+object respectively. The latter two receive the original session and models;
+operations are constructed on each transaction attempt after all gates are acquired.
+No provider, transaction boundary, query policy or public contract changes.
+
 The service seeds empty coordination rows outside the transaction, then writes
 their revisions inside it in sorted key order: doctor IDs, patient IDs, then
 doctor-slot keys. Booking and schedule edits both take the doctor gate. Concurrent writers therefore conflict on an actual document instead of

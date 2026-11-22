@@ -101,16 +101,7 @@ export class BookingCoordinationService {
     const connection = this.connection!;
     const gates = this.gates!;
     const commitments = this.commitments!;
-    const keys = [
-      ...new Set([
-        ...(scope.clinicIds ?? []).map((id) => `clinic:${id.toHexString()}`),
-        ...(scope.doctorIds ?? []).map((id) => `doctor:${id.toHexString()}`),
-        ...scope.patientIds.map(patientKey),
-        ...scope.slots.map(slotKey),
-      ]),
-    ].sort();
-    if (!keys.length)
-      throw new Error('Booking transaction requires coordination keys');
+    const keys = this.coordinationKeys(scope);
     await this.prepareGates(keys);
     const session = await connection.startSession();
     let attempts = 0;
@@ -121,155 +112,10 @@ export class BookingCoordinationService {
             throw new ServiceUnavailableException(
               'Booking coordination is busy; retry after checking current state',
             );
-          for (const _id of keys) {
-            const gate = await gates
-              .findOneAndUpdate(
-                { _id },
-                { $inc: { revision: 1 } },
-                { session, returnDocument: 'after' },
-              )
-              .lean()
-              .exec();
-            if (!gate)
-              throw new ServiceUnavailableException(
-                'Booking coordination gate is missing',
-              );
-          }
-          const requireKey = (key: string) => {
-            if (!keys.includes(key))
-              throw new Error('Booking operation is outside its locked scope');
-          };
-          return work({
-            session,
-            checkReservation: async (entry, generation, excludedWaitlistId) => {
-              requireKey(patientKey(entry.patientId));
-              requireKey(slotKey(entry));
-              await this.checkReservation(
-                entry,
-                generation,
-                session,
-                gates,
-                commitments,
-                excludedWaitlistId,
-              );
-            },
-            reserve: async (entry, generation) => {
-              requireKey(patientKey(entry.patientId));
-              requireKey(slotKey(entry));
-              await this.reserve(
-                entry,
-                generation,
-                session,
-                gates,
-                commitments,
-              );
-            },
-            updateWaitlistStatus: async (
-              commitmentId,
-              previousVersion,
-              version,
-              status,
-            ) => {
-              const entry = await commitments
-                .findOne({ kind: 'WAITLIST', commitmentId })
-                .session(session)
-                .lean()
-                .exec();
-              if (
-                !entry ||
-                entry.version !== previousVersion ||
-                entry.status !== 'ACTIVE'
-              )
-                throw new BookingConflictException('STALE_COMMITMENT');
-              requireKey(patientKey(entry.patientId));
-              requireKey(slotKey(entry));
-              await commitments.updateOne(
-                { _id: entry._id },
-                { $set: { version, status } },
-                { session },
-              );
-            },
-            release: async (kind, commitmentId) => {
-              const entry = await commitments
-                .findOne({ kind, commitmentId })
-                .session(session)
-                .lean()
-                .exec();
-              if (!entry)
-                throw new ConflictException('Commitment no longer exists');
-              requireKey(patientKey(entry.patientId));
-              requireKey(slotKey(entry));
-              await commitments.deleteOne({ _id: entry._id }, { session });
-            },
-            holdSlot: async (slot) => {
-              const _id = slotKey(slot);
-              requireKey(_id);
-              const gate = await gates
-                .findOneAndUpdate(
-                  { _id },
-                  {
-                    $inc: { generation: 1 },
-                    $set: { allocationPending: true },
-                  },
-                  { session, returnDocument: 'after' },
-                )
-                .lean()
-                .exec();
-              if (!gate)
-                throw new ServiceUnavailableException(
-                  'Booking coordination gate is missing',
-                );
-              return gate.generation;
-            },
-            resolveSlot: async (slot, generation) => {
-              const _id = slotKey(slot);
-              requireKey(_id);
-              const result = await gates.updateOne(
-                { _id, generation, allocationPending: true },
-                { $set: { allocationPending: false } },
-                { session },
-              );
-              if (result.matchedCount !== 1)
-                throw new ConflictException('Slot generation is stale');
-            },
-            slotState: async (slot) => {
-              requireKey(slotKey(slot));
-              const row = await gates
-                .findById(slotKey(slot))
-                .session(session)
-                .lean()
-                .exec();
-              if (!row)
-                throw new ServiceUnavailableException(
-                  'Booking gate is missing',
-                );
-              return {
-                allocationPending: row.allocationPending,
-                generation: row.generation,
-                queueSequence: row.queueSequence ?? 0,
-              };
-            },
-            nextQueueSequence: async (slot) => {
-              requireKey(slotKey(slot));
-              const row = await gates
-                .findOneAndUpdate(
-                  { _id: slotKey(slot) },
-                  { $inc: { queueSequence: 1 } },
-                  { session, returnDocument: 'after' },
-                )
-                .lean()
-                .exec();
-              if (
-                !row ||
-                !Number.isSafeInteger(row.queueSequence) ||
-                row.queueSequence > 2147483647
-              )
-                throw new ServiceUnavailableException(
-                  'Queue ordering is unavailable',
-                );
-              return row.queueSequence;
-            },
-          });
+          await this.acquireGates(keys, session, gates);
+          return work(
+            this.createTransaction(keys, session, gates, commitments),
+          );
         },
         {
           readConcern: { level: 'snapshot' },
@@ -282,6 +128,175 @@ export class BookingCoordinationService {
     } finally {
       await session.endSession();
     }
+  }
+
+  private coordinationKeys(scope: BookingScope): string[] {
+    const keys = [
+      ...new Set([
+        ...(scope.clinicIds ?? []).map((id) => `clinic:${id.toHexString()}`),
+        ...(scope.doctorIds ?? []).map((id) => `doctor:${id.toHexString()}`),
+        ...scope.patientIds.map(patientKey),
+        ...scope.slots.map(slotKey),
+      ]),
+    ].sort();
+    if (!keys.length)
+      throw new Error('Booking transaction requires coordination keys');
+    return keys;
+  }
+
+  private async acquireGates(
+    keys: string[],
+    session: ClientSession,
+    gates: Model<Gate>,
+  ): Promise<void> {
+    for (const _id of keys) {
+      const gate = await gates
+        .findOneAndUpdate(
+          { _id },
+          { $inc: { revision: 1 } },
+          { session, returnDocument: 'after' },
+        )
+        .lean()
+        .exec();
+      if (!gate)
+        throw new ServiceUnavailableException(
+          'Booking coordination gate is missing',
+        );
+    }
+  }
+
+  private createTransaction(
+    keys: string[],
+    session: ClientSession,
+    gates: Model<Gate>,
+    commitments: Model<Commitment>,
+  ): BookingTransaction {
+    const requireKey = (key: string) => {
+      if (!keys.includes(key))
+        throw new Error('Booking operation is outside its locked scope');
+    };
+    return {
+      session,
+      checkReservation: async (entry, generation, excludedWaitlistId) => {
+        requireKey(patientKey(entry.patientId));
+        requireKey(slotKey(entry));
+        await this.checkReservation(
+          entry,
+          generation,
+          session,
+          gates,
+          commitments,
+          excludedWaitlistId,
+        );
+      },
+      reserve: async (entry, generation) => {
+        requireKey(patientKey(entry.patientId));
+        requireKey(slotKey(entry));
+        await this.reserve(entry, generation, session, gates, commitments);
+      },
+      updateWaitlistStatus: async (
+        commitmentId,
+        previousVersion,
+        version,
+        status,
+      ) => {
+        const entry = await commitments
+          .findOne({ kind: 'WAITLIST', commitmentId })
+          .session(session)
+          .lean()
+          .exec();
+        if (
+          !entry ||
+          entry.version !== previousVersion ||
+          entry.status !== 'ACTIVE'
+        )
+          throw new BookingConflictException('STALE_COMMITMENT');
+        requireKey(patientKey(entry.patientId));
+        requireKey(slotKey(entry));
+        await commitments.updateOne(
+          { _id: entry._id },
+          { $set: { version, status } },
+          { session },
+        );
+      },
+      release: async (kind, commitmentId) => {
+        const entry = await commitments
+          .findOne({ kind, commitmentId })
+          .session(session)
+          .lean()
+          .exec();
+        if (!entry) throw new ConflictException('Commitment no longer exists');
+        requireKey(patientKey(entry.patientId));
+        requireKey(slotKey(entry));
+        await commitments.deleteOne({ _id: entry._id }, { session });
+      },
+      holdSlot: async (slot) => {
+        const _id = slotKey(slot);
+        requireKey(_id);
+        const gate = await gates
+          .findOneAndUpdate(
+            { _id },
+            {
+              $inc: { generation: 1 },
+              $set: { allocationPending: true },
+            },
+            { session, returnDocument: 'after' },
+          )
+          .lean()
+          .exec();
+        if (!gate)
+          throw new ServiceUnavailableException(
+            'Booking coordination gate is missing',
+          );
+        return gate.generation;
+      },
+      resolveSlot: async (slot, generation) => {
+        const _id = slotKey(slot);
+        requireKey(_id);
+        const result = await gates.updateOne(
+          { _id, generation, allocationPending: true },
+          { $set: { allocationPending: false } },
+          { session },
+        );
+        if (result.matchedCount !== 1)
+          throw new ConflictException('Slot generation is stale');
+      },
+      slotState: async (slot) => {
+        requireKey(slotKey(slot));
+        const row = await gates
+          .findById(slotKey(slot))
+          .session(session)
+          .lean()
+          .exec();
+        if (!row)
+          throw new ServiceUnavailableException('Booking gate is missing');
+        return {
+          allocationPending: row.allocationPending,
+          generation: row.generation,
+          queueSequence: row.queueSequence ?? 0,
+        };
+      },
+      nextQueueSequence: async (slot) => {
+        requireKey(slotKey(slot));
+        const row = await gates
+          .findOneAndUpdate(
+            { _id: slotKey(slot) },
+            { $inc: { queueSequence: 1 } },
+            { session, returnDocument: 'after' },
+          )
+          .lean()
+          .exec();
+        if (
+          !row ||
+          !Number.isSafeInteger(row.queueSequence) ||
+          row.queueSequence > 2147483647
+        )
+          throw new ServiceUnavailableException(
+            'Queue ordering is unavailable',
+          );
+        return row.queueSequence;
+      },
+    };
   }
 
   private async prepareGates(keys: string[]): Promise<void> {

@@ -1388,3 +1388,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** The new outcome assertion confused the STATUS_CHANGED enum key with its APPOINTMENT_STATUS_CHANGED stored value. Automated real-MongoDB tests caught it; the assertion was corrected without changing production behavior. This was not caught by me manually.
 
 **One decision I can explain without AI:** Helpers must use the caller's transaction and captured time so appointment, ledger, slot generation and outbox changes either commit together or roll back together. Stable event IDs must remain identical for replay and downstream deduplication.
+
+
+## FI-09 Step 6c — Booking coordination responsibilities — 2026-11-22
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck, Jest, Supertest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Implement Step6's BookingCoordinationService.run slice from the package refactoring plan.
+
+**Pre-planning:** Verified clean backend2b2cd54 and worktree instructions/session/bug records. Inspected coordination callers, BookingModule, transaction types, gate/ledger schemas and existing rollback/retry/race tests. Plan requires three private extractions and a service-level stopping boundary.
+
+**Planning:** Extract key construction, gate acquisition and operation construction. Keep session lifetime, retry counter/options and cleanup in run; pass the original session/models to helpers without new providers, catches or transactions.
+
+**Implementation process:** Added coordinationKeys/acquireGates/createTransaction; run190→36lines. Added9real-database empty/foreign-scope cases checking unchanged commitments and rolled-back gate revisions; strengthened retry session/cleanup assertions. Build/full types/lint,191unit236API266disposableDB tests pass (693). Original operation expressions match via AST printing. Sandbox asset-watcher EMFILE resolved on approved rerun. Updated plan/roadmap/existing architecture/session records; no sprint covers date.
+
+**What I kept as-is:** Public API, captured models/session, sorted deduplicated scope, pretransaction seeding, sequential gate writes, eight-attempt bound and transaction concerns/timeouts, conflict and reservation policy, generation/queue fencing, query/write order and finally cleanup.
+
+**What I changed or rejected, and why:** Used private helpers as required; retained the scoped-operation factory together without adding injected services or repositories. No performance/total-source reduction claim. Promotion remains pending; stop for manual review/commit. No appDB/env/flags/dependency/frontend/live provider/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** An initial edit command used a repository-relative path from the application directory and failed before writing. Codex corrected the path; no source change resulted from the failed command (B-035). No manually caught or application error is claimed.
+
+**One decision I can explain without AI:** Gates must be acquired in the existing transaction before constructing callback operations on every retry, so scope protection and business writes share one atomic outcome and cleanup still runs on failure.
