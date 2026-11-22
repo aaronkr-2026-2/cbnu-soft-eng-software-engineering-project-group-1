@@ -229,7 +229,7 @@ Build/full types/lint,34 helper and195 disposable booking checks passed. Applica
 source and dependencies remain unchanged; the plan records the prototype, limits
 and B-033 edge case.
 
-Step 6 is **in progress**. Its MemberService slice completed locally November21:
+Step 6 is **complete locally as of November22**. Its MemberService slice completed locally November21:
 private password validation, patch construction and conditional persistence helpers
 reduce updateMember's source span from158 to100 lines. The facade retains image
 claims/recovery/cleanup ordering, authorization and deletion dispatch; version-based
@@ -250,8 +250,15 @@ sequential gate acquisition and transaction-operation construction reduce run fr
 190 to36 lines. The original session, sorted scope, retry bounds/options, cleanup,
 reservation rules and generation/queue fencing remain intact. Build/full types/lint,
 191unit236API266disposableDB tests pass (693), including9new empty/foreign-scope
-cases and strengthened retry/session cleanup assertions. Stop at this service
-boundary for review; promotion processing remains pending.
+cases and strengthened retry/session cleanup assertions.
+
+The final promotion slice completed November22: private claim, candidate, booking,
+cutoff and recovery helpers reduce runOnce from192 to14lines. Original scopes,
+session, token/generation fencing, FIFO, live cutoff checks, atomic event writes,
+recovery catch boundaries and backoff remain intact. Build/full types/lint,
+191unit236API268disposableDB tests pass (695);2new regressions cover post-booking
+cutoff rollback and failed-handoff lease recovery. All four Step6 slices are complete;
+stop here for review/manual commit. Steps7–8 remain pending.
 Detailed evidence, limits and commit boundaries are in the plan; no deadline or
 source-line reduction is claimed.
 

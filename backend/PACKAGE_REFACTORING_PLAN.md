@@ -2,10 +2,11 @@
 
 Date: November 22, 2026 (Asia/Seoul)
 
-Status: **In progress — Steps 1–5 complete locally November 21, 2026.** Baseline,
-logging, scheduling, configuration and timezone evaluation are recorded below.
-Luxon adoption is deferred. Step 6 is in progress: MemberService, appointment
-transition and coordination slices are complete; promotion remains. Steps 7–8 are pending.
+Status: **In progress — Steps 1–6 complete locally.** Steps 1–5 completed
+November 21, 2026; Step 6 completed November 22, 2026. Baseline, logging,
+scheduling, configuration and timezone evaluation are recorded below.
+Luxon adoption is deferred. All four Step 6 service slices are complete.
+Steps 7–8 are pending.
 Deployment, production log collection and shutdown grace periods remain unverified.
 
 ## Goal
@@ -143,7 +144,7 @@ Proposed commit: `refactor(backend): simplify clinic timezone helpers`, or
   deterministic outbox event creation.
 - [x] `BookingCoordinationService.run`: extract key construction, gate acquisition
   and transaction-operation construction.
-- [ ] Promotion processing: separate claims, candidate processing, cutoff handling
+- [x] Promotion processing: separate claims, candidate processing, cutoff handling
   and retry orchestration after the scheduling migration.
 
 Use private methods for single-service behavior. Add an injectable internal service
@@ -977,3 +978,77 @@ deployment, staging, commit, push or merge changes were made.
 
 Proposed manual commit:
 `refactor(backend): separate booking coordination responsibilities`.
+
+
+## Step 6d acceptance — Promotion processing — November 22, 2026
+
+**Fourth service slice complete; Step 6 is complete locally.** Started from clean
+backend `ed784e3` with the coordination slice committed by the owner. Steps 7–8
+remain pending. Stop here for review and manual commit.
+
+`AppointmentPromotionService.runOnce` retains enablement/stopped checks, readiness,
+preparation, claim dispatch and the recovery boundary. Private methods separate
+release-event claims, the bounded candidate loop, transaction-bound candidate
+checks, cutoff deferral, eligible booking and recovery/backoff orchestration.
+`processCandidate`, `deferAtCutoff` and `promoteCandidate` receive the original
+transaction; `recoverCutoff` retains the existing separate fenced transaction
+after allocation rollback. Existing `fence`, `finish` and `retry` are unchanged.
+No provider, dependency, module, public interface or transaction was added.
+
+AST source-span measurement: `runOnce` **192 → 14 physical lines**. New helper
+spans are 33/17/30/20/68/14/25 lines; this is a responsibility split, not a claim
+of lower total source size or faster execution. Preserved:
+
+- Claim query/order, token creation, 30-second lease, attempts, due-time selection
+  and expired-owner takeover; preparation and claiming remain outside recovery.
+- Maximum25candidates per claim, fresh out-of-transaction head selection, original
+  clinic/doctor/patient/slot scopes, in-transaction head recheck and NEXT/DONE flow.
+- Token fence, current policy, generation and occupancy checks before eligibility.
+  Only PromotionIneligible closes a candidate; infrastructure errors retry the head.
+- Original consent, booking arguments/source/generation, deterministic booking-event
+  ID/payload and transaction session. Cutoff checks use live time at the original
+  positions, including after booking/event writes; no captured clock replaces them.
+- Initial cutoff handling retains SLOT_STARTED versus MANUAL_CUTOFF. The existing
+  rollback recovery retains its own scope and MANUAL_CUTOFF result. Failures in
+  that recovery still propagate, leaving a leased claim for later fenced takeover.
+- Batch-limit delay, capped exponential worker backoff, claim cleanup, poll return
+  values, shutdown behavior and the unchanged scheduler.
+
+AST checks confirm identical claim query/update/options, booking-event write,
+cutoff-recovery transaction, fence/finish/retry methods and Date.now call count.
+This complements source/order review; it is not proof of unrestricted equivalence.
+
+| Check | Actual result |
+| --- | --- |
+| Build | `npm run build` passed, including configured assets, with approved watcher access |
+| Full TypeScript | `./node_modules/.bin/tsc --noEmit --incremental false` passed |
+| Lint | `npm run lint` passed without warnings |
+| Unit | `npm test -- --runInBand`: 191 passed, 16 suites |
+| HTTP/GraphQL | `npm run test:e2e -- --runInBand`: 236 passed, 9 suites |
+| Disposable MongoDB | Booking policy/coordination and account deletion: 268 passed, 3 suites |
+| Source/whitespace review | AST checks and `git diff --check` passed |
+
+**695 tests passed.** Two new real-database regressions verify post-booking cutoff
+rollback (appointment, fulfillment, ledger and booking event) and a failed recovery
+handoff whose claim stays PROCESSING until a fresh worker takes over after lease
+expiry. Existing tests cover FIFO, typed-ineligible skipping, infrastructure retry,
+25-candidate yield, concurrent workers/manual booking, generation fencing, killed
+process recovery, withdrawal/cutoff races, replacement rollback, authorization,
+versions and event deduplication. The runner uses only owned disposable databases
+and stubbed delivery providers. Repeat with
+`node test/run-booking-integration.cjs /private/tmp/medconnect-fi09-step6d.json`
+from backend/; that local profile selects the three suites and runner-owned cleanup.
+
+No application test failed. Tooling review removed unrelated whole-file Prettier
+changes from the existing integration suite. A temporary AST probe initially
+matched raw multiline source text incorrectly; whitespace-normalized matching
+passed (B-036). These corrections did not alter production behavior. Existing
+VM-module/Mongoose warnings and an expected upload-limit error in a passing API
+negative test remain. No browser, live provider, container or production verification
+is claimed. README setup/features are unchanged. Plan, roadmap, existing architecture
+and project records are updated; no sprint covers this date, so closed history is
+preserved. No application DB/env/flags/dependency/frontend/deployment or staging,
+commit, push or merge changes were made.
+
+Proposed manual commit:
+`refactor(backend): separate waitlist promotion responsibilities`.

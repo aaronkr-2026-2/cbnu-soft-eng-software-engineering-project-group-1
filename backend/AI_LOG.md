@@ -1409,3 +1409,24 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **Something the AI got wrong that I had to catch:** An initial edit command used a repository-relative path from the application directory and failed before writing. Codex corrected the path; no source change resulted from the failed command (B-035). No manually caught or application error is claimed.
 
 **One decision I can explain without AI:** Gates must be acquired in the existing transaction before constructing callback operations on every retry, so scope protection and business writes share one atomic outcome and cleanup still runs on failure.
+
+
+## FI-09 Step 6d — Promotion processing responsibilities — 2026-11-22
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck, Prettier, Jest, Supertest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Continue to the next Step6 slice after booking coordination.
+
+**Pre-planning:** Verified clean backended784e3 and worktree instructions/session/bug records. Inspected promotion scheduling/module wiring, waitlist head and eligibility interfaces, gate/transaction contracts and existing race/rollback/recovery tests. Promotion was the last of four Step6 slices.
+
+**Planning:** Keep runOnce as preparation/claim/recovery dispatch; extract private claim, loop, candidate, booking, cutoff and recovery responsibilities. Preserve original transaction scopes, live clock calls and catch boundaries, especially a recovery failure that must escape for lease takeover.
+
+**Implementation process:** Added7private methods; runOnce192→14lines. Added2real-database tests for post-booking cutoff rollback and failed handoff recovery after lease expiry. Build/full types/lint,191unit236API268disposableDB tests pass (695). AST checks confirm claim query/options, event write, recovery transaction, fence/finish/retry methods and clock call count. Updated plan/roadmap/existing architecture/session records; Step6 complete locally, Steps7–8pending. No sprint covers date.
+
+**What I kept as-is:** Enablement/readiness, claim ordering/lease/token,25candidate bound, FIFO recheck, original clinic/doctor/patient/slot scopes, current session, generation/occupancy checks, typed eligibility skipping, live cutoff checks before/after writes, booking source/event IDs/payload, atomic writes, cutoff recovery, backoff and scheduler/shutdown behavior.
+
+**What I changed or rejected, and why:** Used private helpers without new providers or transactions. Kept the initial cutoff path distinct from post-rollback recovery because their scopes/results differ. No total-source or performance claim. No appDB/env/flags/dependency/frontend/live provider/deployment/staging/commit/push/merge changes; stop after Step6 for manual review/commit.
+
+**Something the AI got wrong that I had to catch:** Codex diff review caught unrelated whole-file formatter changes and removed them. A temporary AST check matched raw multiline source incorrectly; normalized whitespace and reran successfully (B-036). Neither issue changed production behavior, and no manual or application test failure is claimed.
+
+**One decision I can explain without AI:** A booking crossing the48hourcutoff must roll back before the existing fenced manual handoff. If the handoff fails too, preserving its recoverable lease is safer than swallowing the error or closing the FIFO patient as ineligible.

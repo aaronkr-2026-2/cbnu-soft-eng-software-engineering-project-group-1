@@ -3471,6 +3471,85 @@ describe('Specialty-aware booking policy through the real API and MongoDB', () =
         expect((await slotGate())!.allocationPending).toBe(false);
       });
 
+      it('rolls back booking writes when allocation crosses the cutoff before completion', async () => {
+        const entry = await setup();
+        freezeTime(+start - 48 * 3600_000);
+        const appointments = app.get(AppointmentService);
+        const book = appointments.bookInTransaction.bind(appointments);
+        jest
+          .spyOn(appointments, 'bookInTransaction')
+          .mockImplementationOnce(async (...args) => {
+            const appointment = await book(...args);
+            freezeTime(+start - 48 * 3600_000 + 1);
+            return appointment;
+          });
+        expect(await worker().runOnce()).toBe(true);
+        expect(await promoted()).toHaveLength(0);
+        expect((await originalRecord(entry._id, 'waitlists'))!.status).toBe(
+          'ACTIVE',
+        );
+        expect(
+          await connection.db!.collection('booking_commitments').findOne({
+            kind: 'WAITLIST',
+            commitmentId: new Types.ObjectId(entry._id),
+          }),
+        ).not.toBeNull();
+        expect(
+          await events().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+        ).toBe(0);
+        expect(await releaseEvent()).toMatchObject({
+          state: 'DEFERRED',
+          result: 'MANUAL_CUTOFF',
+        });
+        expect((await slotGate())!.allocationPending).toBe(false);
+      });
+
+      it('preserves a failed cutoff handoff for fenced recovery by a later worker', async () => {
+        const entry = await setup();
+        freezeTime(+start - 48 * 3600_000);
+        const appointments = app.get(AppointmentService);
+        const check = appointments.checkPromotionEligibility.bind(appointments);
+        jest
+          .spyOn(appointments, 'checkPromotionEligibility')
+          .mockImplementationOnce(async (...args) => {
+            const principal = await check(...args);
+            freezeTime(+start - 48 * 3600_000 + 1);
+            return principal;
+          });
+        jest
+          .spyOn(app.get(WaitlistService), 'openingCandidate')
+          .mockRejectedValueOnce(new Error('injected handoff failure'));
+        await expect(worker().runOnce()).rejects.toThrow(
+          'injected handoff failure',
+        );
+        expect(await releaseEvent()).toMatchObject({
+          state: 'PROCESSING',
+          attempts: 1,
+          claimToken: expect.any(String),
+        });
+        expect((await originalRecord(entry._id, 'waitlists'))!.status).toBe(
+          'ACTIVE',
+        );
+        expect((await slotGate())!.allocationPending).toBe(true);
+        expect(await promoted()).toHaveLength(0);
+        expect(await freshWorker().runOnce()).toBe(false);
+        await events().updateOne(
+          { type: 'SLOT_RELEASED' },
+          { $set: { leaseUntil: new Date(Date.now() - 1) } },
+        );
+        expect(await freshWorker().runOnce()).toBe(true);
+        expect(await releaseEvent()).toMatchObject({
+          state: 'DEFERRED',
+          result: 'MANUAL_CUTOFF',
+          attempts: 2,
+        });
+        expect((await slotGate())!.allocationPending).toBe(false);
+        expect(await promoted()).toHaveLength(0);
+        expect(
+          await events().countDocuments({ type: 'WAITLIST_BOOKING_CREATED' }),
+        ).toBe(0);
+      });
+
       it.each(['eligibility-read', 'notification-write'])(
         'retries %s failure without skipping the FIFO head or leaking error payloads',
         async (point) => {

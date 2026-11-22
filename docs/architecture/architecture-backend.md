@@ -433,6 +433,15 @@ reclaimed after restart. Each transaction writes the token fence after locking t
 doctor/patient/slot, so a stale owner cannot book after takeover. Slot generation
 checks prevent old releases from touching a newer hold.
 
+FI-09 Step6's promotion slice (November 22, 2026) keeps `runOnce` responsible for
+readiness/preparation, claiming and recovery dispatch. Private helpers separate the
+release claim, bounded loop, transaction-bound candidate checks, booking, cutoff
+deferral and recovery/backoff. Candidate helpers receive the original transaction;
+cutoff recovery retains its existing separate fenced transaction after rollback.
+Live clock checks, token/lease and generation checks, typed-ineligible handling,
+booking/outbox atomicity and catch boundaries remain unchanged. Recovery failures
+propagate so an expired claim can be reclaimed; no provider or scheduler changes.
+
 WaitlistService selects the FIFO ACTIVE head and performs version-conditional
 INELIGIBLE/fulfilled transitions; notification-only entries are excluded.
 AppointmentService checks current consent/patient/doctor/clinic/schedule eligibility.
