@@ -202,6 +202,15 @@ MediBridge crop/zoom pattern with react-easy-crop6.2.4 and an accessible MUI Dia
 The fixed square supports pointer/keyboard positioning and labeled zoom. Opening the
 cropper creates a temporary object URL; cancelling/unmounting revokes it and keeps
 the previous draft. Confirm prepares a local File and preview; My Page's existing
+FI-09 Step7's PersonalInfo slice separates `components/mypage/PersonalInfo.tsx`
+from the My Page session/deletion shell. `usePersonalInfo` owns reads, editing,
+validation, focus, save ordering and session outcomes; `useProfileImage` owns image
+selection/crop drafts, blob previews and the existing reusable upload reference.
+`PersonalInfoFields` presents ordinary/role/password fields; `ProfileImageEditor`
+presents image controls and the existing cropper. These are stable top-level
+components with the original access-token key and shared mounted state. Existing
+profile clients, update payloads and account-deletion behavior are unchanged.
+
 Save changes performs authenticated upload then profile update. No upload happens
 on selection or crop confirmation. Pending crop blocks profile submission; errors
 keep the confirmed draft available. The shared My Page flow serves all account roles.
@@ -869,3 +878,77 @@ Stop at this feature boundary for review; recheck native submission acceptance
 when browser control is available.
 
 Manual commit: `refactor(next): separate booking form state and presentation`.
+
+
+## FI-09 Step 7b — PersonalInfo — November 23, 2026
+
+Second of four frontend areas implemented from clean Next `5703bc3`; backend
+`919b4a9` was read only. TeamSchedules and ActionDialog remain. Step7 is still in
+progress, including the browser acceptance gaps below and the prior Step7a
+submission-outage gap. The shared backend plan/roadmap remain protected by the
+Next instructions; this architecture record carries frontend progress.
+
+PersonalInfo's source span is **558 → 170 lines**, with a184-line coordination
+hook, separate image hook and stable field/password/image views. MyPage retains
+its original session-keyed mount and deletion dialog. AST comparison confirms
+identical save/change functions and MyPage shell. All six original effect
+callbacks/dependency arrays retain their order; the broken-image effect receives
+the same memberImage value through the image hook parameter. Reset/crop handlers
+retain their original setter order. No total-source or performance gain is claimed.
+
+Validation still precedes upload/write. Pending crop and in-flight request guards,
+username checks/conflicts, first-invalid/edit/cancel focus, token-bound aborts,
+post-unmount result guards, clinic-only fields and provider password restrictions
+are unchanged. Upload references remain cached after failed saves for an explicit
+retry; there is no automatic mutation replay. Password success retains session
+clear/redirect behavior. This extraction does not add a new uncertain-save policy
+or automatic read reconciliation; existing profile reload behavior remains.
+
+| Check | Result |
+| --- | --- |
+| `yarn typecheck` and TypeScript noUnusedLocals/noUnusedParameters | Passed |
+| `yarn test` |187passed, including11new PersonalInfo cases |
+| Isolated production Webpack build | Passed, synthetic localhost API settings, no copied env files |
+| AST and whitespace review | Passed |
+| Real adapters through local Next/Nest/disposable MongoDB |8scenario assertions passed; final read confirms browser save |
+
+Focused tests exercise stale/aborted reads, cancel/reset/focus, validation/crop
+blocking, duplicate-submit prevention, failed-save draft/upload-reference retention,
+explicit retry without reupload, username-conflict focus, password reauthentication,
+unmount protection, image validation/cancel/blob cleanup and rendered role/password/
+image controls. The existing deterministic hook harness is shared with booking
+regressions; React SSR verifies markup. These tests do not replace native browser QA.
+A new SSR assertion initially used lowercase readonly instead of React's readOnly;
+correcting the expectation made all187pass. A temporary AST selector also needed
+Identifier.text instead of passing a function node as getText's source file. Neither
+correction changed production code (NEXT-020).
+
+The actual API fixture verifies profile reads, multipart image upload/save/public
+serving,503save failure without replay, username conflict, clinic fields and a
+post-commit lost-reply simulation with exactly one write followed by an explicit
+profile read. A synthetic doctor password change returns requiresLogin, invalidates
+the old access token and accepts new credentials. All provider calls are disabled
+or stubbed; no real account/password or application database is used.
+
+Native Chrome verified synthetic sign-in, edit autofocus, keyboard reopening,
+address cancel/reset and edit-button focus, then a fresh-tab successful save whose
+persisted address was read back through the API.390×844inspection confirms the
+saved synthetic avatar and upper form/username wrapping. File selection/crop
+completion, lower-mobile/password/image/save layout and the browser503save-outage
+result remain **unverified/inconclusive**: native actions intermittently returned
+noWindowsAvailable and some cached AX/screenshots diverged. No browser crop or
+outage success is claimed; no application cause is established. The native chooser
+was canceled, and owned tabs/DevTools were closed. Prior Step7a tab/DevTools cleanup
+was also completed; its lost-mutation acceptance gap remains open (NEXT-019).
+
+Owned runner52706/Nest52753, Next and both MongoDB processes stopped; all4ports
+closed and temporary MongoDB/upload files removed. Evidence:
+`/private/tmp/medconnect-fi09-step7b-evidence.json`; fixture scripts:
+`/private/tmp/medconnect-fi09-step7b-{runner,stack,api-check}.cjs`; isolated build:
+`/private/tmp/medconnect-fi09-step7b-release/next`. Fixture logs and uploads are
+outside the repository. No backend/Vite, appDB, credentials/env, dependencies,
+production flags, deployment, staging/commit/push/merge changes. README setup and
+features are unchanged. No sprint covers this date; closed history is preserved.
+Stop at this slice for review; TeamSchedules is next.
+
+Manual commit: `refactor(next): separate personal information state and presentation`.

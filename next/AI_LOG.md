@@ -1100,3 +1100,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** Native sign-in automation assumed Tab from email focused password; it focused Forgot password. Codex corrected with explicit fresh field clicks; no reset occurred (NEXT-014 follow-up). An initial documentation command used root-relative paths from the application cwd and failed before writing; rerun from the worktree root. The extra submission-outage attempt is explicitly inconclusive, not counted passed.
 
 **One decision I can explain without AI:** Moving views must leave the draft and uncertain-request state in the same mounted owner. An uncertain outcome must be reconciled by reads; splitting a component must never cause a second booking mutation.
+
+
+## FI-09 Step 7b — Personal information state and presentation — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck/noUnused checks, Yarn/Node tests, React SSR, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Continue to PersonalInfo, the next Step7 feature area.
+
+**Pre-planning:** Verified clean Next5703bc3/backend919b4a9, worktree/session/bug records and Step7. Inspected profile/session/upload/username/cropper flows, existing tests, installed Pages Router state guidance and MediBridge PersonalInfo. Preserved project-specific abort, focus, session and image guarantees instead of copying the reference's state/transport behavior.
+
+**Planning:** Separate MyPage shell, PersonalInfo presentation, profile save/edit coordination, image draft handling and stable field/password/image views. Keep original token key, save order and API clients; reuse the existing hook-test harness for concrete booking/profile regression coverage.
+
+**Implementation process:** PersonalInfo558→170lines; added usePersonalInfo/useProfileImage and views. Save/change, MyPage shell and6ordered effects match AST (memberImage parameter substitution). Types/noUnused/187tests(11new)/isolated production build pass. Actual adapters verify8synthetic scenarios: profile,image save/serving,503/no replay,username conflict,postcommit lost reply+explicit read,clinic fields,password invalidation. Native keyboard/edit/cancel/focus and fresh-tab save pass; actual API read confirms save,390pxupper layout/avatar inspected. Browser crop/lower-mobile/outage result remain unverified after native errors; chooser/tabs/DevTools closed, prior Step7a cleanup completed. Owned runner/Nest/Next/Mongo stopped,4ports closed/tempDB+uploads removed. Next architecture/session records updated; backend plan protected. No sprint covers date.
+
+**What I kept as-is:** Profile validation/payloads, username availability and post-busy focus, role/provider fields, password spacing and session-clear redirect, duplicate/crop submit guards, aborted/stale results, blob cleanup, delayed image upload, cached upload reference on failure, explicit retry, MyPage deletion dialog and token-keyed mount.
+
+**What I changed or rejected, and why:** Used feature-specific hooks and stable views; introduced no generic persistence layer, remount key, transport/retry or uncertain-save policy. Shared only the test harness now used by two real suites. No total-source/performance claim. No backend/Vite/appDB/env/dependency/live provider/productionflag/staging/commit/push/merge/deployment changes. TeamSchedules and ActionDialog remain.
+
+**Something the AI got wrong that I had to catch:** Automated SSR checks caught a new assertion expecting lowercase readonly instead of React's readOnly. Corrected the test without production changes. A temporary AST selector incorrectly used a function node as a source file; switched to Identifier.text and reran successfully (NEXT-020). Native select-all did not replace one fixture input reliably; a fresh-tab exact-text selection was used for the confirmed save. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** The uploaded-image reference and draft must survive a failed save, and a second click must not start another request while one is pending. Extraction should retain that mounted state and the original abort/focus sequence rather than recreating it inside view components.
