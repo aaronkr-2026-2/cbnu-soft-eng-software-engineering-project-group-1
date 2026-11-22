@@ -60,7 +60,10 @@ function createHookHarness(stubs = {}, directory = 'components/mypage') {
     },
   };
   function load(name) {
-    const filename = path.resolve(directory, name + '.ts');
+    const source = path.resolve(directory, name);
+    const filename = fs.existsSync(source + '.ts')
+      ? source + '.ts'
+      : source + '.tsx';
     const loaded = new Module(filename, module);
     loaded.filename = filename;
     loaded.paths = Module._nodeModulePaths(path.dirname(filename));

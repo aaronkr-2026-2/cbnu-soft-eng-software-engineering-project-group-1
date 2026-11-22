@@ -384,7 +384,12 @@ merge old snapshots. Forbidden/expired sessions clear the private view.
 used. Compact cards are grouped/displayed in the workspace timezone; details label
 their clinic timezone. Authoritative timezone-context changes resync the window.
 
-`TeamSchedules` owns affiliation reviews and acknowledged complete schedule drafts.
+`TeamSchedules` composes affiliation review and acknowledged complete schedule
+editors. FI-09 Step7 separates `DoctorApplications`, `WeeklyHoursEditor`,
+`DateOverridesEditor` and `SchedulePreview`; both interval editors reuse
+`ScheduleTimeSelect`. `useScheduleDraft` retains the shared mounted draft and
+acknowledgements; `useSchedulePreview` retains abortable effective-slot reads.
+The original parent tab key, doctor-selection resets and review boundary remain.
 `StaffBooking` uses public slots plus patient-ID validation, with Nest deriving clinic
 identity. `WorkspaceReview` requires a single explicit mutation confirmation and
 keeps uncertain outcomes in read-check mode. Appointment/status checks reread owned
@@ -952,3 +957,84 @@ features are unchanged. No sprint covers this date; closed history is preserved.
 Stop at this slice for review; TeamSchedules is next.
 
 Manual commit: `refactor(next): separate personal information state and presentation`.
+
+
+## FI-09 Step 7c — TeamSchedules — November 23, 2026
+
+Third of four frontend areas implemented from clean Next `2d88903`; backend
+`919b4a9` was read only. ActionDialog remains. Step7 is in progress; earlier
+BookingForm/PersonalInfo browser acceptance gaps are not closed by this slice.
+The shared backend plan/roadmap remain protected by the Next no-write instruction;
+frontend progress is recorded here.
+
+TeamSchedules's source span is **469 → 110 lines**. Separate application, weekly,
+override and preview components retain their feature-specific behavior; two hooks
+hold shared drafts and preview loading. The small time selector is shared by its
+two concrete callers. No provider, dependency, API, style or module boundary changes.
+The original WorkspacePage tab key remains; no new remount key is introduced.
+Doctor changes clear both draft arrays and acknowledgements while retaining date.
+Row edits clear the appropriate acknowledgement and preserve the other editor.
+
+AST checks confirm unchanged patch helpers, preview effect/dependencies and all
+three review-task expressions. Tasks still copy rows on review, not confirmation;
+closures retain the reviewed doctor/date/zone. Application reconciliation reads
+current affiliation status. Weekly/date tasks still have no saved-configuration
+check callback because that endpoint does not exist. WorkspaceReview remains
+unchanged: uncertain mutations lock editing, use a read check when available and
+never automatically replay schedule writes. Slots show effective availability,
+not saved configuration. No total-source reduction or performance claim.
+
+| Check | Result |
+| --- | --- |
+| `yarn typecheck` and TypeScript noUnusedLocals/noUnusedParameters | Passed |
+| `yarn test` |198passed, including11new team/schedule regressions |
+| Final isolated production Webpack build | Passed, synthetic localhost API settings, no copied env files |
+| AST/source/whitespace review | Passed |
+| Actual adapters through local Next/Nest/disposable MongoDB |10scenario assertions passed, plus final browser-state reads |
+
+Focused tests cover immutable draft/acknowledgement changes, doctor reset behavior,
+stale/aborted preview reads, read-only refresh after errors/completed writes,
+application mode, copied weekly/date reviews, affiliation read reconciliation,
+native disabled/read-only guards, invalid/unacknowledged drafts and uncertain
+schedule writes with no replay. They use the existing hook harness (now supporting
+TSX loads), real React SSR and production task callbacks; they do not replace
+browser checks.
+
+Actual API checks verify clinic team, approval/rejection, weekly replacement,
+custom date hours, full-day closure, clearing overrides, restoring standard hours,
+weekend-write rejection, patient-role denial and a simulated post-commit lost reply:
+exactly one mutation followed by an effective-slot read. All actors and storage
+are synthetic/disposable; no live provider was used.
+
+Native Chrome against production Next → normal Nest AppModule → owned MongoDB
+verified clinic sign-in, pending-only actions, confirmed doctor approval and refreshed
+read-only status, approved-doctor selection, effective preview, acknowledged weekly
+review via keyboard, confirmed weekly save, full-day closure review/save and empty
+preview afterward. Escape closes reviews and drafts stay mounted.390×844screenshots
+verify wrapped weekly and override controls plus preview. A forced503preview read
+showed an error with both drafts/acknowledgements intact; removing the fault and
+refreshing restored the empty preview. Subsequent actual reads confirm browser
+approval and closure. Password saving was declined; signed out, disabled emulation,
+closed DevTools and the owned tab. Native scrolling transiently returned
+noWindowsAvailable; control focus exposed the lower page for inspection. No
+application defect was established from the native error.
+
+Source comparison caught formatter-shifted whitespace around a weekly summary dash;
+restored the original JSX text before final build. Temporary API checks initially
+used a module path outside node resolution, a wrong operation filter and an
+incorrect assumption that broad weekday hours crossing lunch must be rejected.
+The existing setter accepts broad intervals; slot generation applies lunch policy.
+Corrected the harness to actual module/operation names and the explicit weekend
+rejection contract, without changing application behavior (NEXT-021).
+
+Owned runner73911/Nest74006, Next and both MongoDB processes stopped; all4ports
+closed and temporary MongoDB/upload files removed. Sanitized evidence:
+`/private/tmp/medconnect-fi09-step7c-evidence.json`; fixture scripts:
+`/private/tmp/medconnect-fi09-step7c-{runner,stack,api-check}.cjs`; final isolated build:
+`/private/tmp/medconnect-fi09-step7c-release/next`. Build/fixture URLs are synthetic
+acceptance configuration, not deployment configuration. No backend/Vite/appDB,
+credentials/env, dependencies, production flags, live provider, deployment or
+staging/commit/push/merge changes. README setup/features are unchanged. No sprint
+covers this date; closed history is preserved. Stop here; ActionDialog is next.
+
+Manual commit: `refactor(next): separate team and schedule state and presentation`.

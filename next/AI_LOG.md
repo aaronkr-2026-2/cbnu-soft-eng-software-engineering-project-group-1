@@ -1121,3 +1121,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** Automated SSR checks caught a new assertion expecting lowercase readonly instead of React's readOnly. Corrected the test without production changes. A temporary AST selector incorrectly used a function node as a source file; switched to Identifier.text and reran successfully (NEXT-020). Native select-all did not replace one fixture input reliably; a fresh-tab exact-text selection was used for the confirmed save. No manual owner catch is claimed.
 
 **One decision I can explain without AI:** The uploaded-image reference and draft must survive a failed save, and a second click must not start another request while one is pending. Extraction should retain that mounted state and the original abort/focus sequence rather than recreating it inside view components.
+
+
+## FI-09 Step 7c — Team and schedule state and presentation — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck/noUnused checks, Yarn/Node tests, React SSR, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Continue to TeamSchedules, the next Step7 feature area.
+
+**Pre-planning:** Verified clean Next2d88903/backend919b4a9, instructions/session/bug records and Step7. Traced WorkspacePage's keyed mount/lock/review boundary, schedule/team clients through careRequest, preview reads, validation and server ownership. Read installed Pages Router guidance; inspected the reference component inventory, which had no matching schedule component to adopt.
+
+**Planning:** Keep mounted draft ownership and WorkspaceReview unchanged. Separate applications, weekly hours, overrides and preview; share only the existing time selector with two callers. Preserve copied review payloads, acknowledgements, timezone and read cancellation without adding retries or an invented saved-hours endpoint.
+
+**Implementation process:** TeamSchedules469→110lines; added2hooks/4views/shared selector. Patch helpers/preview effect/deps/3review expressions match AST. Types/noUnused/198tests(11new)/final isolated build pass. Actual adapters verify10synthetic review/schedule/closure/default/role/lost-reply scenarios. Chrome verifies approval,keyboard/Escape,weekly+closure saves/effective preview,390pxcontrols and503preview outage retaining drafts/recovery. Final API reads confirm browser writes. Signed out/restored viewport/closed DevTools+tab; verified runner73911/Nest74006/Next/Mongo stopped,4ports closed/tempDB+uploads removed. Updated Next architecture/session records; backend plan protected, no sprint covers date.
+
+**What I kept as-is:** Parent tab key, shared draft/date ownership, doctor resets, per-editor acknowledgements, row bounds/validation, pending-only application actions, copied review payloads, actual clients/signals/timezone, preview stale guards, uncertain-result locks and absence of automatic mutation replay.
+
+**What I changed or rejected, and why:** Used feature-specific hooks/views and concrete shared selector; extended the existing test harness to TSX. No new API/dependency/style/transaction or saved-config abstraction. No total-source/performance claim. No backend/Vite/appDB/env/live provider/productionflag/staging/commit/push/merge/deployment changes. ActionDialog remains; prior browser gaps are not closed by this slice.
+
+**Something the AI got wrong that I had to catch:** AST comparison caught formatter-shifted dash whitespace and Codex restored original JSX. Temporary API probes used an unresolved module path, wrong operation filter and assumed lunch-crossing weekday hours must be rejected; corrected the probe against current code and the explicit weekend contract (NEXT-021), without production changes. Native end-time selection was not confirmed as changed, so browser review is recorded as the observed09:00–17:00draft. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** Schedule reviews must hold copied rows and the doctor/date captured when review opens. Confirmation must not silently use later draft edits, and losing a write response must never cause automatic resubmission.
