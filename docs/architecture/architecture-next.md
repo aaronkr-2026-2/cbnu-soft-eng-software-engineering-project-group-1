@@ -36,6 +36,15 @@ presentation/structured conflict normalization; server responses remain authorit
 `BookingCalendar` adapts the MediBridge month grid with accessible day buttons and
 clinic-local date-only arithmetic in `libs/booking-calendar.ts`. It emits the
 selected date to BookPage; it neither fetches slots nor assumes weekends are closed.
+FI-09 Step7's BookingForm extraction separates the mounted selection draft and
+directory effects (`useBookingSelection`), slot-read effects (`useBookingSlots`),
+and replacement-source reads (`useReplacementSource`). `BookingFormViews` contains
+stable top-level care-team, time, replacement and summary views. The form retains
+action/dialog lifecycle and uncertain-result coordination. State stays under the
+existing PatientGate identity boundary; views add no remount keys or API client.
+Slot data remains in the shared selection draft so clinic changes can clear its
+dependent values in the original effect order.
+
 `ActionDialog` owns review, explicit consent/forfeit acknowledgement, stale-source
 preflight, and read reconciliation. Both originals and targets are displayed.
 `PatientGate` restricts the UI to USER accounts and unmounts private state at sign-out
@@ -803,3 +812,60 @@ disposable Mongo files were verified removed. Production guest-IP/TLS/capacity,
 application storage setup, coordinated branch integration and deployment remain
 release prerequisites; recovery stays default off. No Next source, configuration,
 dependency or production data was changed. Staging/commits/pushes remain manual.
+
+
+## FI-09 Step 7a — BookingForm — November 22, 2026
+
+The first of four frontend feature areas is implemented. PersonalInfo,
+TeamSchedules and ActionDialog remain; Step7 is in progress. The shared backend
+plan/roadmap were read but not changed: Next instructions prohibit backend-folder
+writes, including other worktrees. This record carries the Next slice's progress.
+
+Started from clean Next `77c63de` against read-only backend `919b4a9`. BookingForm
+is now121lines versus557. Three hooks separate selection/directory reads, slot
+reads and replacement-source reads; four stable views present the care team,
+times, original and summary. All seven effect callbacks and dependency arrays
+match original AST output in the same order. Abort cleanup, stale-response guards,
+shared draft ownership, exact-link application, dependent resets, clinic-local
+dates, source-loading reset and fail-closed review controls are preserved.
+ActionDialog preflight, consent, mutation and read reconciliation are unchanged.
+No API, dependency, style, backend source or environment file changed.
+
+Verification: `yarn typecheck`, all176tests (9new), final isolated production
+Webpack build and whitespace checks pass. Focused tests use a deterministic hook
+state/effect harness for controlled async reads and real React server rendering
+for view controls, not a substitute for browser React. Cases cover exact-link
+selection once, late/aborted team and slot responses, outage retry/draft retention,
+weekends, replacement-mode exit and invalid/unverified sources, timezone/labels,
+radio eligibility and blocked review under uncertain/unverified outcomes.
+
+Actual native Chrome → production Next → normal Nest AppModule → disposable
+MongoDB verified synthetic sign-in, exact-slot preselection, keyboard radio
+movement, Escape dismissal, confirmed booking, original source display and
+successful atomic replacement. Actual adapter reads verify clinics/team, occupied
+replacement slot, canceled original and confirmed replacement. Chrome390×844
+screenshots show wrapped controls, two-column slot options, stacked summary and
+a fitting review dialog. Pausing the owned API verified slot-read timeout,
+disabled review, retained team/date draft and Try again recovery without a write.
+
+A further submission-outage check is **inconclusive**. Native control returned
+noWindowsAvailable while the review showed Checking; submission timeout and
+reconciliation were not observed. Actual API reads subsequently found0target
+appointments. This does not establish that a mutation reached the API or that a
+mutation response was lost. No new lost-mutation browser acceptance is claimed.
+Browser sign-out, tab closure and emulation/DevTools restoration could not be
+confirmed after native access failed. No production/deployed verification.
+
+Owned runner35067/Nest35160/Next/both MongoDB processes stopped; all4fixture ports
+closed and MongoDB files were removed. Sanitized evidence:
+`/private/tmp/medconnect-fi09-step7-evidence.json`; fixture scripts:
+`/private/tmp/medconnect-fi09-step7-{runner,stack,api-check}.cjs`; isolated build:
+`/private/tmp/medconnect-fi09-step7-release/next`. The build uses synthetic localhost
+API settings for acceptance, not deployment configuration. The fixture disables
+live mail and never loads application env files. No application DB/backend/Vite,
+credentials/env, dependencies, production flags, staging/commit/push/merge or
+deployment changes. No sprint covers this date; closed history is preserved.
+Stop at this feature boundary for review; recheck native submission acceptance
+when browser control is available.
+
+Manual commit: `refactor(next): separate booking form state and presentation`.

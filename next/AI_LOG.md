@@ -1079,3 +1079,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** A declaration with no ordinary caller can still be a framework entry point, so references must be checked before removal.
+
+
+## FI-09 Step 7a — Booking form state and presentation — 2026-11-22
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck, Yarn/Node tests, React server rendering, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Start Step7 of the package refactoring plan.
+
+**Pre-planning:** Verified clean Next77c63de/backend919b4a9, instructions/session/bug records and Step7. Traced BookPage/PatientGate/API/session/ActionDialog to backend booking contracts. Read installed Pages Router/useRouter guidance and inspected the MediBridge hook reference; no reference dependency or behavior was copied.
+
+**Planning:** Follow the one-feature-area boundary, starting with BookingForm. Keep shared draft and uncertainty state under the same mounted form; separate directory/selection, slot reads, replacement source and views without new keys, transport or retries.
+
+**Implementation process:** Three hooks/four stable views reduce BookingForm557→121lines; all7effect callbacks/deps/order match AST output. Added9hook-harness/React-SSR cases; types176tests/final isolated build pass. Actual native Chrome→Next→Nest→owned Mongo verified exact links, keyboard/Escape, booking, original display and atomic replacement,390pxlayout/dialog and read-timeout/draft-retaining retry. Actual adapters confirm persisted replacement. Extra submission-outage check inconclusive after native noWindowsAvailable;0target appointments, no lost-mutation acceptance claim. Processes/ports/Mongo files cleaned; browser sign-out/tab/emulation cleanup unavailable. Next architecture/session records updated; backend plan protected by Next no-write rule. No sprint covers date.
+
+**What I kept as-is:** Clients/documents, abort/stale-result guards, exact-link application, field clearing, timezone/date behavior, replacement-source reset, consent/preflight/mutation/reconciliation, identity boundary and refresh/close semantics, including selected-slot reset for a fresh read.
+
+**What I changed or rejected, and why:** Used feature-specific hooks and stable views; kept shared draft state together to retain effect ordering. No generic loading abstraction, remount key, dependency, styling or API change. Remaining Step7areas: PersonalInfo, TeamSchedules, ActionDialog. No backend/Vite/appDB/env/live provider/productionflag/staging/commit/push/merge/deployment changes.
+
+**Something the AI got wrong that I had to catch:** Native sign-in automation assumed Tab from email focused password; it focused Forgot password. Codex corrected with explicit fresh field clicks; no reset occurred (NEXT-014 follow-up). An initial documentation command used root-relative paths from the application cwd and failed before writing; rerun from the worktree root. The extra submission-outage attempt is explicitly inconclusive, not counted passed.
+
+**One decision I can explain without AI:** Moving views must leave the draft and uncertain-request state in the same mounted owner. An uncertain outcome must be reconciled by reads; splitting a component must never cause a second booking mutation.
