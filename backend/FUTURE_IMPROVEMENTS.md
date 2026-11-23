@@ -1,0 +1,316 @@
+# Future improvements roadmap
+
+Created: November 4, 2026 (Asia/Seoul)
+
+This is the shared roadmap for modular backend and Next.js improvements. Keep the
+overview here; create a separate implementation plan for each improvement when it
+is selected, following [DIRECTORY_SEARCH_PLAN.md](DIRECTORY_SEARCH_PLAN.md).
+Roadmap entries do not authorize implementation or establish delivery deadlines.
+
+## Status labels
+
+- **Backlog:** proposed improvement; detailed scope and plan are not yet prepared.
+- **Planned:** a detailed implementation plan exists; implementation has not started.
+- **In progress:** implementation has started; remaining steps are recorded in its plan.
+- **Completed:** the agreed scope is implemented and verified, with completion date
+  and evidence recorded below.
+
+Keep completed entries in this roadmap. Update their labels as work progresses;
+do not remove them or reuse their IDs. Mark an item **Completed** only after its
+agreed backend/frontend scope and acceptance checks are satisfied. Partial backend
+delivery must remain **In progress** if the agreed user-facing flow is unfinished.
+Record verification limits separately; implementation completion does not imply
+production deployment.
+
+## Roadmap
+
+Sizes are preliminary relative estimates, not commitments. Ordering reflects the
+initial recommendation; choose the next item explicitly before creating its plan.
+
+| ID    | Improvement                                | Outcome                                                                                                         | Estimated size | Status        | Detailed plan                                               | Completed on      |
+| ----- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | -------------- | ------------- | ----------------------------------------------------------- | ----------------- |
+| FI-01 | Better doctor/clinic search                | Find doctors and clinics by name, city and specialty, with pagination, sorting, shareable URLs and autocomplete | Medium         | **Completed** | [Directory search plan](DIRECTORY_SEARCH_PLAN.md)           | November 5, 2026  |
+| FI-02 | Appointment reminders                      | Notify patients before upcoming visits, starting with in-app reminders and considering email later              | Medium         | **Planned**   | [Appointment reminders plan](APPOINTMENT_REMINDERS_PLAN.md) | —                 |
+| FI-03 | Forgot-password recovery                   | Recover email/password account access through an expiring, single-use reset link                                | Medium         | **Completed**   | [Password recovery plan](PASSWORD_RECOVERY_PLAN.md)         | November 19, 2026 |
+| FI-04 | Add to personal calendar                   | Add a one-time appointment event through a checkbox before booking or a button after booking                    | Small          | **Backlog**   | Not created                                                 | —                 |
+| FI-05 | Clinic dashboard statistics                | View upcoming visits, cancellations, completed appointments and no-shows for a selected period                  | Medium         | **Backlog**   | Not created                                                 | —                 |
+| FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                                 | —                 |
+| FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`               | November 5, 2026  |
+| FI-08 | Email verification                         | Verify email ownership with an expiring code before creating a new email/password account                       | Medium         | **Completed** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md)       | November 13, 2026 |
+| FI-09 | Package adoption and modular refactoring | Reduce custom infrastructure and split large backend/frontend functions while preserving existing behavior | Larger | **Completed locally** | [Refactoring plan](PACKAGE_REFACTORING_PLAN.md) | November 23, 2026 |
+
+## Scope notes for future plans
+
+### FI-01 — Better doctor/clinic search - COMPLETED
+
+The linked plan defines the agreed scope: doctor full names and clinic names rather
+than usernames; city/specialty filters; MongoDB aggregation and server pagination;
+Name A–Z / Z–A sorting; URL synchronization; filter chips; responsive/keyboard polish;
+and filter-aware name autocomplete. Typo tolerance remains deferred.
+
+Completed locally November5: all six agreed steps are implemented and accepted.
+Backend search/suggestions and Next doctor/clinic directories include filters,
+sorting,pagination,shareable URLs,autocomplete and removable chips. Typecheck,92
+frontend tests,production build,real Nest/disposable-MongoDB adapter checks and
+Chrome desktop/390px mobile interaction checks passed. Both directories were checked
+with125 matching records; wrapped pagination centers on both pages. Detailed evidence
+is in the linked plan and the Next branch's architecture/SPRINT_05 records. Step6
+awaits the owner's manual commit; completion does not imply deployment. Square card
+photos and upload cropping are separate deferred work.
+
+### FI-02 — Appointment reminders — Planned
+
+The [dedicated plan](APPOINTMENT_REMINDERS_PLAN.md) defines six implementation
+steps across the backend and Next worktrees, with acceptance checks and manual
+commit boundaries. Proposed timing is 24 hours and 1 hour before confirmed visits;
+policy agreement and implementation remain pending. Reuse the durable in-app
+outbox/inbox with independent enablement, stale-reminder suppression, retries and
+deduplication. Existing waitlist notices are not appointment reminders. Email and
+the FI-06 rescheduling workflow remain deferred. No implementation is complete.
+
+### FI-03 — Forgot-password recovery
+
+**Completed locally November 19, 2026.** The [dedicated plan](PASSWORD_RECOVERY_PLAN.md)
+records backend Steps 1–3 (`2ece2a2`), Next Step 4 (`6e1ca6a`) and combined Step 5.
+Fresh backend build/full TypeScript, 549 backend tests and Next typecheck/167 tests/
+isolated build pass (716 total); lint retains the existing config.ts warning.
+Real production Next HTTP proxy → Nest AppModule → disposable MongoDB tests cover
+request/reset/login, timer delivery and worker replacement alongside the recovery
+race suites. The owner confirmed the authorized live Gmail reset link and
+password-changed email both arrived and reset/sign-in worked; fixture state confirms
+committed reset, old access rejection and a new session. Exactly two emails were sent
+to one selected recipient. Owned processes and disposable database files were cleaned.
+Operations document storage, retention/retry/ownership, monitoring, shared-proxy
+capacity and coordinated rollout/rollback. Recovery stays default off pending
+production target setup, trusted guest-IP/TLS/capacity verification and coordinated
+integration/deployment; local completion does not claim production activation.
+
+### FI-04 — Add to personal calendar
+
+Provide an optional **Add to my calendar** checkbox above the booking button.
+Only after the booking succeeds, offer the confirmed appointment to the user's
+calendar for a one-time save. Also provide an **Add to my calendar** button on the
+booking confirmation and in the booked appointment's details, so users can add it
+later or retry if opening the calendar was blocked.
+
+Use a prefilled Google Calendar event link and an `.ics` option for compatible
+calendar apps on Android, iPhone, Mac and Windows. The user confirms saving/importing
+the event; no connected calendar account or synchronization is required. Include
+the appointment time, duration, clinic information and a suggested reminder where
+supported. Calendar settings and permissions determine notification delivery.
+
+Define authorization, timezone handling, private-field limits and stable event IDs
+in the dedicated plan. Generate events from confirmed server booking data, not an
+unsaved form. Adding a calendar event must not determine whether booking succeeds.
+Avoid duplicate additions where practical, but do not promise deduplication across
+all calendar clients. Later appointment changes or cancellations do not automatically
+update the saved event; communicate that when adding it. Calendar synchronization
+and subscriptions are outside this item's scope.
+
+### FI-05 — Clinic dashboard statistics
+
+Provide own-clinic aggregate counts over a selected period. Define date/timezone
+boundaries, included statuses and access rules in the plan. Verify counts against
+actual appointments and avoid exposing patient information in aggregate responses.
+
+### FI-06 — Doctor change requests
+
+Build a doctor-to-clinic approval workflow for cancellation or schedule-change
+requests. Existing schema fields are a starting point, not a completed workflow.
+Define request states, approval/rejection, participant notifications and handling
+of stale requests or unavailable destination slots. Preserve booking, waitlist and
+transaction rules when an approved request is applied.
+
+### FI-07 — Square directory photos and upload cropper - COMPLETED
+
+Completed locally November5,2026. Next doctor/clinic cards use1:1 images,including
+existing/default photos without rewriting storage. My Page uses the reviewed
+MediBridge-style square crop/zoom dialog before the existing Save changes upload.
+Crop confirmation remains local; cancel and upload failure preserve the draft.
+Output is JPEG,maximum1024×1024,without upscaling; transparent pixels become white.
+Uploaded image paths resolve against the API origin. Next backlog NEXT-B13 and the
+implementation/acceptance plan `next/IMAGE_CROPPER_PLAN.md` are on branch `next`.
+
+Next typecheck,97 tests and production build pass. Chrome verifies desktop keyboard,
+cancel/draft behavior,upload-error preservation,actual clinic/doctor saves and375px
+mobile dialog. Stored fixture files are JPEG1024×1024 in the correct owned targets;
+the public clinic card displays the saved crop after the origin fix. A separately
+authorized backend UploadResolver fix prevents ValidationPipe from instantiating
+GraphQL upload promises; build/full TypeScript,12 upload and all222 API checks pass.
+Lint has the pre-existing config.ts warning. Disposable data only; production
+storage/deployment,legacy rewriting and additional image-editing features remain out
+of scope. Commits remain manual and separate for backend/Next.
+
+### FI-08 — Email verification — COMPLETED
+
+The [dedicated plan](EMAIL_VERIFICATION_PLAN.md) defines five steps covering policy
+and API agreement, Gmail delivery, backend enforcement, Next.js signup and combined
+acceptance, with checks and manual commit boundaries. Step 1 policy/contracts were
+finalized November 12, 2026, including API/error/proxy contracts, transactional
+proof consumption and an acceptance matrix. Selected defaults are a six-digit
+code valid for 10 minutes and five failed guesses per challenge. The owner
+requested escalating resend blocks of 1 hour, 3 hours, 5 hours and 24 hours. The plan
+interprets this as a block after each group of three resends, with 60-second spacing
+within groups and the initial email separate from the count. Maximum cooldown is
+24 hours. The owner selected reset after 24 hours without a send attempt. Blocked
+send attempts count as activity while the existing block deadline stays fixed.
+Signup consumes email-bound proof atomically with account creation. The Step 1
+baseline retains existing-account login and current Google verified-claim behavior.
+
+Step 2's Gmail delivery provider is implemented with `GOOGLE_SMTP_USER` and
+`GOOGLE_SMTP`. Backend build/typecheck, 96 unit tests and 222 API tests passed.
+Real Gmail TLS/authentication passed November 12, 2026. On November 13, Gmail
+accepted one test message sent through the compiled provider to the owner-selected
+configured sender inbox. The owner confirmed receipt on November 13, completing
+Step 2. Step 3 backend enforcement completed locally November 13, with durable
+request/resend limits, code confirmation, transactional signup proof and explicit
+storage setup/readiness checks. Disposable MongoDB/API tests cover timing, delivery
+recovery and concurrent writes. Step 4 Next.js integration is committed as `0ebc234`, with code/proof controls,
+proxy allowlists and local disposable-stack/browser acceptance. Step 5 passed 507
+automated tests, the production build and 15 combined proxy/API requests. The live
+Gmail code reached the approved inbox and completed real browser verification,
+signup, subsequent login and reload/refresh. Disposable database checks confirmed
+one account/proof consumption, verification time and fixed-expiry token rotation.
+Completed locally November 13, 2026. Disposable data/processes were removed;
+application database setup and coordinated production deployment remain unperformed.
+This item is separate from FI-03 password recovery and FI-02 reminders.
+
+### FI-09 — Package adoption and modular refactoring — Completed locally
+
+The [dedicated plan](PACKAGE_REFACTORING_PLAN.md) defines eight steps: baseline,
+logging, scheduling, configuration, timezone evaluation, backend function splits,
+frontend component splits, and final acceptance with a queue decision. Start with
+the baseline, logging and scheduling as the first batch, delivering and reviewing
+one step at a time. Evaluate compatible packages rather than copying MediBridge's
+dependency list. Preserve API contracts, authorization, transaction boundaries,
+worker recovery and uncertain-response handling. Luxon adoption is conditional;
+BullMQ/Redis implementation is deferred pending a concrete operational need and
+a separate agreed design. Step 1 baseline completed locally November 21, 2026:
+backend build/full types/lint, 895 backend tests, 167 frontend tests, frontend
+types/isolated build and a zero-finding backend runtime audit passed. Initial
+sandbox socket/DNS restrictions cleared on approved reruns; Mongoose/VM warnings
+remain. The plan records source inventory, function sizes and package compatibility,
+including the current Pino adapter's Nest patch mismatch. Application refactoring,
+dependency changes and deployment had not started at Step 1 acceptance.
+
+Step 2 completed locally November 21: Pino 10.4.0 now supplies logging through the
+existing Nest adapter, with stdout/configured-file output, safe request metadata,
+failure statuses and file-error fallback/draining. No existing dependency versions
+changed. Build/full types/lint, 155 unit and 233 API tests (388 total), compiled
+logger smoke and zero-finding runtime audit passed. The documented log schema now
+uses Pino numeric levels/ISO `time`; raw exceptions/URLs are omitted. Production
+collection/container behavior remains unverified.
+
+Step 3 completed locally November 21: exact @nestjs/schedule 12.0.4 supplies a
+shared registry for notification, lifecycle, promotion and recovery timeouts.
+Completion-driven cadence, non-overlap, gates, claims/leases/fencing and retry
+behavior are preserved; workers drain before database shutdown, and bootstrap
+now enables signal hooks. Build/full types/lint, 167 unit, 233 API, 195 booking and
+71 recovery tests (666 total), compiled SIGTERM drain smoke and a zero-finding
+runtime audit passed. Production grace periods/providers/container behavior remain
+unverified.
+
+Step 4 completed locally November 21: exact @nestjs/config 12.1.1 and typed
+ApplicationConfig centralize environment reads and secret-safe startup validation.
+Native env loading/import order, URI precedence, lazy credentials and default-off
+worker gates remain intact; invalid selected ports now fail early. Build/full
+types/lint, 191 unit, 233 API, 510 disposable database and 8 deployment-script
+checks (942 total), compiled bootstrap/configuration smoke and zero-finding runtime
+audit passed. The native loader test was corrected to use a real Node process;
+the final sandbox build watcher limit cleared on approved rerun. No runtime flag,
+application database, live provider or deployment changes.
+
+Step 5 completed November 21 with **Luxon adoption deferred**. A limited Luxon3.7.2
+prototype matched 25,354 instant checks, 88 candidate windows, 1,188 schedule/write
+checks and six date/range cases in the selected matrix. Broader probes found
+historical-year output differences. The small conversion simplification does not
+remove UTC scanning or clinic policy and does not justify compatibility work.
+Build/full types/lint,34 helper and195 disposable booking checks passed. Application
+source and dependencies remain unchanged; the plan records the prototype, limits
+and B-033 edge case.
+
+Step 6 is **complete locally as of November22**. Its MemberService slice completed locally November21:
+private password validation, patch construction and conditional persistence helpers
+reduce updateMember's source span from158 to100 lines. The facade retains image
+claims/recovery/cleanup ordering, authorization and deletion dispatch; version-based
+credential revocation remains intact. Build/full types/lint,191unit236API110realDB
+checks pass (537), including3new image-outcome regressions. No behavior/dependency
+or deployment changes.
+
+The appointment-transition slice also completed November21: private snapshot/time
+validation, canceled-slot handling and deterministic event construction reduce the
+transition orchestrator from151 to73 lines. Original session, gates, captured time,
+conditional writes, replay order, event IDs and atomic replacement/outbox behavior
+remain intact. Build/full types/lint,191unit236API257realDB tests pass (684).
+A new test assertion was corrected to the existing stored event type; no production
+behavior changed.
+
+The booking-coordination slice completed November22: private key construction,
+sequential gate acquisition and transaction-operation construction reduce run from
+190 to36 lines. The original session, sorted scope, retry bounds/options, cleanup,
+reservation rules and generation/queue fencing remain intact. Build/full types/lint,
+191unit236API266disposableDB tests pass (693), including9new empty/foreign-scope
+cases and strengthened retry/session cleanup assertions.
+
+The final promotion slice completed November22: private claim, candidate, booking,
+cutoff and recovery helpers reduce runOnce from192 to14lines. Original scopes,
+session, token/generation fencing, FIFO, live cutoff checks, atomic event writes,
+recovery catch boundaries and backoff remain intact. Build/full types/lint,
+191unit236API268disposableDB tests pass (695);2new regressions cover post-booking
+cutoff rollback and failed-handoff lease recovery. All four Step6 slices are complete;
+stop here for review/manual commit. Steps7–8 remain pending.
+Detailed evidence, limits and commit boundaries are in the plan; no deadline or
+source-line reduction is claimed.
+
+
+Step7 completed locally November23. Step8 was reopened after its premature
+completion claim; resumed acceptance below resolves NEXT-022 before final closure. The four Next slices are committed through
+`ea8c789`; final review removed one unused type export. Fresh backend build/full
+types/lint,959backend and210Next tests (1,169total), Next types/isolated build and
+both dependency audits pass. Real-stack Chrome closes profile crop/save-outage/
+lower-mobile gaps and verifies replacement consents, keyboard/mobile dialogs and
+postcommit503booking/cancellation read reconciliation without application replay.
+BullMQ/Redis adoption is deferred: no measured queue need or funded operations;
+retain the Mongo transactional outbox/idempotency and require a separate design
+if adoption is later justified. The plan records the socket-disconnect probe's
+2wire attempts/conflict (transport cause unconfirmed), B-033, and unverified
+production/providers/container behavior. No deployment or branch integration is
+implied. Earlier pending statements above describe historical slice checkpoints.
+
+
+Resumed Step8completed November23after correcting the premature sign-off. Fetch-ID
+traces prove Chrome transparently resent one POST when its reused connection lost
+the response before headers; baseline77c63deand current reproduced it. A narrow
+Next fix reconciles a newly visible owned exact-target CREATE conflict by reads;
+actual socket-reset retest now shows CONFIRMED with exactly1persisted target.
+Actual partial-body socket losses also reconcile booking/cancel; ordinary conflicts
+remain intact.220Next tests/types and both corrected builds pass; unchanged backend
+959-test evidence retained (1,179total). NEXT-022 is resolved. BullMQ stays deferred;
+production limits and B-033 remain. See the plan's resumed acceptance for full proof.
+
+## Modular delivery workflow
+
+1. Select a roadmap item and refine its scope before implementation.
+2. Create a dedicated `*_PLAN.md` alongside this roadmap and link it in the table.
+   Include must-have/nice-to-have/optional scope, small cohesive steps, backend or
+   Next.js worktree locations, acceptance checks and proposed commit messages.
+3. Implement and verify one agreed step at a time. The owner stages, commits and
+   pushes manually unless explicitly requested otherwise.
+4. Keep the roadmap and detailed plan aligned with actual progress. Follow each
+   worktree's documentation, sprint and implementation-record rules.
+5. After agreed acceptance passes, add the **Completed** label, actual Asia/Seoul
+   completion date and a short evidence note below. Preserve outstanding deployment
+   or external-provider verification limits.
+
+## Completion records
+
+- FI-01 — Completed locally November 5, 2026; evidence and deployment limits are
+  recorded in its scope note and the linked directory search plan.
+
+- FI-07 — Completed locally November 5, 2026; cropper,API upload and card evidence
+  are recorded above and in the Next branch plan.
+
+- FI-08 — Completed locally November 13, 2026; automated checks, combined
+  browser/API acceptance and real Gmail verification/signup/login/refresh evidence
+  are recorded above and in the [email verification plan](EMAIL_VERIFICATION_PLAN.md).
+  Application database setup and coordinated production deployment remain unperformed.

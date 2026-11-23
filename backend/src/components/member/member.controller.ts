@@ -1,0 +1,250 @@
+import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
+  Body,
+  Controller,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Optional,
+  Req,
+  Res,
+  UseGuards,
+  UseFilters,
+} from '@nestjs/common';
+import type { Request, Response } from 'express';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import {
+  MemberAccessGuard,
+  type AuthenticatedRequest,
+} from '../auth/guards/member-access.guard.js';
+import {
+  UsernameAvailabilityInput,
+  UsernameAvailability,
+} from '../../libs/dto/member/member-username.dto.js';
+import {
+  GoogleLoginDto,
+  LoginDto,
+  RefreshDto,
+  SignupDto,
+} from '../../libs/dto/member/member-auth.dto.js';
+import { GoogleAuthService } from '../auth/google-auth.service.js';
+import { EmailVerificationService } from '../auth/email-verification.service.js';
+import { EmailVerificationFilter } from '../auth/email-verification-error.js';
+import {
+  EmailVerificationRequestDto,
+  EmailVerificationVerifyDto,
+  VerificationValidationPipe,
+} from '../../libs/dto/member/email-verification.dto.js';
+import { MemberService } from './member.service.js';
+import type { MemberAuthResponse } from '../../libs/types/member.types.js';
+import { PasswordRecoveryService } from '../auth/password-recovery.service.js';
+import {
+  RecoveryErrorFilter,
+  recoveryError,
+} from '../auth/password-recovery-error.js';
+import {
+  RecoveryRequestDto,
+  RecoveryResetDto,
+  RecoveryValidationPipe,
+} from '../../libs/dto/member/password-recovery.dto.js';
+
+@Controller('member')
+@ApiTags('Member')
+export class MemberController {
+  constructor(
+    private readonly memberService: MemberService,
+    private readonly googleAuth: GoogleAuthService,
+    @Optional() private readonly emailVerification?: EmailVerificationService,
+    @Optional() private readonly passwordRecovery?: PasswordRecoveryService,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
+  ) {}
+
+  @Post('username/availability')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Check username availability for signup; does not reserve it',
+  })
+  @ApiOkResponse({ type: UsernameAvailability })
+  usernameAvailability(@Body() input: UsernameAvailabilityInput) {
+    return this.memberService.usernameAvailability(input.memberNick);
+  }
+
+  @Post('username/availability/me')
+  @UseGuards(MemberAccessGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary:
+      'Check availability for profile editing, allowing your own username',
+  })
+  @ApiOkResponse({ type: UsernameAvailability })
+  ownUsernameAvailability(
+    @Body() input: UsernameAvailabilityInput,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.memberService.usernameAvailability(
+      input.memberNick,
+      request.member,
+    );
+  }
+
+  private get nonceCookie() {
+    const secure = this.config.production;
+    return {
+      name: secure
+        ? '__Host-medconnect_google_nonce'
+        : 'medconnect_google_nonce',
+      options: {
+        httpOnly: true,
+        secure,
+        sameSite: secure ? ('none' as const) : ('lax' as const),
+        path: '/',
+      },
+    };
+  }
+
+  @Post('google/nonce')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Start Google sign-in; return a five-minute nonce and set its browser-binding cookie',
+  })
+  @Header('Cache-Control', 'no-store')
+  async googleNonce(@Res({ passthrough: true }) response: Response) {
+    const nonce = await this.googleAuth.createNonce();
+    const cookie = this.nonceCookie;
+    response.cookie(cookie.name, nonce, { ...cookie.options, maxAge: 300_000 });
+    return { nonce };
+  }
+
+  @Post('google/login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Sign in or register a USER with a Google ID token and its nonce cookie',
+  })
+  @Header('Cache-Control', 'no-store')
+  async googleLogin(
+    @Body() input: GoogleLoginDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<MemberAuthResponse> {
+    const cookie = this.nonceCookie;
+    const values = (request.headers.cookie ?? '')
+      .split(';')
+      .map((part) => part.trim())
+      .filter((part) => part.startsWith(`${cookie.name}=`));
+    const nonce =
+      values.length === 1 ? values[0].slice(cookie.name.length + 1) : undefined;
+    const result = await this.memberService.loginWithGoogle(
+      input.idToken,
+      nonce,
+    );
+    response.clearCookie(cookie.name, cookie.options);
+    return result;
+  }
+
+  @Post('password-recovery/request')
+  @ApiOperation({
+    summary:
+      'Request a password reset link without revealing account existence',
+  })
+  @ApiBody({ type: RecoveryRequestDto })
+  @HttpCode(HttpStatus.ACCEPTED)
+  @Header('Cache-Control', 'no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @UseFilters(RecoveryErrorFilter)
+  requestPasswordRecovery(
+    @Body(new RecoveryValidationPipe(RecoveryRequestDto)) input: unknown,
+  ) {
+    if (!this.passwordRecovery)
+      throw recoveryError(503, 'PASSWORD_RECOVERY_UNAVAILABLE');
+    return this.passwordRecovery.request(input as RecoveryRequestDto);
+  }
+
+  @Post('password-recovery/reset')
+  @ApiOperation({
+    summary: 'Consume a reset link and revoke existing sessions',
+  })
+  @ApiBody({ type: RecoveryResetDto })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @Header('Referrer-Policy', 'no-referrer')
+  @UseFilters(RecoveryErrorFilter)
+  resetPassword(
+    @Body(new RecoveryValidationPipe(RecoveryResetDto)) input: unknown,
+  ) {
+    return this.memberService.resetPassword(input as RecoveryResetDto);
+  }
+
+  @Post('email-verification/request')
+  @ApiOperation({ summary: 'Request or resend an email ownership code' })
+  @ApiBody({ type: EmailVerificationRequestDto })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @UseFilters(EmailVerificationFilter)
+  requestEmail(
+    @Body(new VerificationValidationPipe(EmailVerificationRequestDto))
+    input: unknown,
+  ) {
+    return this.emailVerification!.request(
+      input as EmailVerificationRequestDto,
+    );
+  }
+
+  @Post('email-verification/verify')
+  @ApiOperation({
+    summary: 'Confirm an email code and obtain single-use signup proof',
+  })
+  @ApiBody({ type: EmailVerificationVerifyDto })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @UseFilters(EmailVerificationFilter)
+  verifyEmail(
+    @Body(new VerificationValidationPipe(EmailVerificationVerifyDto))
+    input: unknown,
+  ) {
+    return this.emailVerification!.verify(input as EmailVerificationVerifyDto);
+  }
+
+  @Post('signup')
+  @ApiBody({ type: SignupDto })
+  @UseFilters(EmailVerificationFilter)
+  @ApiOperation({ summary: 'Create a member account' })
+  @Header('Cache-Control', 'no-store')
+  signup(
+    @Body(new VerificationValidationPipe(SignupDto, true)) input: unknown,
+  ): Promise<MemberAuthResponse> {
+    return this.memberService.signup(input as SignupDto);
+  }
+
+  @Post('login')
+  @ApiOperation({ summary: 'Log in and receive access and refresh tokens' })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  login(@Body() input: LoginDto): Promise<MemberAuthResponse> {
+    return this.memberService.login(input);
+  }
+
+  @Post('refresh')
+  @ApiOperation({
+    summary: 'Rotate a refresh token and issue a new access token',
+  })
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  refresh(@Body() input: RefreshDto): Promise<MemberAuthResponse> {
+    return this.memberService.refresh(input.refreshToken);
+  }
+}

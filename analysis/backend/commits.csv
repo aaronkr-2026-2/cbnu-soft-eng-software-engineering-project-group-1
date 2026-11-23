@@ -1,0 +1,60 @@
+hash,date,week,author,ai,files,added,deleted,churn,code_added,code_deleted,code_churn,non_code_added,non_code_deleted,non_code_churn,subject
+7c86bd1e,2026-10-01,2026-09-28,Dev1,0,57,3275,0,3275,3145,0,3145,130,0,130,chore: move backend application into backend directory
+4e675b0f,2026-10-01,2026-09-28,Dev1,0,9,319,11,330,319,11,330,0,0,0,feat: developed getMember api
+958cd3a3,2026-10-08,2026-10-05,Dev2,0,6,36,0,36,34,0,34,2,0,2,feat: Added swagger for API documentation
+a6f911d0,2026-10-08,2026-10-05,Dev5,0,5,109,0,109,109,0,109,0,0,0,"feat(backend): add myAppointments, getClinics and getClinicDoctors queries"
+eb6f03c0,2026-10-08,2026-10-05,Dev2,0,2,464,0,464,0,0,0,464,0,464,docs: Added gap-map.md and personas.md and updated the location of AI_LOG and SPRINT_01 files
+7d7ed705,2026-10-15,2026-10-12,Dev2,0,1,46,1,47,0,0,0,46,1,47,docs: Implemented architecture-backend.md file
+c20b3958,2026-10-15,2026-10-12,Dev2,0,12,641,41,682,625,41,666,16,0,16,feat: Integrated oAuth from google
+556a06eb,2026-10-15,2026-10-12,Dev2,0,2,109,0,109,0,0,0,109,0,109,docs: Added SPRINT_O2.md file
+8cacd49b,2026-10-16,2026-10-12,Dev2,0,1,12,0,12,0,0,0,12,0,12,"feat(next): add Apollo GraphQL queries, booking mutation, and shared fragments"
+0445c865,2026-10-16,2026-10-12,Dev2,0,1,12,0,12,0,0,0,12,0,12,feat(next): build responsive MUI landing page with clinic discovery
+59e28123,2026-10-16,2026-10-12,Dev2,0,1,12,0,12,0,0,0,12,0,12,feat(next): add combined sign-in and signup page with password visibility controls
+49603186,2026-10-16,2026-10-12,Dev2,0,1,12,0,12,0,0,0,12,0,12,feat(next): wired oAuth (Google) to the frontend
+2a22b0a1,2026-10-17,2026-10-12,Dev2,0,4,129,16,145,109,16,125,20,0,20,feat(backend): developed getDoctors api
+76a99208,2026-10-18,2026-10-12,Dev2,0,9,379,2,381,365,2,367,14,0,14,feat(backend): integrated imageUploader component
+92eebd70,2026-10-18,2026-10-12,Dev2,0,9,263,19,282,237,19,256,26,0,26,feat(backend): add clinic cities and derive doctor locations
+d429eb00,2026-10-18,2026-10-12,Dev2,0,15,987,32,1019,974,32,1006,13,0,13,feat(backend): add authenticated member updates and image replacement
+61536609,2026-10-19,2026-10-19,Dev2,0,6,233,34,267,220,34,254,13,0,13,feat(backend): add authenticated myProfile query
+87715f47,2026-10-25,2026-10-19,Dev2,0,2,294,0,294,0,0,0,294,0,294,docs(backend): define booking and waitlist contract
+5e22b252,2026-10-25,2026-10-19,Dev2,0,17,1101,28,1129,1077,27,1104,24,1,25,feat(backend): add transactional commitment coordination
+45f3de05,2026-10-25,2026-10-19,Dev2,0,24,2092,150,2242,2076,148,2224,16,2,18,feat(backend): confirm specialty-aware appointments immediately
+b716a0a7,2026-10-28,2026-10-26,Dev2,0,15,1154,27,1181,1141,27,1168,13,0,13,feat(backend): manage clinic schedules and list available slots
+d4579616,2026-10-29,2026-10-26,Dev2,0,10,887,64,951,874,64,938,13,0,13,feat(backend): add appointment lifecycle and durable slot-release events
+df565b7d,2026-10-31,2026-10-26,Dev2,0,22,2011,235,2246,1998,235,2233,13,0,13,feat(backend): add waitlist enrollment and atomic commitment replacement
+5e18b43a,2026-10-31,2026-10-26,Dev2,0,13,1010,17,1027,997,17,1014,13,0,13,feat(backend): add safe FIFO waitlist promotion worker
+c2398f3a,2026-10-31,2026-10-26,Dev2,0,22,1670,10,1680,1657,10,1667,13,0,13,feat(backend): add cutoff lifecycle and in-app waitlist notifications
+22da9042,2026-10-31,2026-10-26,Dev2,0,7,383,1,384,370,1,371,13,0,13,feat(backend): add patient appointment list query
+0a5f8828,2026-10-31,2026-10-26,Dev2,0,10,896,25,921,883,25,908,13,0,13,feat(backend): add authorized calendar snapshots and updates
+b0221c37,2026-10-31,2026-10-26,Dev2,0,12,625,8,633,612,8,620,13,0,13,feat(backend): add current notification targets and delivery checks
+45d8988e,2026-11-01,2026-10-26,Dev2,0,12,770,36,806,690,35,725,80,1,81,feat(backend): complete waitlist recovery and rollout readiness
+e2da6312,2026-11-01,2026-10-26,Dev2,0,7,167,10,177,147,10,157,20,0,20,feat(backend): define username validation and normalization
+79cc0f14,2026-11-01,2026-10-26,Dev2,0,15,931,19,950,900,19,919,31,0,31,feat(backend): enforce case-insensitive username uniqueness
+94bcba8f,2026-11-01,2026-10-26,Dev2,0,4,94,17,111,74,17,91,20,0,20,feat(backend): generate usernames for Google accounts
+b1904c6c,2026-11-01,2026-10-26,Dev2,0,11,455,10,465,435,10,445,20,0,20,feat(backend): add username availability checks
+74d02a7c,2026-11-01,2026-10-26,Dev2,0,8,164,17,181,139,17,156,25,0,25,fix(backend): enforce weekday-only booking schedules
+752b231c,2026-11-02,2026-11-02,Dev2,0,4,274,0,274,0,0,0,274,0,274,docs(backend): add sprint 03–05 delivery reviews
+c1ae9c3c,2026-11-03,2026-11-02,Dev2,0,6,242,87,329,216,86,302,26,1,27,refactor(backend): share appointment doctor eligibility checks
+4f676da9,2026-11-04,2026-11-02,Dev2,0,2,340,0,340,0,0,0,340,0,340,docs(backend): add future improvements roadmap and directory search plan
+39549eaa,2026-11-04,2026-11-02,Dev2,0,11,540,4,544,489,1,490,51,3,54,feat(backend): add filtered doctor directory search
+8071ba57,2026-11-05,2026-11-02,Dev2,0,7,451,21,472,406,18,424,45,3,48,feat(backend): add filtered clinic directory search
+0cfb5418,2026-11-05,2026-11-02,Dev2,0,7,420,16,436,379,13,392,41,3,44,feat(backend): add filtered directory name suggestions
+73a3bc0f,2026-11-05,2026-11-02,Dev2,0,4,90,7,97,0,0,0,90,7,97,docs(backend): close directory search plan and roadmap
+16f1db6d,2026-11-05,2026-11-02,Dev2,0,5,90,26,116,37,8,45,53,18,71,fix(backend): preserve upload scalars through validation
+02b09ed4,2026-11-05,2026-11-02,Dev2,0,2,108,51,159,0,0,0,108,51,159,docs(backend): close sprint 05 and carry forward release checks
+d2e63953,2026-11-06,2026-11-02,Dev2,0,2,300,16,316,0,0,0,300,16,316,docs(backend): plan appointment reminders and update future improvements
+3f9577af,2026-11-12,2026-11-09,Dev2,0,2,292,0,292,0,0,0,292,0,292,docs(backend): plan email verification with escalating resend cooldowns
+54955e48,2026-11-12,2026-11-09,Dev2,0,2,248,56,304,0,0,0,248,56,304,docs(backend): finalize email verification contracts
+3415e1d8,2026-11-13,2026-11-09,Dev2,0,10,438,13,451,326,0,326,112,13,125,feat(backend): add Gmail verification email delivery
+c646d332,2026-11-13,2026-11-09,Dev2,0,22,1936,69,2005,1801,57,1858,135,12,147,feat(backend): require email verification for signup
+3a65ce31,2026-11-13,2026-11-09,Dev2,0,3,125,15,140,0,0,0,125,15,140,docs(backend): complete email verification acceptance
+89f54b09,2026-11-13,2026-11-09,Dev2,0,1,21,0,21,0,0,0,21,0,21,fix(backend): patch critical transitive dependencies
+79b118fa,2026-11-14,2026-11-09,Dev2,0,2,33,1,34,0,0,0,33,1,34,fix(backend): patch high severity dependencies
+d421db10,2026-11-14,2026-11-09,Dev2,0,1,435,0,435,0,0,0,435,0,435,docs(backend): define account deletion contracts
+587e5ed9,2026-11-14,2026-11-09,Dev2,0,24,2099,107,2206,2021,98,2119,78,9,87,feat(backend): add transactional account deletion
+044696dd,2026-11-15,2026-11-09,Dev2,0,2,18,1,19,0,0,0,18,1,19,fix(backend): patch minimatch and preserve glob compatibility
+0691c951,2026-11-16,2026-11-16,Dev2,0,20,1778,91,1869,1387,75,1462,391,16,407,feat(backend): define password recovery contracts and storage
+e1fe0e45,2026-11-16,2026-11-16,Dev2,0,13,1356,47,1403,1240,3,1243,116,44,160,feat(backend): deliver password recovery links through Gmail
+2ece2a29,2026-11-17,2026-11-16,Dev2,0,10,1079,35,1114,980,6,986,99,29,128,feat(backend): reset passwords and revoke existing sessions
+04158891,2026-11-19,2026-11-16,Dev2,0,6,507,30,537,358,2,360,149,28,177,test(backend): verify combined password recovery acceptance
+f9f9afb2,2026-11-19,2026-11-16,Dev2,0,7,207,48,255,194,48,242,13,0,13,fix(backend): default booking slots to weekday hours with lunch break

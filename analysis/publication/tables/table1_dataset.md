@@ -1,0 +1,16 @@
+| Measure | Value |
+| --- | --- |
+| Commit period (author dates) | 2026-09-11 to 2026-11-19 |
+| Calendar weeks | 11 |
+| Non-merge commits | 132 |
+| Author pseudonyms | 6 |
+| Lines added / deleted | 69,650 / 10,802 |
+| Code churn | 64,809 |
+| Non-code churn | 15,643 |
+| Non-code share of churn | 19.4% |
+| Median churn per commit | 287.0 |
+| AI-tagged commits | 0 |
+| Dated AI-log entries | 145 |
+| Dated session notes | 82 |
+
+Dataset summary for the exported selection. Authors are pseudonyms, not verified unique people. Log counts can overlap. Zero AI-tagged commits does not establish absence of AI use.

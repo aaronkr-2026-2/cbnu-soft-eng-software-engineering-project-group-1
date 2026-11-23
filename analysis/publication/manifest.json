@@ -1,0 +1,173 @@
+{
+  "generator": "generate_figures.py",
+  "generator_sha256": "c21a44bbbe52eb5d87da7a1c9c8a4ea03828e63093ff706bd94e65cff33f5455",
+  "formats": [
+    "png",
+    "pdf",
+    "svg"
+  ],
+  "inputs": {
+    "ai_log.csv": {
+      "sha256": "b2501a3686f9330c5ce72da0e789cd2f2f64c51475ea229ba0e849147e938371"
+    },
+    "backend/commits.csv": {
+      "sha256": "46a835fc6d394e035e38b760da396fd74cf9ce6b6f49262d30f8f3d1d78c0e9f"
+    },
+    "commits.csv": {
+      "sha256": "df33f1801de2341c001b8eb50db09f3a826a44c22a71d40e27f4d60b9ac1a589"
+    },
+    "dated_notes.csv": {
+      "sha256": "b77575ad21cf82c265670f510cf3d45017352ec92d8ced3c78b4a0244db4f3f9"
+    },
+    "document_weekly.csv": {
+      "sha256": "f1b8c4373ee9e67e76aed10d00597a1ea5dc00110013a7102a0a1572108bf41c"
+    },
+    "documents.csv": {
+      "sha256": "f797b56e9fc0f6e8fa03bc350b3db9b82e96a0c98c4680f33bbb988727b555be"
+    },
+    "legacy_frontend/commits.csv": {
+      "sha256": "9fe6a0640941a0002ee0062e5ad1bd6c83b3e53625779eb3e8249551dd45f53b"
+    },
+    "next/commits.csv": {
+      "sha256": "a642f7231cb6ceca0e8ddeb281956f81d6b684c3855b9c2775d7fb0d6c0b9a53"
+    },
+    "plan_items.csv": {
+      "sha256": "159551f9757c36c5cd24bb32588490ccbd38e8b63c4287acb34237aec8f14e9a"
+    },
+    "shared/commits.csv": {
+      "sha256": "09669d689859c3ed4f18cd0dcedda0175f74c971e5c47d8cebca41b8a52df8c9"
+    },
+    "weekly.csv": {
+      "sha256": "f71bd8164a2d9d4a08d234b23a597a0f64af0641075c7e851a5a63734f8feae4"
+    }
+  },
+  "outputs": [
+    {
+      "name": "fig1_code_non_code_churn",
+      "folder": "figures",
+      "caption": "Weekly combined churn split into code and non-code. Non-code includes Markdown, configuration and other included text; blanks and comments are counted. Churn measures changes, not current codebase size or productivity.",
+      "sources": [
+        "weekly.csv"
+      ],
+      "files": [
+        "figures/fig1_code_non_code_churn.png",
+        "figures/fig1_code_non_code_churn.pdf",
+        "figures/fig1_code_non_code_churn.svg"
+      ]
+    },
+    {
+      "name": "fig2_application_churn",
+      "folder": "figures",
+      "caption": "Weekly churn by path-based application scope on a common date axis. Zeroes include weeks before an application's first recorded change. Scope churn sums to combined churn; commit counts can overlap.",
+      "sources": [
+        "backend/commits.csv",
+        "next/commits.csv",
+        "shared/commits.csv",
+        "legacy_frontend/commits.csv"
+      ],
+      "files": [
+        "figures/fig2_application_churn.png",
+        "figures/fig2_application_churn.pdf",
+        "figures/fig2_application_churn.svg"
+      ]
+    },
+    {
+      "name": "fig3_ai_task_categories",
+      "folder": "figures",
+      "caption": "AI-log entries by automatically assigned task category. Categories are keyword heuristics and should be spot-checked against original requests. Entries are not necessarily unique tasks or AI conversations.",
+      "sources": [
+        "ai_log.csv"
+      ],
+      "files": [
+        "figures/fig3_ai_task_categories.png",
+        "figures/fig3_ai_task_categories.pdf",
+        "figures/fig3_ai_task_categories.svg"
+      ]
+    },
+    {
+      "name": "fig4_document_text_size",
+      "folder": "figures",
+      "caption": "Estimated current document text size by category, including local ignored Markdown. Token estimates use ceil(characters / 4) per file. They are not actual model tokens, loaded context, API usage or costs, and are not historical snapshots.",
+      "sources": [
+        "documents.csv"
+      ],
+      "files": [
+        "figures/fig4_document_text_size.png",
+        "figures/fig4_document_text_size.pdf",
+        "figures/fig4_document_text_size.svg"
+      ]
+    },
+    {
+      "name": "fig5_recorded_activity",
+      "folder": "figures",
+      "caption": "Weekly recorded session notes and AI-log entries, shown separately. Records may describe the same work and must not be summed as unique tasks. Activity is based on note dates, not historical file modifications or AI calls.",
+      "sources": [
+        "document_weekly.csv"
+      ],
+      "files": [
+        "figures/fig5_recorded_activity.png",
+        "figures/fig5_recorded_activity.pdf",
+        "figures/fig5_recorded_activity.svg"
+      ]
+    },
+    {
+      "name": "fig6_review_workflow",
+      "folder": "figures",
+      "caption": "Illustrative evidence-review workflow, not an automatically inferred sequence or a causal result. A case study must link dated plan/request, AI-assisted work, human review and verification records before claiming this sequence occurred. No counts are assigned to the arrows.",
+      "sources": [
+        "plan_items.csv",
+        "dated_notes.csv"
+      ],
+      "files": [
+        "figures/fig6_review_workflow.png",
+        "figures/fig6_review_workflow.pdf",
+        "figures/fig6_review_workflow.svg"
+      ]
+    },
+    {
+      "name": "table1_dataset",
+      "folder": "tables",
+      "caption": "Dataset summary for the exported selection. Authors are pseudonyms, not verified unique people. Log counts can overlap. Zero AI-tagged commits does not establish absence of AI use.",
+      "sources": [
+        "commits.csv",
+        "weekly.csv",
+        "ai_log.csv",
+        "document_weekly.csv"
+      ],
+      "files": [
+        "tables/table1_dataset.png",
+        "tables/table1_dataset.pdf",
+        "tables/table1_dataset.svg"
+      ]
+    },
+    {
+      "name": "table2_applications",
+      "folder": "tables",
+      "caption": "Application comparison. File paths assign scope. Cross-scope commits/authors overlap and must not be summed; churn partitions the combined total. Shared documents may concern both applications.",
+      "sources": [
+        "commits.csv",
+        "ai_log.csv",
+        "backend/commits.csv",
+        "next/commits.csv",
+        "shared/commits.csv",
+        "legacy_frontend/commits.csv"
+      ],
+      "files": [
+        "tables/table2_applications.png",
+        "tables/table2_applications.pdf",
+        "tables/table2_applications.svg"
+      ]
+    }
+  ],
+  "checks": [
+    "code + non-code equals total",
+    "weekly totals reconcile to commits",
+    "scoped line metrics reconcile per combined commit",
+    "cumulative note tokens reconcile"
+  ],
+  "limitations": [
+    "All figures describe the exported selection; no new date filtering is applied.",
+    "The workflow is illustrative; arrows do not establish causality.",
+    "Estimated text tokens do not measure actual AI consumption."
+  ]
+}

@@ -1,0 +1,133 @@
+hash,date,week,author,ai,files,added,deleted,churn,code_added,code_deleted,code_churn,non_code_added,non_code_deleted,non_code_churn,subject
+cf3d67ed,2026-09-11,2026-09-07,Dev1,0,16,414,0,414,132,0,132,282,0,282,BRR: Initial setup of Medconnect NestJS based project
+fbe1b6ab,2026-09-12,2026-09-07,Dev1,0,16,173,36,209,149,33,182,24,3,27,feat: MongoDB connection built
+c86923bf,2026-09-12,2026-09-07,Dev1,0,7,108,7,115,104,3,107,4,4,8,feat: Added logging interceptor
+caa01008,2026-09-13,2026-09-07,Dev1,0,11,455,1,456,454,1,455,1,0,1,feat: add member and appointment models
+ea25ac99,2026-09-13,2026-09-07,Dev1,0,22,932,21,953,885,21,906,47,0,47,"feat: developed signup, login methods"
+cd3cee23,2026-09-14,2026-09-14,Dev1,0,41,1168,672,1840,1101,671,1772,67,1,68,feat: developed getAppointment api
+0fce0180,2026-09-14,2026-09-14,Dev1,0,17,999,7,1006,876,5,881,123,2,125,feat: developed bookAppointment api
+b2ed3bfa,2026-09-16,2026-09-14,Dev1,0,0,0,0,0,0,0,0,0,0,0,fix: fixed tsconfig info
+fc1e1d6a,2026-09-16,2026-09-14,Dev1,0,1,4,0,4,0,0,0,4,0,4,feat: updated .gitignore file
+b3f84d55,2026-09-16,2026-09-14,Dev1,0,6,59,40,99,52,34,86,7,6,13,feat: changed to common js module
+13b3506e,2026-09-16,2026-09-14,Dev1,0,5,35,40,75,22,26,48,13,14,27,fix: fixed api routing
+d1e22626,2026-09-17,2026-09-14,Dev1,0,9,172,2,174,165,1,166,7,1,8,feat: added status page
+4b9e46cb,2026-09-17,2026-09-14,Dev2,0,3,188,0,188,0,0,0,188,0,188,Initial commit
+cbbc0841,2026-09-17,2026-09-14,Dev2,0,1,12,0,12,0,0,0,12,0,12,[Classroom 50] Initialize .classroom50.yaml and autograde workflow (gh student accept)
+f1fe1885,2026-09-17,2026-09-14,Dev2,0,0,0,0,0,0,0,0,0,0,0,[Classroom 50] Open Feedback PR (gh student accept)
+c2d44878,2026-09-17,2026-09-14,Dev1,0,2,165,90,255,0,0,0,165,90,255,feat: updated readme.md and ai logs file
+a18325e4,2026-09-20,2026-09-14,Dev3,0,3,7,1,8,6,1,7,1,0,1,Add MongoDB integration
+b5188022,2026-10-01,2026-09-28,Dev1,0,1,2,1,3,0,0,0,2,1,3,fix: modified .gitignore file
+68f5797c,2026-10-01,2026-09-28,Dev1,0,1,0,1,1,0,0,0,0,1,1,fix: modified gitignore
+f7a74ea0,2026-10-01,2026-09-28,Dev4,0,26,1169,0,1169,1031,0,1031,138,0,138,Add frontend application
+7c86bd1e,2026-10-01,2026-09-28,Dev1,0,115,3283,3281,6564,3145,3145,6290,138,136,274,chore: move backend application into backend directory
+4e675b0f,2026-10-01,2026-09-28,Dev1,0,9,319,11,330,319,11,330,0,0,0,feat: developed getMember api
+289895dc,2026-10-01,2026-09-28,Dev1,0,2,87,1,88,0,0,0,87,1,88,updated logs
+958cd3a3,2026-10-08,2026-10-05,Dev2,0,7,47,0,47,34,0,34,13,0,13,feat: Added swagger for API documentation
+a6f911d0,2026-10-08,2026-10-05,Dev5,0,6,113,0,113,109,0,109,4,0,4,"feat(backend): add myAppointments, getClinics and getClinicDoctors queries"
+64740829,2026-10-08,2026-10-05,Dev5,0,13,748,189,937,748,189,937,0,0,0,"feat(frontend): connect auth, appointments and profile to the API"
+097e3666,2026-10-08,2026-10-05,Dev2,0,3,381,98,479,0,0,0,381,98,479,docs: Updated README file and created the SPRINT_01 file
+eb6f03c0,2026-10-08,2026-10-05,Dev2,0,8,592,390,982,0,0,0,592,390,982,docs: Added gap-map.md and personas.md and updated the location of AI_LOG and SPRINT_01 files
+7d7ed705,2026-10-15,2026-10-12,Dev2,0,3,232,1,233,0,0,0,232,1,233,docs: Implemented architecture-backend.md file
+c20b3958,2026-10-15,2026-10-12,Dev2,0,16,725,56,781,625,41,666,100,15,115,feat: Integrated oAuth from google
+556a06eb,2026-10-15,2026-10-12,Dev2,0,4,111,0,111,0,0,0,111,0,111,docs: Added SPRINT_O2.md file
+b6b1427b,2026-10-15,2026-10-12,Dev2,0,7,150,0,150,0,0,0,150,0,150,BRR: Initial setup
+79804513,2026-10-16,2026-10-12,Dev2,0,15,215,1,216,152,0,152,63,1,64,feat(next): add shared SCSS foundation with logo-based colors
+8cacd49b,2026-10-16,2026-10-12,Dev2,0,8,181,3,184,107,0,107,74,3,77,"feat(next): add Apollo GraphQL queries, booking mutation, and shared fragments"
+0445c865,2026-10-16,2026-10-12,Dev2,0,18,1937,32,1969,1777,0,1777,160,32,192,feat(next): build responsive MUI landing page with clinic discovery
+59e28123,2026-10-16,2026-10-12,Dev2,0,15,972,23,995,874,10,884,98,13,111,feat(next): add combined sign-in and signup page with password visibility controls
+49603186,2026-10-16,2026-10-12,Dev2,0,10,419,55,474,321,37,358,98,18,116,feat(next): wired oAuth (Google) to the frontend
+2e1a5831,2026-10-16,2026-10-12,Dev2,0,1,80,0,80,0,0,0,80,0,80,docs: formatted AI-LOG.md file
+315d4d7f,2026-10-17,2026-10-12,Dev2,0,7,239,0,239,144,0,144,95,0,95,feat(next): developed ClinicCard component
+d54d37d0,2026-10-17,2026-10-12,Dev2,0,12,539,199,738,493,198,691,46,1,47,feat(next): developed Clinics page
+5deb1eae,2026-10-17,2026-10-12,Dev2,0,5,220,0,220,184,0,184,36,0,36,feat(next): developed doctorCard component
+87821307,2026-10-17,2026-10-12,Dev2,0,14,378,12,390,319,7,326,59,5,64,feat(next): developed Doctors page
+2a22b0a1,2026-10-17,2026-10-12,Dev2,0,6,156,16,172,109,16,125,47,0,47,feat(backend): developed getDoctors api
+168d0c45,2026-10-18,2026-10-12,Dev2,0,2,32,4,36,0,0,0,32,4,36,docs(main): formatted README file
+21f7f896,2026-10-18,2026-10-12,Dev2,0,1,2,0,2,0,0,0,2,0,2,docs(main): added live website link to the readme file
+76a99208,2026-10-18,2026-10-12,Dev2,0,12,464,6,470,365,2,367,99,4,103,feat(backend): integrated imageUploader component
+92eebd70,2026-10-18,2026-10-12,Dev2,0,11,302,20,322,237,19,256,65,1,66,feat(backend): add clinic cities and derive doctor locations
+d429eb00,2026-10-18,2026-10-12,Dev2,0,17,1139,43,1182,974,32,1006,165,11,176,feat(backend): add authenticated member updates and image replacement
+61536609,2026-10-19,2026-10-19,Dev2,0,8,292,34,326,220,34,254,72,0,72,feat(backend): add authenticated myProfile query
+ff781550,2026-10-19,2026-10-19,Dev2,0,16,1294,2,1296,1229,2,1231,65,0,65,feat(next): add My Page with inline profile editing and image uploads
+87715f47,2026-10-25,2026-10-19,Dev2,0,4,298,0,298,0,0,0,298,0,298,docs(backend): define booking and waitlist contract
+5e22b252,2026-10-25,2026-10-19,Dev2,0,19,1179,42,1221,1077,27,1104,102,15,117,feat(backend): add transactional commitment coordination
+45f3de05,2026-10-25,2026-10-19,Dev2,0,26,2261,203,2464,2076,148,2224,185,55,240,feat(backend): confirm specialty-aware appointments immediately
+86bf743c,2026-10-25,2026-10-19,Dev2,0,1,201,0,201,0,0,0,201,0,201,Add Apache License 2.0
+b716a0a7,2026-10-28,2026-10-26,Dev2,0,17,1284,40,1324,1141,27,1168,143,13,156,feat(backend): manage clinic schedules and list available slots
+25be0a2a,2026-10-28,2026-10-26,Dev2,0,1,128,0,128,0,0,0,128,0,128,Add Contributor Covenant Code of Conduct
+d4579616,2026-10-29,2026-10-26,Dev2,0,12,1008,76,1084,874,64,938,134,12,146,feat(backend): add appointment lifecycle and durable slot-release events
+df565b7d,2026-10-31,2026-10-26,Dev2,0,24,2129,253,2382,1998,235,2233,131,18,149,feat(backend): add waitlist enrollment and atomic commitment replacement
+5e18b43a,2026-10-31,2026-10-26,Dev2,0,15,1116,32,1148,997,17,1014,119,15,134,feat(backend): add safe FIFO waitlist promotion worker
+c2398f3a,2026-10-31,2026-10-26,Dev2,0,24,1811,30,1841,1657,10,1667,154,20,174,feat(backend): add cutoff lifecycle and in-app waitlist notifications
+22da9042,2026-10-31,2026-10-26,Dev2,0,9,454,4,458,370,1,371,84,3,87,feat(backend): add patient appointment list query
+0a5f8828,2026-10-31,2026-10-26,Dev2,0,12,1006,25,1031,883,25,908,123,0,123,feat(backend): add authorized calendar snapshots and updates
+b0221c37,2026-10-31,2026-10-26,Dev2,0,14,717,10,727,612,8,620,105,2,107,feat(backend): add current notification targets and delivery checks
+284a1162,2026-10-31,2026-10-26,Dev2,0,41,4025,626,4651,3697,239,3936,328,387,715,feat(next): add patient booking and waitlist journeys
+833a19e1,2026-10-31,2026-10-26,Dev2,0,23,2743,17,2760,2590,5,2595,153,12,165,feat(next): add shared clinic calendar and live updates
+ef9a0081,2026-11-01,2026-10-26,Dev2,0,20,1448,42,1490,1292,15,1307,156,27,183,feat(next): add patient notification center
+e7ada693,2026-11-01,2026-10-26,Dev2,0,1,2,1,3,0,0,0,2,1,3,fix: fixed gitignore file
+e369e081,2026-11-01,2026-10-26,Dev2,0,4,77,3,80,0,0,0,77,3,80,docs(next): record booking rollout acceptance
+45d8988e,2026-11-01,2026-10-26,Dev2,0,14,841,62,903,690,35,725,151,27,178,feat(backend): complete waitlist recovery and rollout readiness
+3cd2f097,2026-11-01,2026-10-26,Dev2,0,1,4,4,8,0,0,0,4,4,8,chore: update local file ignore rules
+e2da6312,2026-11-01,2026-10-26,Dev2,0,8,186,12,198,147,10,157,39,2,41,feat(backend): define username validation and normalization
+79cc0f14,2026-11-01,2026-10-26,Dev2,0,17,1047,35,1082,900,19,919,147,16,163,feat(backend): enforce case-insensitive username uniqueness
+94bcba8f,2026-11-01,2026-10-26,Dev2,0,6,101,27,128,74,17,91,27,10,37,feat(backend): generate usernames for Google accounts
+b1904c6c,2026-11-01,2026-10-26,Dev2,0,13,488,11,499,435,10,445,53,1,54,feat(backend): add username availability checks
+9c805984,2026-11-01,2026-10-26,Dev2,0,15,193,35,228,159,35,194,34,0,34,feat(next): present member nicknames as usernames
+28bd92ca,2026-11-01,2026-10-26,Dev2,0,10,115,33,148,91,29,120,24,4,28,fix(next): disable weekend booking and schedule selection
+74d02a7c,2026-11-01,2026-10-26,Dev2,0,8,164,17,181,139,17,156,25,0,25,fix(backend): enforce weekday-only booking schedules
+ef7693dc,2026-11-02,2026-11-02,Dev2,0,18,714,87,801,676,85,761,38,2,40,feat(next): add inline username availability checks
+fa869d9c,2026-11-02,2026-11-02,Dev2,0,5,289,0,289,0,0,0,289,0,289,docs(next): add matching sprint 03–05 delivery reviews
+752b231c,2026-11-02,2026-11-02,Dev2,0,5,277,0,277,0,0,0,277,0,277,docs(backend): add sprint 03–05 delivery reviews
+c1ae9c3c,2026-11-03,2026-11-02,Dev2,0,7,290,87,377,216,86,302,74,1,75,refactor(backend): share appointment doctor eligibility checks
+4f676da9,2026-11-04,2026-11-02,Dev2,0,2,340,0,340,0,0,0,340,0,340,docs(backend): add future improvements roadmap and directory search plan
+39549eaa,2026-11-04,2026-11-02,Dev2,0,13,599,10,609,489,1,490,110,9,119,feat(backend): add filtered doctor directory search
+8071ba57,2026-11-05,2026-11-02,Dev2,0,9,500,27,527,406,18,424,94,9,103,feat(backend): add filtered clinic directory search
+0cfb5418,2026-11-05,2026-11-02,Dev2,0,9,469,19,488,379,13,392,90,6,96,feat(backend): add filtered directory name suggestions
+dc2587ca,2026-11-05,2026-11-02,Dev2,0,1,2,0,2,0,0,0,2,0,2,Add DeepWiki badge to README
+7f712a00,2026-11-05,2026-11-02,Dev2,0,1,1,1,2,0,0,0,1,1,2,Change DeepWiki badge in README
+f6dc8915,2026-11-05,2026-11-02,Dev2,0,13,1167,115,1282,1038,97,1135,129,18,147,feat(next): add URL-driven doctor search and autocomplete
+1cb63782,2026-11-05,2026-11-02,Dev2,0,22,876,696,1572,758,673,1431,118,23,141,feat(next): add URL-driven clinic search and autocomplete
+38fd3082,2026-11-05,2026-11-02,Dev2,0,10,353,21,374,254,15,269,99,6,105,feat(next): polish directory search and filter navigation
+73a3bc0f,2026-11-05,2026-11-02,Dev2,0,4,90,7,97,0,0,0,90,7,97,docs(backend): close directory search plan and roadmap
+8005084d,2026-11-05,2026-11-02,Dev2,0,18,570,37,607,443,31,474,127,6,133,feat(next): add square photo cropping and directory images
+16f1db6d,2026-11-05,2026-11-02,Dev2,0,6,99,26,125,37,8,45,62,18,80,fix(backend): preserve upload scalars through validation
+02b09ed4,2026-11-05,2026-11-02,Dev2,0,3,109,52,161,0,0,0,109,52,161,docs(backend): close sprint 05 and carry forward release checks
+1ed5b3d0,2026-11-05,2026-11-02,Dev2,0,3,108,53,161,0,0,0,108,53,161,docs(next): close sprint 05 and carry forward release checks
+3738c12b,2026-11-06,2026-11-02,Dev2,0,4,24,12,36,4,12,16,20,0,20,fix(next): preserve client navigation and simplify header
+d2e63953,2026-11-06,2026-11-02,Dev2,0,2,300,16,316,0,0,0,300,16,316,docs(backend): plan appointment reminders and update future improvements
+5f694a0c,2026-11-06,2026-11-02,Dev2,0,1,7,4,11,0,0,0,7,4,11,docs(main): update Docker backend deployment instructions
+7b2cfe40,2026-11-06,2026-11-02,Dev2,0,35,24,1737,1761,0,1590,1590,24,147,171,chore(main): remove legacy Vite frontend
+17e8f0c2,2026-11-11,2026-11-09,Dev2,0,7,142,4,146,100,4,104,42,0,42,feat(next): sync header avatar with saved profile photo
+3f9577af,2026-11-12,2026-11-09,Dev2,0,2,292,0,292,0,0,0,292,0,292,docs(backend): plan email verification with escalating resend cooldowns
+54955e48,2026-11-12,2026-11-09,Dev2,0,2,248,56,304,0,0,0,248,56,304,docs(backend): finalize email verification contracts
+3415e1d8,2026-11-13,2026-11-09,Dev2,0,12,475,16,491,326,0,326,149,16,165,feat(backend): add Gmail verification email delivery
+b35b3fbc,2026-11-13,2026-11-09,Dev2,0,1,38,0,38,0,0,0,38,0,38,Revise security policy for active development and reporting
+55fd779e,2026-11-13,2026-11-09,Dev2,0,1,24,1,25,0,0,0,24,1,25,chore(backend): include demo doctor images
+c646d332,2026-11-13,2026-11-09,Dev2,0,24,2015,84,2099,1801,57,1858,214,27,241,feat(backend): require email verification for signup
+0ebc234a,2026-11-13,2026-11-09,Dev2,0,15,1369,23,1392,1260,13,1273,109,10,119,feat(next): add email verification to patient signup
+522f158b,2026-11-13,2026-11-09,Dev2,0,4,64,10,74,0,0,0,64,10,74,docs(next): record live email signup acceptance
+3a65ce31,2026-11-13,2026-11-09,Dev2,0,5,160,25,185,0,0,0,160,25,185,docs(backend): complete email verification acceptance
+89f54b09,2026-11-13,2026-11-09,Dev2,0,1,21,0,21,0,0,0,21,0,21,fix(backend): patch critical transitive dependencies
+79b118fa,2026-11-14,2026-11-09,Dev2,0,2,33,1,34,0,0,0,33,1,34,fix(backend): patch high severity dependencies
+5c42e004,2026-11-14,2026-11-09,Dev2,0,1,20,0,20,0,0,0,20,0,20,- fix(next): patch vulnerable Undici dependency
+6cefd3c2,2026-11-14,2026-11-09,Dev2,0,7,131,13,144,83,13,96,48,0,48,fix(next): hide My Care when signed out and clarify Korea service scope
+d421db10,2026-11-14,2026-11-09,Dev2,0,1,435,0,435,0,0,0,435,0,435,docs(backend): define account deletion contracts
+587e5ed9,2026-11-14,2026-11-09,Dev2,0,26,2153,111,2264,2021,98,2119,132,13,145,feat(backend): add transactional account deletion
+1cb33d90,2026-11-14,2026-11-09,Dev2,0,12,1248,2,1250,1155,0,1155,93,2,95,feat(next): add account deletion commitment dialog
+3a8a88a4,2026-11-14,2026-11-09,Dev2,0,14,1070,88,1158,996,83,1079,74,5,79,feat(next): complete account deletion confirmation flow
+16173baa,2026-11-14,2026-11-09,Dev2,0,2,37,0,37,0,0,0,37,0,37,docs(next): record account deletion acceptance checkpoint
+06f800d6,2026-11-14,2026-11-09,Dev2,0,3,105,3,108,0,0,0,105,3,108,docs(next): close account deletion acceptance and delivery
+ef5bafd7,2026-11-15,2026-11-09,Dev6,0,0,0,0,0,0,0,0,0,0,0,chore(deps): bump ip-address from 10.7.0 to 10.7.6 in /backend
+12f7523f,2026-11-15,2026-11-09,Dev6,0,0,0,0,0,0,0,0,0,0,0,chore(deps-dev): bump fast-uri from 3.1.7 to 3.1.9 in /backend
+044696dd,2026-11-15,2026-11-09,Dev2,0,2,18,1,19,0,0,0,18,1,19,fix(backend): patch minimatch and preserve glob compatibility
+0691c951,2026-11-16,2026-11-16,Dev2,0,22,1807,91,1898,1387,75,1462,420,16,436,feat(backend): define password recovery contracts and storage
+e1fe0e45,2026-11-16,2026-11-16,Dev2,0,15,1408,77,1485,1240,3,1243,168,74,242,feat(backend): deliver password recovery links through Gmail
+2ece2a29,2026-11-17,2026-11-16,Dev2,0,12,1112,45,1157,980,6,986,132,39,171,feat(backend): reset passwords and revoke existing sessions
+623bae97,2026-11-18,2026-11-16,Dev6,0,1,1,1,2,0,0,0,1,1,2,chore(deps): bump next from 16.4.1 to 16.4.5 in /next
+6e1ca6a7,2026-11-19,2026-11-16,Dev2,0,12,328,1,329,222,1,223,106,0,106,feat(next): add forgot-password and reset-password flows
+d2d8a86c,2026-11-19,2026-11-16,Dev2,0,3,68,3,71,0,0,0,68,3,71,docs(next): complete password recovery acceptance
+04158891,2026-11-19,2026-11-16,Dev2,0,8,536,36,572,358,2,360,178,34,212,test(backend): verify combined password recovery acceptance
+708e3f19,2026-11-19,2026-11-16,Dev2,0,4,34,6,40,10,6,16,24,0,24,fix(next): clarify standard booking hours and schedule defaults
+f9f9afb2,2026-11-19,2026-11-16,Dev2,0,9,230,55,285,194,48,242,36,7,43,fix(backend): default booking slots to weekday hours with lunch break
+09ce590d,2026-11-19,2026-11-16,Dev2,0,7,83,6,89,40,5,45,43,1,44,fix(next): upgrade to Next.js 16.4.6 and keep sticky content below navbar

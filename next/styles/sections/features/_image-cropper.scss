@@ -1,0 +1,28 @@
+@use '../../variables' as v;
+
+.image-cropper {
+  .image-cropper__stage {
+    position: relative;
+    height: clamp(14rem, 42vh, 24rem);
+    width: 100%;
+    background: v.$backgroundColor;
+    margin-block: 1rem;
+    overflow: hidden;
+    .reactEasyCrop_CropArea:focus-visible {
+      outline: 3px solid v.$secondaryColor;
+      outline-offset: -3px;
+    }
+  }
+  p {
+    line-height: 1.5;
+  }
+  .image-cropper__note {
+    color: v.$mutedTextColor;
+    font-size: 0.9rem;
+  }
+  .MuiDialogActions-root {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+  }
+}

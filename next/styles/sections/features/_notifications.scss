@@ -1,0 +1,69 @@
+@use '../../variables' as v;
+.notice-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.care-page .notice-card {
+  margin: 0;
+  border-left: 4px solid v.$borderColor;
+  padding: 0;
+  &--unread {
+    border-left-color: v.$secondaryColor;
+  }
+}
+.notice-open {
+  display: block;
+  padding: 1.25rem;
+  color: v.$textColor;
+  text-decoration: none;
+  border-radius: v.$radius;
+  &:hover {
+    background: rgba(v.$primary, 0.025);
+  }
+  p {
+    line-height: 1.65;
+  }
+}
+.notice-card__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  h2 {
+    margin: 0 !important;
+    font-size: 1.15rem !important;
+    color: v.$primary;
+  }
+}
+.notice-read-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: v.$primary;
+}
+.notice-action {
+  color: v.$primary;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.notice-history {
+  border-left: 3px solid v.$borderColor;
+  padding-left: 1rem;
+  margin: 1.25rem 0;
+  h3 {
+    font-size: 1rem;
+  }
+}
+.notice-current {
+  margin-top: 1.5rem;
+  h3 {
+    font-size: 1rem;
+    color: v.$primary;
+  }
+}
+
+.notice-dialog-actions {
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}

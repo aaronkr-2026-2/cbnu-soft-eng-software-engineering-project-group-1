@@ -1,0 +1,228 @@
+source,scope,category,date,week,line,title,estimated_tokens,decision_mentions,correction_mentions,verification_mentions
+backend/AI_LOG.md,backend,AI log,2026-09-12,2026-09-07,18,MongoDB API foundation and application logging — 2026-09-12,179,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-13,2026-09-07,27,Member and appointment data models — 2026-09-13,185,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-13,2026-09-07,36,Member type review and refinement — 2026-09-13,193,1,1,0
+backend/AI_LOG.md,backend,AI log,2026-09-13,2026-09-07,45,Session continuity and local notes — 2026-09-13,149,1,1,0
+backend/AI_LOG.md,backend,AI log,2026-09-13,2026-09-07,54,REST member authentication — 2026-09-13,202,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-14,2026-09-14,63,Appointment lookup and access control — 2026-09-14,186,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-14,2026-09-14,72,Project folder conventions — 2026-09-14,255,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-14,2026-09-14,81,Appointment booking API — 2026-09-14,204,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-14,2026-09-14,90,GraphQL appointment operations — 2026-09-14,227,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-14,2026-09-14,99,Simplify the booking service — 2026-09-14,222,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-16,2026-09-14,108,Compose deployment configuration — 2026-09-16,245,1,1,0
+backend/AI_LOG.md,backend,AI log,2026-09-16,2026-09-14,117,CommonJS migration and sample Jest test — 2026-09-16,250,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-16,2026-09-14,126,Frontend CORS review — 2026-09-16,171,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-16,2026-09-14,135,Remove remaining REST prefix references — 2026-09-16,235,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-17,2026-09-14,144,Visual service status page and separate assets — 2026-09-17,264,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-17,2026-09-14,153,Frontend handoff and agent instructions — 2026-09-17,231,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-09-17,2026-09-14,162,Backfill the AI project log — 2026-09-17,230,1,1,0
+backend/AI_LOG.md,backend,AI log,2026-10-01,2026-09-28,171,Get Doctor and Clinic member profiles — 2026-10-01,232,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-01,2026-09-28,178,Use GraphQL only for member lookup — 2026-10-01,179,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-01,2026-09-28,185,Adopt MediBridge member DTO pattern — 2026-10-01,214,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-01,2026-09-28,192,Log GraphQL member lookup — 2026-10-01,216,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-01,2026-09-28,199,Signup passwords of 8–100 characters — 2026-10-01,140,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-01,2026-09-28,206,Include User profiles in getMember — 2026-10-01,166,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,215,First sprint example — 2026-10-08,249,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,226,October 1–8 sprint example — 2026-10-08,267,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,238,Finalize Sprint 01 document — 2026-10-08,280,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,249,README quality review — 2026-10-08,287,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,261,README maintenance and polish — 2026-10-08,343,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,273,Remove reference-project wording from README — 2026-10-08,234,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,285,Existing features list and maintenance rule — 2026-10-08,282,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,297,Move Sprint 01 into backend — 2026-10-08,237,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,309,Save product documentation workflow — 2026-10-08,274,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,321,Move AI collaboration log into backend — 2026-10-08,246,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,333,Ground Alex in the creator — 2026-10-08,270,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,345,Document OAuth sign-in gap — 2026-10-08,293,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-08,2026-10-05,357,Split into three personas — 2026-10-08,363,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-15,2026-10-12,371,Adapt architecture agent instructions — 2026-10-15,446,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-15,2026-10-12,386,Document backend architecture and integrations — 2026-10-15,490,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-15,2026-10-12,401,Consolidate architecture documentation — 2026-10-15,372,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-15,2026-10-12,416,Implement Google sign-in backend — 2026-10-15,742,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-15,2026-10-12,431,Create Sprint 02 and automatic delivery updates — 2026-10-15,484,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-16,2026-10-12,443,Next GraphQL preparation README alignment — 2026-10-16,314,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-16,2026-10-12,455,Next landing-page documentation alignment — 2026-10-16,357,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-16,2026-10-12,467,Next auth-page documentation alignment — 2026-10-16,360,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-16,2026-10-12,479,Next Google sign-in documentation alignment — 2026-10-16,382,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-17,2026-10-12,490,Apply saved doctor-directory API — 2026-10-17,439,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-18,2026-10-12,510,Resolve main/backend discovery merge — 2026-10-18,400,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-18,2026-10-12,522,Adapt MediBridge image uploads — 2026-10-18,636,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-18,2026-10-12,535,Integrate MediBridge clinic and doctor cities — 2026-10-18,592,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-18,2026-10-12,548,Derive doctor city from their clinic — 2026-10-18,615,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-18,2026-10-12,561,Add updateMember and save-time image replacement — 2026-10-18,817,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-19,2026-10-19,574,Add myProfile for Next.js settings — 2026-10-19,531,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-19,2026-10-19,587,Resolve main/backend profile and upload merge — 2026-10-19,603,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-25,2026-10-19,600,Define booking and waitlist contracts (Step 1) — 2026-10-25,504,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-25,2026-10-19,613,Add transactional booking coordination (Step 2) — 2026-10-25,761,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-25,2026-10-19,626,Confirm specialty-aware appointments immediately (Step 3) — 2026-10-25,817,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-26,2026-10-26,639,Manage clinic schedules and list dynamic slots (Step 4) — 2026-10-26,688,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-28,2026-10-26,652,"Cancel appointments, create clinic bookings and persist release events (Step 5) — 2026-10-28",753,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-31,2026-10-26,665,Waitlist enrollment and atomic commitment replacement (Step 6) — 2026-10-31,762,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-31,2026-10-26,678,Safe FIFO waitlist promotion worker (Step 7) — 2026-10-31,735,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-31,2026-10-26,691,Cutoff lifecycle and in-app waitlist notifications (Step8) — 2026-10-31,777,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-31,2026-10-26,704,Patient appointment list (Step9 backend only) — 2026-10-31,648,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-31,2026-10-26,717,Authorized calendar snapshots and updates (Step10 backend) — 2026-10-31,741,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-10-31,2026-10-26,730,Current notification targets and delivery checks (Step11 backend) — 2026-10-31,738,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-01,2026-10-26,742,"Step12 recovery, operations and local acceptance — 2026-11-01",566,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-01,2026-10-26,762,OAuth-fix Step1: username validation and normalization — 2026-11-01,552,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-01,2026-10-26,782,OAuth-fix Step2: case-insensitive username storage — 2026-11-01,750,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-01,2026-10-26,802,OAuth-fix Step3: generated Google usernames — 2026-11-01,564,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-01,2026-10-26,822,OAuth-fix Step4: username availability checks — 2026-11-01,597,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-01,2026-10-26,842,Close weekends for booking — 2026-11-01,456,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-02,2026-11-02,862,Sprint03–05 backend delivery records — 2026-11-02,511,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-03,2026-11-02,882,Share appointment doctor eligibility — 2026-11-03,531,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-04,2026-11-02,894,Doctor directory search API — 2026-11-04,570,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-05,2026-11-02,906,Clinic directory search API — 2026-11-05,545,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-05,2026-11-02,918,Filtered directory name suggestions — 2026-11-05,528,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-05,2026-11-02,930,Directory search plan and roadmap completion — 2026-11-05,566,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-05,2026-11-02,952,GraphQL upload validation compatibility — 2026-11-05,522,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-05,2026-11-02,972,Sprint 05 final review and closure — 2026-11-05,553,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-12,2026-11-09,993,Gmail verification email delivery — 2026-11-12,545,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-13,2026-11-09,1014,Gmail test email submission — 2026-11-13,413,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-13,2026-11-09,1037,Branded verification email — 2026-11-13,420,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-13,2026-11-09,1058,Email verification backend enforcement (FI-08 Step 3) — 2026-11-13,685,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-13,2026-11-09,1079,Email verification final acceptance (FI-08 Step 5) — 2026-11-13,776,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-13,2026-11-09,1100,Patch critical transitive dependencies — 2026-11-13,600,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-14,2026-11-09,1120,Patch high severity dependencies — 2026-11-14,745,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-14,2026-11-09,1141,Account deletion Step 2 backend — 2026-11-14,702,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-15,2026-11-09,1154,Patch minimatch and preserve tooling compatibility — 2026-11-15,745,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-16,2026-11-16,1167,Password recovery Step 1 — 2026-11-16,745,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-16,2026-11-16,1180,Password recovery Step 2 — 2026-11-16,863,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-17,2026-11-16,1193,Password recovery Step 3 — 2026-11-17,913,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-19,2026-11-16,1205,Password recovery combined acceptance and operations — 2026-11-19,809,1,1,1
+backend/AI_LOG.md,backend,AI log,2026-11-19,2026-11-16,1221,Standard booking hours — 2026-11-19,534,1,1,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-13,2026-09-07,69,2026-09-13 — Review member types,183,1,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-13,2026-09-07,76,2026-09-13 — Refine member types and finish MEMBER rename,229,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-13,2026-09-07,84,2026-09-13 — Session continuity setup,199,1,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-13,2026-09-07,93,2026-09-13 — Ignore session files,83,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-12,2026-09-07,100,2026-09-12 — MongoDB API foundation,113,1,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-12,2026-09-07,106,2026-09-12 — Structured application logging,115,1,0,0
+backend/SESSION_LOG.md,backend,Session log,2026-09-13,2026-09-07,112,2026-09-13 — Member and appointment data models,187,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-13,2026-09-07,120,2026-09-13 — Implement REST member authentication,511,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,133,2026-09-14 — Get appointment by ID,353,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,142,2026-09-14 — Centralize DTO files,121,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,149,2026-09-14 — Centralize feature components,142,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,157,2026-09-14 — Apply medi-bridge folder conventions,301,1,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,167,2026-09-14 — Book appointment API,414,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,177,2026-09-14 — Discuss GraphQL booking,203,0,0,0
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,185,2026-09-14 — Add GraphQL appointment operations,352,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-14,2026-09-14,195,2026-09-14 — Simplify booking service flow,295,1,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,203,2026-09-16 — Add MedConnect Compose configuration,269,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,211,2026-09-16 — Use configured API port in Compose,134,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,217,2026-09-16 — Migrate application to CommonJS,308,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,225,2026-09-16 — Add a sample Jest test,83,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,230,2026-09-16 — Review frontend CORS plan,205,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,236,2026-09-16 — Check user removal of REST prefix,115,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,241,2026-09-16 — Recheck prefix cleanup,103,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-16,2026-09-14,246,2026-09-16 — Finish REST prefix cleanup,171,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-17,2026-09-14,252,2026-09-17 — Add visual service status page,328,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-17,2026-09-14,260,"2026-09-17 — Separate status page HTML, CSS, and JavaScript",231,0,1,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-17,2026-09-14,266,2026-09-17 — Prepare App Router frontend handoff,219,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-17,2026-09-14,272,2026-09-17 — Create frontend agent instructions,114,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-17,2026-09-14,277,2026-09-17 — Backfill AI project log,173,1,1,1
+backend/SESSION_LOG.md,backend,Session log,2026-09-17,2026-09-14,284,2026-09-17 — Refine AI log tool attribution and reflections,167,0,1,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-01,2026-09-28,290,2026-10-01 — Get Doctor and Clinic member profiles,304,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-01,2026-09-28,298,2026-10-01 — Remove REST member lookup,144,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-01,2026-09-28,304,2026-10-01 — Adopt MediBridge member DTO pattern,175,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-01,2026-09-28,310,2026-10-01 — Diagnose getMember NOT_FOUND and add GraphQL logs,246,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-01,2026-09-28,317,2026-10-01 — Adjust signup password length,121,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-01,2026-09-28,323,2026-10-01 — Include User profiles in getMember,123,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,329,2026-10-08 — Add Swagger,251,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,336,2026-10-08 — Draft first sprint example,174,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,342,2026-10-08 — Create October 1–8 sprint example,183,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,349,2026-10-08 — Finalize sprint document,176,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,355,2026-10-08 — Review README quality,193,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,362,2026-10-08 — Add README maintenance rule and polish README,266,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,370,2026-10-08 — Remove README reference-project wording,106,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,375,2026-10-08 — Existing feature inventory,152,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,381,2026-10-08 — Move Sprint 01 into backend,129,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,387,2026-10-08 — Save product documentation workflow,154,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,393,2026-10-08 — Move AI collaboration log into backend,145,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,399,2026-10-08 — Ground Alex in the creator,133,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,405,2026-10-08 — Document OAuth sign-in gap,148,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-08,2026-10-05,411,2026-10-08 — Split into three personas,183,1,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-15,2026-10-12,420,2026-10-15 — Adapt architecture agent instructions,217,0,1,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-15,2026-10-12,428,2026-10-15 — Document backend architecture and integrations,296,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-15,2026-10-12,436,2026-10-15 — Consolidate architecture documentation,158,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-15,2026-10-12,443,2026-10-15 — Implement Google sign-in backend,376,0,1,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-15,2026-10-12,451,2026-10-15 — Create Sprint 02 and automatic delivery updates,248,0,1,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-16,2026-10-12,457,2026-10-16 — Next GraphQL preparation README alignment,117,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-16,2026-10-12,462,2026-10-16 — Next landing-page documentation alignment,142,1,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-16,2026-10-12,467,2026-10-16 — Next auth-page documentation alignment,129,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-16,2026-10-12,472,2026-10-16 — Next Google sign-in documentation alignment,154,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-17,2026-10-12,478,2026-10-17 — Apply saved doctors API on backend branch,271,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-18,2026-10-12,487,2026-10-18 — Resolve discovery merge conflicts,185,0,0,1
+backend/SESSION_LOG.md,backend,Session log,2026-10-19,2026-10-19,496,2026-10-19 — Resolve current main/backend merge,220,0,1,1
+next/AI_LOG.md,next,AI log,2026-10-15,2026-10-12,3,Next.js agent instructions — 2026-10-15,353,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-15,2026-10-12,23,Yarn package setup — 2026-10-15,410,1,1,0
+next/AI_LOG.md,next,AI log,2026-10-15,2026-10-12,43,README logo — 2026-10-15,256,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-15,2026-10-12,63,Reference package scripts — 2026-10-15,288,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-15,2026-10-12,83,Logo color variables — 2026-10-15,301,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-16,2026-10-12,103,Shared SCSS foundation — 2026-10-16,379,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-16,2026-10-12,123,GraphQL operation structure — 2026-10-16,513,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-16,2026-10-12,143,Root landing page with MUI — 2026-10-16,634,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-16,2026-10-12,163,Combined sign-in and patient signup — 2026-10-16,590,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-16,2026-10-12,183,Google Identity Services sign-in — 2026-10-16,577,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-16,2026-10-12,203,Frontend end-of-week sprint instructions — 2026-10-16,377,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-17,2026-10-12,223,Next.js architecture and product review prompts — 2026-10-17,424,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-17,2026-10-12,243,Reusable clinic card — 2026-10-17,392,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-17,2026-10-12,263,Default clinic fallback image — 2026-10-17,322,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-17,2026-10-12,283,Clinics page — 2026-10-17,519,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-17,2026-10-12,303,Reusable doctor card — 2026-10-17,424,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-17,2026-10-12,323,Doctors page and public directory query — 2026-10-17,586,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-18,2026-10-12,343,Root README logo — 2026-10-18,284,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-19,2026-10-19,363,Inline My Page profile editing — 2026-10-19,768,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-31,2026-10-26,383,Step 9 patient booking and waitlist journeys — 2026-10-31,857,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-31,2026-10-26,403,Visual booking date calendar — 2026-10-31,591,1,1,1
+next/AI_LOG.md,next,AI log,2026-10-31,2026-10-26,423,Step 10 clinic/doctor workspace and live calendar — 2026-10-31,971,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-01,2026-10-26,443,Step 11 patient notification center and current-target delivery — 2026-11-01,895,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-01,2026-10-26,463,Step12 local integration acceptance documentation — 2026-11-01,476,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-01,2026-10-26,483,OAuth-fix Step5: username presentation and validation — 2026-11-01,682,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-01,2026-10-26,503,Disable weekend booking dates — 2026-11-01,493,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-02,2026-11-02,523,Inline username availability checks — 2026-11-02,611,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-02,2026-11-02,543,Matching Next Sprint03–05 reviews — 2026-11-02,530,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-05,2026-11-02,563,URL-driven doctor search and autocomplete — 2026-11-05,950,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-05,2026-11-02,587,URL-driven clinic search and shared directory — 2026-11-05,879,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-05,2026-11-02,607,Directory filter polish and combined acceptance checkpoint — 2026-11-05,1495,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-05,2026-11-02,631,Square photos and upload cropper — 2026-11-05,962,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-05,2026-11-02,651,Sprint 05 final review and closure — 2026-11-05,557,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-06,2026-11-02,671,Header navigation cleanup — 2026-11-06,441,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-06,2026-11-02,691,Remove legacy Vite application — 2026-11-06,332,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-11,2026-11-09,711,Header account icon — 2026-11-11,369,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-11,2026-11-09,732,Saved profile avatar — 2026-11-11,468,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-13,2026-11-09,753,Email verification signup (FI-08 Step 4) — 2026-11-13,754,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-13,2026-11-09,774,Email verification final acceptance (FI-08 Step 5) — 2026-11-13,775,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,794,Patch high severity dependencies — 2026-11-14,745,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,815,Instructor navigation and Korea service feedback — 2026-11-14,568,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,836,Korea service message in hero banner — 2026-11-14,298,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,857,Account deletion Step 3 commitment dialog — 2026-11-14,734,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,878,Account deletion Step 4 confirmation and session cleanup — 2026-11-14,703,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,898,Account deletion Step 5 checkpoint — 2026-11-14,476,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,918,Account deletion delivery records and integration preparation — 2026-11-14,408,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-14,2026-11-09,938,Account deletion final browser acceptance and closure — 2026-11-14,427,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-19,2026-11-16,959,FI-03 recovery screens and proxy — 2026-11-19,684,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-19,2026-11-16,972,FI-03 Step4 browser acceptance and completion — 2026-11-19,610,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-19,2026-11-16,984,Password recovery combined acceptance documentation — 2026-11-19,579,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-19,2026-11-16,1000,Standard booking hours — 2026-11-19,291,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-19,2026-11-16,1021,Keep sticky content below the navbar — 2026-11-19,457,1,1,1
+next/AI_LOG.md,next,AI log,2026-11-19,2026-11-16,1042,Next.js security upgrade — 2026-11-19,586,1,1,1
+next/SESSION_LOG.md,next,Session log,2026-10-15,2026-10-12,28,2026-10-15 — Next.js agent instructions,159,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-15,2026-10-12,35,2026-10-15 — Yarn package setup,258,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-15,2026-10-12,43,2026-10-15 — README logo,83,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-15,2026-10-12,48,2026-10-15 — Reference package scripts,107,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-15,2026-10-12,53,2026-10-15 — Logo color variables,139,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-16,2026-10-12,59,2026-10-16 — Shared SCSS foundation,238,1,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-16,2026-10-12,66,2026-10-16 — GraphQL operation structure,277,1,1,1
+next/SESSION_LOG.md,next,Session log,2026-10-16,2026-10-12,74,2026-10-16 — Root landing page with MUI,573,0,1,1
+next/SESSION_LOG.md,next,Session log,2026-10-16,2026-10-12,85,2026-10-16 — Combined sign-in and patient signup,510,0,1,1
+next/SESSION_LOG.md,next,Session log,2026-10-16,2026-10-12,95,2026-10-16 — Google Identity Services sign-in,416,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-16,2026-10-12,103,2026-10-16 — Frontend end-of-week sprint instructions,185,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-17,2026-10-12,110,2026-10-17 — Next.js architecture and product review prompts,180,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-17,2026-10-12,116,2026-10-17 — Reusable clinic card,317,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-17,2026-10-12,124,2026-10-17 — Default clinic image,177,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-17,2026-10-12,130,2026-10-17 — Clinics page,476,0,1,1
+next/SESSION_LOG.md,next,Session log,2026-10-17,2026-10-12,139,2026-10-17 — Reusable doctor card,344,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-17,2026-10-12,147,2026-10-17 — Doctors directory page,496,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-10-17,2026-10-12,155,2026-10-17 — Defer doctors API to backend branch,230,0,1,1
+next/SESSION_LOG.md,next,Session log,2026-10-18,2026-10-12,162,2026-10-18 — Root README logo,136,0,0,1
+next/SESSION_LOG.md,next,Session log,2026-11-06,2026-11-02,168,2026-11-06 — Remove legacy Vite application on main,99,0,0,1

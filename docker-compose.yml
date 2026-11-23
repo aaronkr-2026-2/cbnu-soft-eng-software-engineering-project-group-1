@@ -1,0 +1,47 @@
+# Production API only; the Next.js frontend is deployed separately on Vercel.
+# Run from the repository root with: docker compose --env-file backend/.env up -d --build --wait
+services:
+  medconnect-api:
+    container_name: medconnect-api
+    restart: unless-stopped
+    init: true
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: medconnect-api:production
+    ports:
+      - "${PORT_API:?Set PORT_API in backend/.env}:${PORT_API:?Set PORT_API in backend/.env}"
+    volumes:
+      - ./backend/uploads:/usr/src/medconnect/backend/uploads
+    working_dir: /usr/src/medconnect/backend
+    env_file:
+      - ./backend/.env
+    environment:
+      NODE_ENV: production
+      PORT_API: "${PORT_API:?Set PORT_API in backend/.env}"
+      MONGO_URI: "${MONGO_PROD:?Set MONGO_PROD to the production Atlas connection in backend/.env}"
+      TZ: Asia/Seoul
+      BOOKING_POLICY_V2_ENABLED: "${BOOKING_POLICY_V2_ENABLED:-true}"
+      WAITLIST_ENROLLMENT_ENABLED: "${WAITLIST_ENROLLMENT_ENABLED:-true}"
+      COMMITMENT_REPLACEMENT_ENABLED: "${COMMITMENT_REPLACEMENT_ENABLED:-true}"
+      WAITLIST_NOTIFICATIONS_ENABLED: "${WAITLIST_NOTIFICATIONS_ENABLED:-true}"
+      WAITLIST_LIFECYCLE_ENABLED: "${WAITLIST_LIFECYCLE_ENABLED:-true}"
+      WAITLIST_PROMOTION_ENABLED: "${WAITLIST_PROMOTION_ENABLED:-true}"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:' + process.env.PORT_API + '/health/ready', {signal: AbortSignal.timeout(4000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+    networks:
+      - medconnect-shared
+    command: ["node", "dist/main.js"]
+
+networks:
+  medconnect-shared:
+    external: true
+    name: medconnect-shared

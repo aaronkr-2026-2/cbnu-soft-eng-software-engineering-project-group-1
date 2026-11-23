@@ -1,0 +1,146 @@
+date,week,task_type,tool,preview,source,scope,line
+2026-09-12,2026-09-07,Other,codex,MongoDB API foundation and application logging — 2026-09-12,backend/AI_LOG.md,backend,18
+2026-09-13,2026-09-07,Generate feature,codex,Member and appointment data models — 2026-09-13,backend/AI_LOG.md,backend,27
+2026-09-13,2026-09-07,Refactor / clean,codex,Member type review and refinement — 2026-09-13,backend/AI_LOG.md,backend,36
+2026-09-13,2026-09-07,Other,codex,Session continuity and local notes — 2026-09-13,backend/AI_LOG.md,backend,45
+2026-09-13,2026-09-07,Generate feature,codex,REST member authentication — 2026-09-13,backend/AI_LOG.md,backend,54
+2026-09-14,2026-09-14,Other,codex,Appointment lookup and access control — 2026-09-14,backend/AI_LOG.md,backend,63
+2026-09-14,2026-09-14,Generate feature,codex,Project folder conventions — 2026-09-14,backend/AI_LOG.md,backend,72
+2026-09-14,2026-09-14,Generate feature,codex,Appointment booking API — 2026-09-14,backend/AI_LOG.md,backend,81
+2026-09-14,2026-09-14,Other,codex,GraphQL appointment operations — 2026-09-14,backend/AI_LOG.md,backend,90
+2026-09-14,2026-09-14,Refactor / clean,codex,Simplify the booking service — 2026-09-14,backend/AI_LOG.md,backend,99
+2026-09-16,2026-09-14,Other,codex,Compose deployment configuration — 2026-09-16,backend/AI_LOG.md,backend,108
+2026-09-16,2026-09-14,Refactor / clean,codex,CommonJS migration and sample Jest test — 2026-09-16,backend/AI_LOG.md,backend,117
+2026-09-16,2026-09-14,Other,codex,Frontend CORS review — 2026-09-16,backend/AI_LOG.md,backend,126
+2026-09-16,2026-09-14,Refactor / clean,codex,Remove remaining REST prefix references — 2026-09-16,backend/AI_LOG.md,backend,135
+2026-09-17,2026-09-14,Generate feature,codex,Visual service status page and separate assets — 2026-09-17,backend/AI_LOG.md,backend,144
+2026-09-17,2026-09-14,Generate feature,codex,Frontend handoff and agent instructions — 2026-09-17,backend/AI_LOG.md,backend,153
+2026-09-17,2026-09-14,Generate feature,codex,Backfill the AI project log — 2026-09-17,backend/AI_LOG.md,backend,162
+2026-10-01,2026-09-28,Generate feature,codex,Get Doctor and Clinic member profiles — 2026-10-01,backend/AI_LOG.md,backend,171
+2026-10-01,2026-09-28,Other,codex,Use GraphQL only for member lookup — 2026-10-01,backend/AI_LOG.md,backend,178
+2026-10-01,2026-09-28,Other,codex,Adopt MediBridge member DTO pattern — 2026-10-01,backend/AI_LOG.md,backend,185
+2026-10-01,2026-09-28,Other,codex,Log GraphQL member lookup — 2026-10-01,backend/AI_LOG.md,backend,192
+2026-10-01,2026-09-28,Other,codex,Signup passwords of 8–100 characters — 2026-10-01,backend/AI_LOG.md,backend,199
+2026-10-01,2026-09-28,Other,codex,Include User profiles in getMember — 2026-10-01,backend/AI_LOG.md,backend,206
+2026-10-08,2026-10-05,Other,codex,First sprint example — 2026-10-08,backend/AI_LOG.md,backend,215
+2026-10-08,2026-10-05,Generate feature,codex,October 1–8 sprint example — 2026-10-08,backend/AI_LOG.md,backend,226
+2026-10-08,2026-10-05,Other,codex,Finalize Sprint 01 document — 2026-10-08,backend/AI_LOG.md,backend,238
+2026-10-08,2026-10-05,Docs,codex,README quality review — 2026-10-08,backend/AI_LOG.md,backend,249
+2026-10-08,2026-10-05,Docs,codex,README maintenance and polish — 2026-10-08,backend/AI_LOG.md,backend,261
+2026-10-08,2026-10-05,Docs,codex,Remove reference-project wording from README — 2026-10-08,backend/AI_LOG.md,backend,273
+2026-10-08,2026-10-05,Docs,codex,Existing features list and maintenance rule — 2026-10-08,backend/AI_LOG.md,backend,285
+2026-10-08,2026-10-05,Other,codex,Move Sprint 01 into backend — 2026-10-08,backend/AI_LOG.md,backend,297
+2026-10-08,2026-10-05,Docs,codex,Save product documentation workflow — 2026-10-08,backend/AI_LOG.md,backend,309
+2026-10-08,2026-10-05,Other,codex,Move AI collaboration log into backend — 2026-10-08,backend/AI_LOG.md,backend,321
+2026-10-08,2026-10-05,Other,codex,Ground Alex in the creator — 2026-10-08,backend/AI_LOG.md,backend,333
+2026-10-08,2026-10-05,Generate feature,codex,Document OAuth sign-in gap — 2026-10-08,backend/AI_LOG.md,backend,345
+2026-10-08,2026-10-05,Other,codex,Split into three personas — 2026-10-08,backend/AI_LOG.md,backend,357
+2026-10-15,2026-10-12,Other,codex,Adapt architecture agent instructions — 2026-10-15,backend/AI_LOG.md,backend,371
+2026-10-15,2026-10-12,Generate feature,codex,Document backend architecture and integrations — 2026-10-15,backend/AI_LOG.md,backend,386
+2026-10-15,2026-10-12,Docs,codex,Consolidate architecture documentation — 2026-10-15,backend/AI_LOG.md,backend,401
+2026-10-15,2026-10-12,Generate feature,codex,Implement Google sign-in backend — 2026-10-15,backend/AI_LOG.md,backend,416
+2026-10-15,2026-10-12,Generate feature,codex,Create Sprint 02 and automatic delivery updates — 2026-10-15,backend/AI_LOG.md,backend,431
+2026-10-16,2026-10-12,Docs,codex,Next GraphQL preparation README alignment — 2026-10-16,backend/AI_LOG.md,backend,443
+2026-10-16,2026-10-12,Docs,codex,Next landing-page documentation alignment — 2026-10-16,backend/AI_LOG.md,backend,455
+2026-10-16,2026-10-12,Docs,codex,Next auth-page documentation alignment — 2026-10-16,backend/AI_LOG.md,backend,467
+2026-10-16,2026-10-12,Docs,codex,Next Google sign-in documentation alignment — 2026-10-16,backend/AI_LOG.md,backend,479
+2026-10-17,2026-10-12,Generate feature,codex,Apply saved doctor-directory API — 2026-10-17,backend/AI_LOG.md,backend,490
+2026-10-18,2026-10-12,Other,codex,Resolve main/backend discovery merge — 2026-10-18,backend/AI_LOG.md,backend,510
+2026-10-18,2026-10-12,Other,codex,Adapt MediBridge image uploads — 2026-10-18,backend/AI_LOG.md,backend,522
+2026-10-18,2026-10-12,Other,codex,Integrate MediBridge clinic and doctor cities — 2026-10-18,backend/AI_LOG.md,backend,535
+2026-10-18,2026-10-12,Other,codex,Derive doctor city from their clinic — 2026-10-18,backend/AI_LOG.md,backend,548
+2026-10-18,2026-10-12,Generate feature,codex,Add updateMember and save-time image replacement — 2026-10-18,backend/AI_LOG.md,backend,561
+2026-10-19,2026-10-19,Generate feature,codex,Add myProfile for Next.js settings — 2026-10-19,backend/AI_LOG.md,backend,574
+2026-10-19,2026-10-19,Debug / fix,codex,Resolve main/backend profile and upload merge — 2026-10-19,backend/AI_LOG.md,backend,587
+2026-10-25,2026-10-19,Other,codex,Define booking and waitlist contracts (Step 1) — 2026-10-25,backend/AI_LOG.md,backend,600
+2026-10-25,2026-10-19,Generate feature,codex,Add transactional booking coordination (Step 2) — 2026-10-25,backend/AI_LOG.md,backend,613
+2026-10-25,2026-10-19,Other,codex,Confirm specialty-aware appointments immediately (Step 3) — 2026-10-25,backend/AI_LOG.md,backend,626
+2026-10-26,2026-10-26,Generate feature,codex,Manage clinic schedules and list dynamic slots (Step 4) — 2026-10-26,backend/AI_LOG.md,backend,639
+2026-10-28,2026-10-26,Generate feature,codex,"Cancel appointments, create clinic bookings and persist release events",backend/AI_LOG.md,backend,652
+2026-10-31,2026-10-26,Generate feature,codex,Waitlist enrollment and atomic commitment replacement (Step 6) — 2026-,backend/AI_LOG.md,backend,665
+2026-10-31,2026-10-26,Other,codex,Safe FIFO waitlist promotion worker (Step 7) — 2026-10-31,backend/AI_LOG.md,backend,678
+2026-10-31,2026-10-26,Generate feature,codex,Cutoff lifecycle and in-app waitlist notifications (Step8) — 2026-10-3,backend/AI_LOG.md,backend,691
+2026-10-31,2026-10-26,Generate feature,codex,Patient appointment list (Step9 backend only) — 2026-10-31,backend/AI_LOG.md,backend,704
+2026-10-31,2026-10-26,Other,codex,Authorized calendar snapshots and updates (Step10 backend) — 2026-10-3,backend/AI_LOG.md,backend,717
+2026-10-31,2026-10-26,Other,codex,Current notification targets and delivery checks (Step11 backend) — 20,backend/AI_LOG.md,backend,730
+2026-11-01,2026-10-26,Other,codex,"Step12 recovery, operations and local acceptance — 2026-11-01",backend/AI_LOG.md,backend,742
+2026-11-01,2026-10-26,Debug / fix,codex,OAuth-fix Step1: username validation and normalization — 2026-11-01,backend/AI_LOG.md,backend,762
+2026-11-01,2026-10-26,Debug / fix,codex,OAuth-fix Step2: case-insensitive username storage — 2026-11-01,backend/AI_LOG.md,backend,782
+2026-11-01,2026-10-26,Debug / fix,codex,OAuth-fix Step3: generated Google usernames — 2026-11-01,backend/AI_LOG.md,backend,802
+2026-11-01,2026-10-26,Debug / fix,codex,OAuth-fix Step4: username availability checks — 2026-11-01,backend/AI_LOG.md,backend,822
+2026-11-01,2026-10-26,Other,codex,Close weekends for booking — 2026-11-01,backend/AI_LOG.md,backend,842
+2026-11-02,2026-11-02,Generate feature,codex,Sprint03–05 backend delivery records — 2026-11-02,backend/AI_LOG.md,backend,862
+2026-11-03,2026-11-02,Refactor / clean,codex,Share appointment doctor eligibility — 2026-11-03,backend/AI_LOG.md,backend,882
+2026-11-04,2026-11-02,Other,codex,Doctor directory search API — 2026-11-04,backend/AI_LOG.md,backend,894
+2026-11-05,2026-11-02,Generate feature,codex,Clinic directory search API — 2026-11-05,backend/AI_LOG.md,backend,906
+2026-11-05,2026-11-02,Generate feature,codex,Filtered directory name suggestions — 2026-11-05,backend/AI_LOG.md,backend,918
+2026-11-05,2026-11-02,Other,codex,Directory search plan and roadmap completion — 2026-11-05,backend/AI_LOG.md,backend,930
+2026-11-05,2026-11-02,Debug / fix,codex,GraphQL upload validation compatibility — 2026-11-05,backend/AI_LOG.md,backend,952
+2026-11-05,2026-11-02,Other,codex,Sprint 05 final review and closure — 2026-11-05,backend/AI_LOG.md,backend,972
+2026-11-12,2026-11-09,Generate feature,codex,Gmail verification email delivery — 2026-11-12,backend/AI_LOG.md,backend,993
+2026-11-13,2026-11-09,Test,codex,Gmail test email submission — 2026-11-13,backend/AI_LOG.md,backend,1014
+2026-11-13,2026-11-09,Generate feature,codex,Branded verification email — 2026-11-13,backend/AI_LOG.md,backend,1037
+2026-11-13,2026-11-09,Generate feature,codex,Email verification backend enforcement (FI-08 Step 3) — 2026-11-13,backend/AI_LOG.md,backend,1058
+2026-11-13,2026-11-09,Test,codex,Email verification final acceptance (FI-08 Step 5) — 2026-11-13,backend/AI_LOG.md,backend,1079
+2026-11-13,2026-11-09,Other,codex,Patch critical transitive dependencies — 2026-11-13,backend/AI_LOG.md,backend,1100
+2026-11-14,2026-11-09,Other,codex,Patch high severity dependencies — 2026-11-14,backend/AI_LOG.md,backend,1120
+2026-11-14,2026-11-09,Other,codex,Account deletion Step 2 backend — 2026-11-14,backend/AI_LOG.md,backend,1141
+2026-11-15,2026-11-09,Other,codex,Patch minimatch and preserve tooling compatibility — 2026-11-15,backend/AI_LOG.md,backend,1154
+2026-11-16,2026-11-16,Explain / learn,codex,Password recovery Step 1 — 2026-11-16,backend/AI_LOG.md,backend,1167
+2026-11-16,2026-11-16,Generate feature,codex,Password recovery Step 2 — 2026-11-16,backend/AI_LOG.md,backend,1180
+2026-11-17,2026-11-16,Generate feature,codex,Password recovery Step 3 — 2026-11-17,backend/AI_LOG.md,backend,1193
+2026-11-19,2026-11-16,Generate feature,codex,Password recovery combined acceptance and operations — 2026-11-19,backend/AI_LOG.md,backend,1205
+2026-11-19,2026-11-16,Other,codex,Standard booking hours — 2026-11-19,backend/AI_LOG.md,backend,1221
+2026-10-15,2026-10-12,Generate feature,codex,Next.js agent instructions — 2026-10-15,next/AI_LOG.md,next,3
+2026-10-15,2026-10-12,Generate feature,codex,Yarn package setup — 2026-10-15,next/AI_LOG.md,next,23
+2026-10-15,2026-10-12,Docs,codex,README logo — 2026-10-15,next/AI_LOG.md,next,43
+2026-10-15,2026-10-12,Generate feature,codex,Reference package scripts — 2026-10-15,next/AI_LOG.md,next,63
+2026-10-15,2026-10-12,Other,codex,Logo color variables — 2026-10-15,next/AI_LOG.md,next,83
+2026-10-16,2026-10-12,Other,codex,Shared SCSS foundation — 2026-10-16,next/AI_LOG.md,next,103
+2026-10-16,2026-10-12,Generate feature,codex,GraphQL operation structure — 2026-10-16,next/AI_LOG.md,next,123
+2026-10-16,2026-10-12,Generate feature,codex,Root landing page with MUI — 2026-10-16,next/AI_LOG.md,next,143
+2026-10-16,2026-10-12,Generate feature,codex,Combined sign-in and patient signup — 2026-10-16,next/AI_LOG.md,next,163
+2026-10-16,2026-10-12,Generate feature,codex,Google Identity Services sign-in — 2026-10-16,next/AI_LOG.md,next,183
+2026-10-16,2026-10-12,Other,codex,Frontend end-of-week sprint instructions — 2026-10-16,next/AI_LOG.md,next,203
+2026-10-17,2026-10-12,Docs,codex,Next.js architecture and product review prompts — 2026-10-17,next/AI_LOG.md,next,223
+2026-10-17,2026-10-12,Generate feature,codex,Reusable clinic card — 2026-10-17,next/AI_LOG.md,next,243
+2026-10-17,2026-10-12,Other,codex,Default clinic fallback image — 2026-10-17,next/AI_LOG.md,next,263
+2026-10-17,2026-10-12,Other,codex,Clinics page — 2026-10-17,next/AI_LOG.md,next,283
+2026-10-17,2026-10-12,Generate feature,codex,Reusable doctor card — 2026-10-17,next/AI_LOG.md,next,303
+2026-10-17,2026-10-12,Generate feature,codex,Doctors page and public directory query — 2026-10-17,next/AI_LOG.md,next,323
+2026-10-18,2026-10-12,Docs,codex,Root README logo — 2026-10-18,next/AI_LOG.md,next,343
+2026-10-19,2026-10-19,Generate feature,codex,Inline My Page profile editing — 2026-10-19,next/AI_LOG.md,next,363
+2026-10-31,2026-10-26,Other,codex,Step 9 patient booking and waitlist journeys — 2026-10-31,next/AI_LOG.md,next,383
+2026-10-31,2026-10-26,Other,codex,Visual booking date calendar — 2026-10-31,next/AI_LOG.md,next,403
+2026-10-31,2026-10-26,Generate feature,codex,Step 10 clinic/doctor workspace and live calendar — 2026-10-31,next/AI_LOG.md,next,423
+2026-11-01,2026-10-26,Generate feature,codex,Step 11 patient notification center and current-target delivery — 2026,next/AI_LOG.md,next,443
+2026-11-01,2026-10-26,Docs,codex,Step12 local integration acceptance documentation — 2026-11-01,next/AI_LOG.md,next,463
+2026-11-01,2026-10-26,Debug / fix,codex,OAuth-fix Step5: username presentation and validation — 2026-11-01,next/AI_LOG.md,next,483
+2026-11-01,2026-10-26,Other,codex,Disable weekend booking dates — 2026-11-01,next/AI_LOG.md,next,503
+2026-11-02,2026-11-02,Debug / fix,codex,Inline username availability checks — 2026-11-02,next/AI_LOG.md,next,523
+2026-11-02,2026-11-02,Other,codex,Matching Next Sprint03–05 reviews — 2026-11-02,next/AI_LOG.md,next,543
+2026-11-05,2026-11-02,Generate feature,codex,URL-driven doctor search and autocomplete — 2026-11-05,next/AI_LOG.md,next,563
+2026-11-05,2026-11-02,Generate feature,codex,URL-driven clinic search and shared directory — 2026-11-05,next/AI_LOG.md,next,587
+2026-11-05,2026-11-02,Other,codex,Directory filter polish and combined acceptance checkpoint — 2026-11-0,next/AI_LOG.md,next,607
+2026-11-05,2026-11-02,Debug / fix,codex,Square photos and upload cropper — 2026-11-05,next/AI_LOG.md,next,631
+2026-11-05,2026-11-02,Other,codex,Sprint 05 final review and closure — 2026-11-05,next/AI_LOG.md,next,651
+2026-11-06,2026-11-02,Other,codex,Header navigation cleanup — 2026-11-06,next/AI_LOG.md,next,671
+2026-11-06,2026-11-02,Other,codex,Remove legacy Vite application — 2026-11-06,next/AI_LOG.md,next,691
+2026-11-11,2026-11-09,Other,codex,Header account icon — 2026-11-11,next/AI_LOG.md,next,711
+2026-11-11,2026-11-09,Other,codex,Saved profile avatar — 2026-11-11,next/AI_LOG.md,next,732
+2026-11-13,2026-11-09,Generate feature,codex,Email verification signup (FI-08 Step 4) — 2026-11-13,next/AI_LOG.md,next,753
+2026-11-13,2026-11-09,Test,codex,Email verification final acceptance (FI-08 Step 5) — 2026-11-13,next/AI_LOG.md,next,774
+2026-11-14,2026-11-09,Other,codex,Patch high severity dependencies — 2026-11-14,next/AI_LOG.md,next,794
+2026-11-14,2026-11-09,Other,codex,Instructor navigation and Korea service feedback — 2026-11-14,next/AI_LOG.md,next,815
+2026-11-14,2026-11-09,Generate feature,codex,Korea service message in hero banner — 2026-11-14,next/AI_LOG.md,next,836
+2026-11-14,2026-11-09,Generate feature,codex,Account deletion Step 3 commitment dialog — 2026-11-14,next/AI_LOG.md,next,857
+2026-11-14,2026-11-09,Test,codex,Account deletion Step 4 confirmation and session cleanup — 2026-11-14,next/AI_LOG.md,next,878
+2026-11-14,2026-11-09,Other,codex,Account deletion Step 5 checkpoint — 2026-11-14,next/AI_LOG.md,next,898
+2026-11-14,2026-11-09,Other,codex,Account deletion delivery records and integration preparation — 2026-1,next/AI_LOG.md,next,918
+2026-11-14,2026-11-09,Other,codex,Account deletion final browser acceptance and closure — 2026-11-14,next/AI_LOG.md,next,938
+2026-11-19,2026-11-16,Generate feature,codex,FI-03 recovery screens and proxy — 2026-11-19,next/AI_LOG.md,next,959
+2026-11-19,2026-11-16,Other,codex,FI-03 Step4 browser acceptance and completion — 2026-11-19,next/AI_LOG.md,next,972
+2026-11-19,2026-11-16,Docs,codex,Password recovery combined acceptance documentation — 2026-11-19,next/AI_LOG.md,next,984
+2026-11-19,2026-11-16,Other,codex,Standard booking hours — 2026-11-19,next/AI_LOG.md,next,1000
+2026-11-19,2026-11-16,Other,codex,Keep sticky content below the navbar — 2026-11-19,next/AI_LOG.md,next,1021
+2026-11-19,2026-11-16,Other,codex,Next.js security upgrade — 2026-11-19,next/AI_LOG.md,next,1042
