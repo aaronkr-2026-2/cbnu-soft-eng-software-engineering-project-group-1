@@ -1142,3 +1142,24 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** AST comparison caught formatter-shifted dash whitespace and Codex restored original JSX. Temporary API probes used an unresolved module path, wrong operation filter and assumed lunch-crossing weekday hours must be rejected; corrected the probe against current code and the explicit weekend contract (NEXT-021), without production changes. Native end-time selection was not confirmed as changed, so browser review is recorded as the observed09:00–17:00draft. No manual owner catch is claimed.
 
 **One decision I can explain without AI:** Schedule reviews must hold copied rows and the doctor/date captured when review opens. Confirmation must not silently use later draft edits, and losing a write response must never cause automatic resubmission.
+
+
+## FI-09 Step 7d — Care dialog state and presentation — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typechecks, Yarn/Node tests, React SSR, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Continue the next refactoring slice and finish the interrupted ActionDialog work.
+
+**Pre-planning:** Verified Next e7e84b4/backend919b4a9, instructions/session/bug records and Step7; traced dialog callers, API preflight/mutation/reconciliation and mounted ownership. Read installed Pages Router guidance before implementation.
+
+**Planning:** Extract feature-specific request/state coordination while retaining the complete Dialog JSX, public props, parent identity keys and original sequence.
+
+**Implementation process:** Extracted useCareAction; view422→251physical lines,222-line hook. AST checks preserve four handlers, profile call, abort cleanup and full JSX. Types/noUnused/210tests(12new)/isolated production build pass; final source matches build. Production hook with real API adapters verifies postcommit lost booking reply→single record/no replay, structured conflict/consent reset, atomic appointment→waitlist and lost withdrawal reply→terminal read/no replay. Native Chrome returned blank capture/no form controls after reload; browser acceptance remains unverified. Closed owned tab, stopped verified runner97065/Nest97099/Mongo; four ports closed/tempDB+uploads removed. Updated architecture/session/NEXT-019. No sprint covers date; backend plan remains protected.
+
+**What I kept as-is:** Public props/JSX, request ordering, consent/forfeit reset, stale/duplicate/abort guards, mounted uncertain state, read-only reconciliation, clients and parent keys.
+
+**What I changed or rejected, and why:** A focused hook isolates coordination with no generic request abstraction, new retry, dependency, API or style change. All four Step7 slices are implemented; browser gaps remain for final acceptance. No staging/commit/push/deploy or protected application changes.
+
+**Something the AI got wrong that I had to catch:** No AI implementation error identified during this task. A resumed record lookup used a Next-relative path from the backend worktree and failed read-only; corrected the cwd. Native blank capture and sandbox-blocked localhost access are environment limits; the integration probe passed with reviewed localhost access. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** A lost response can follow a committed write. Checking current records must preserve the original baseline and must never automatically repeat the mutation.

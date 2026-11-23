@@ -45,8 +45,9 @@ existing PatientGate identity boundary; views add no remount keys or API client.
 Slot data remains in the shared selection draft so clinic changes can clear its
 dependent values in the original effect order.
 
-`ActionDialog` owns review, explicit consent/forfeit acknowledgement, stale-source
-preflight, and read reconciliation. Both originals and targets are displayed.
+`ActionDialog` renders review, explicit consent/forfeit acknowledgement and results.
+Its feature-specific `useCareAction` hook owns mounted request state, stale-source
+preflight, mutations and read reconciliation. Both originals and targets are displayed.
 `PatientGate` restricts the UI to USER accounts and unmounts private state at sign-out
 or identity changes. Nest guards enforce actual access and patient-derived ownership.
 
@@ -1038,3 +1039,58 @@ staging/commit/push/merge changes. README setup/features are unchanged. No sprin
 covers this date; closed history is preserved. Stop here; ActionDialog is next.
 
 Manual commit: `refactor(next): separate team and schedule state and presentation`.
+
+
+## FI-09 Step 7d — ActionDialog — November 23, 2026
+
+Implemented from Next `e7e84b4`; backend `919b4a9` remained read only. All four
+Step7 implementation slices are complete. Final acceptance remains open for the
+browser gaps below and the earlier PersonalInfo crop/lower-mobile/save-outage checks;
+Step8 is the final acceptance and queue decision. The backend plan is unchanged
+under Next's explicit protected-folder rule.
+
+`ActionDialog.tsx` now delegates mounted state and request coordination to
+`useCareAction.ts`: 422→251 physical lines in the view, with a222-line hook.
+No total-source or performance reduction is claimed. Public props, full Dialog JSX,
+parent keys, handlers, profile loading and abort cleanup retain their original
+semantics (AST/source comparison). Preflight precedes baseline reads and one write;
+uncertain outcomes reconcile by reads. Replacement resets both consents; stale
+sources, duplicate submissions and late aborted results retain their guards.
+No API, dependency, transport, retry, style or backend behavior changes.
+
+Typecheck, noUnusedLocals/noUnusedParameters, all210tests (12new) and isolated
+production Webpack build pass. Source matches the built copy. Focused tests cover
+lost replies, existing/ambiguous targets, read failure and read-only rechecks,
+terminal cancel/withdrawal, stale source, duplicate/abort guards, consent reset,
+mounted prop/reopen state and rendered disabled/close guards.
+
+The production hook also ran with real booking adapters against local Next session
+login → normal Nest AppModule → disposable MongoDB, using only synthetic actors.
+Dropping a successful post-commit booking response produced uncertainty then a
+receipt, exactly one new patient appointment and no replay. A real structured
+conflict reset both replacement consents; atomic appointment→waitlist replacement
+canceled the original and created an ACTIVE enrollment. Dropping the withdrawal
+response reconciled WITHDRAWN with one withdrawal write. Final counters:2booking
+writes (one peer preparation),1rejected enrollment attempt,1replacement,1withdrawal,
+9owned reads and2dropped responses. This verifies hook/API integration, not browser
+interaction or real React scheduling.
+
+Native Chrome reached the local auth URL/title, but supplied no document controls;
+the screenshot was a blank solid surface and reload did not restore controls.
+No browser sign-in, lost-reply, replacement, keyboard or mobile acceptance is
+claimed for this slice. NEXT-019 retains the browser limitations; the earlier
+BookingForm lost-response browser gap is still open despite the hook/API evidence.
+Closed the owned test tab and verified the unrelated existing tab remained.
+No credentials were entered or saved in this browser attempt.
+
+Stopped owned runner97065/Nest97099 and both Mongo processes; all four ports
+43471/43472/62773/62778 closed and temporary DB/uploads removed. Sanitized evidence:
+`/private/tmp/medconnect-fi09-step7d-evidence.json`; integration probe:
+`/private/tmp/fi09-step7d-accept.cjs`; isolated build:
+`/private/tmp/medconnect-fi09-step7d-release/next`. Localhost build inputs are
+acceptance settings, not deployment settings. No backend/Vite/appDB/env/dependency,
+live provider, production flag, staging/commit/push/merge or deployment changes.
+README setup/features unchanged; no sprint covers this date and closed history is
+preserved.
+
+Manual commit: `refactor(next): separate care dialog state and presentation`.
