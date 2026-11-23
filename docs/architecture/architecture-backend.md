@@ -31,7 +31,7 @@ Versions below are declared dependency ranges in [backend/package.json](../../ba
 | Input handling | `class-validator` `^0.15.1`, `class-transformer` `^0.5.1` | Global validation/transform pipe and DTO rules |
 | API documentation | Nest Swagger `^12.0.2` | REST UI at `/docs`, OpenAPI JSON at `/docs-json` |
 | Abuse controls | `express-rate-limit` `^8.7.0` | In-memory auth request limits per process |
-| Async execution and logs | RxJS `^7.8.1`, custom `FileLogger`, Node filesystem APIs | HTTP/GraphQL timing/error interception, JSON-line file logs and terminal output |
+| Async execution and logs | RxJS `^7.8.1`, Pino `10.4.0`, Nest `FileLogger` adapter | HTTP/GraphQL timing/status interception, Pino JSON serialization and asynchronous file output |
 | Verification/tooling | Jest 30, ts-jest 29, Supertest 7, Nest CLI, Oxlint, Prettier | Unit/HTTP tests, compilation, linting, formatting; exact ranges are in package.json |
 | Browser client context | Next.js Pages Router, React, TypeScript and MUI | Frontend lives in `next/`; see [Next.js architecture](architecture-next.md). The legacy React/Vite `frontend/` application was removed on November 6, 2026. |
 
@@ -70,7 +70,7 @@ flowchart TD
   Models[Mongoose models and schema constraints]
   DB[(MongoDB collections)]
   Health[Health controllers and DatabaseService]
-  Logs[LoggingInterceptor and FileLogger]
+  Logs[LoggingInterceptor and Pino-backed FileLogger]
   UI -->|In-process calls: navigation and session state| Session
   UI -->|In-process calls: auth payloads| Client
   Session -->|In-process read: access token| Client
@@ -250,6 +250,14 @@ Callers must validate slots through `appointment-slot.ts` in the clinic timezone
 and recheck authorization, doctor eligibility, schedule, cutoff and consent in the
 transaction. Coordination is not a replacement for those domain checks.
 
+FI-09 Step6's coordination slice (November 22, 2026) keeps `run` responsible for
+preparation, session lifetime, bounded driver retries and transaction options.
+Private `coordinationKeys`, `acquireGates` and `createTransaction` helpers handle
+sorted/deduplicated scope, sequential revision writes and the scoped operation
+object respectively. The latter two receive the original session and models;
+operations are constructed on each transaction attempt after all gates are acquired.
+No provider, transaction boundary, query policy or public contract changes.
+
 The service seeds empty coordination rows outside the transaction, then writes
 their revisions inside it in sorted key order: doctor IDs, patient IDs, then
 doctor-slot keys. Booking and schedule edits both take the doctor gate. Concurrent writers therefore conflict on an actual document instead of
@@ -392,6 +400,19 @@ Outbox initialization/indexing occurs before the transaction; failures inside it
 roll back appointment, ledger, generation and events. Creation can be paused while
 migrated commitments remain cancellable through assertMigrated.
 
+FI-09 Step6's appointment slice keeps `transitionInTransaction` as the owner of
+fresh participant/state reads, the guarded write, ledger release and session-bound
+ordered outbox insertion. Private helpers separate snapshot/version validation,
+status/time validation, canceled-slot handling and event construction/IDs. They
+reuse the original BookingTransaction/session and captured transition timestamp;
+no independent transaction, clock refresh, catch or retry is added. Snapshot/version
+checks still precede idempotent return; status/time checks remain after that return
+and before writes. Cancellation and replacement continue through the existing
+public service methods. Local verification passed build/full types/lint,
+191 unit,236 API and257 disposable booking/deletion checks. Cancellation/outcome
+regressions assert persisted event IDs/payloads and existing rollback/replay/race
+coverage remains intact; no live/production acceptance is implied.
+
 Cancellation increments slot generation and writes SLOT_RELEASED plus a status
 change event with stable IDs. A queue at >=48h retains the allocation hold;
 manual openings release it. Closed/ineligible schedules produce UNAVAILABLE hints
@@ -411,6 +432,15 @@ events with a token, 30-second lease and attempt counter. Expired claims can be
 reclaimed after restart. Each transaction writes the token fence after locking the
 doctor/patient/slot, so a stale owner cannot book after takeover. Slot generation
 checks prevent old releases from touching a newer hold.
+
+FI-09 Step6's promotion slice (November 22, 2026) keeps `runOnce` responsible for
+readiness/preparation, claiming and recovery dispatch. Private helpers separate the
+release claim, bounded loop, transaction-bound candidate checks, booking, cutoff
+deferral and recovery/backoff. Candidate helpers receive the original transaction;
+cutoff recovery retains its existing separate fenced transaction after rollback.
+Live clock checks, token/lease and generation checks, typed-ineligible handling,
+booking/outbox atomicity and catch boundaries remain unchanged. Recovery failures
+propagate so an expired claim can be reclaimed; no provider or scheduler changes.
 
 WaitlistService selects the FIFO ACTIVE head and performs version-conditional
 INELIGIBLE/fulfilled transitions; notification-only entries are excluded.
@@ -588,7 +618,7 @@ Here, shared services include reusable in-process capabilities and external prov
 | Email delivery | Signup verification locally accepted; recovery request delivery implemented, default off | EmailDeliveryService in MemberModule uses Nodemailer `^10.5.0`, TLS and backend-only SMTP credentials. Live SMTP authentication passed November 12, 2026. The owner confirmed test-email receipt November 13, 2026. |
 | MongoDB / Atlas | Persistence integration implemented | Mongoose connection through DatabaseModule. Production startup requires a `mongodb+srv://` URI; live Atlas connectivity/index behavior was not checked for this document. |
 | External medical, pharmacy, maps, or payment APIs | No implemented integration found | No outbound business HTTP client/service found in backend source. Do not present these as existing capabilities. |
-| Logging | Implemented internally | FileLogger writes JSON lines to `LOG_FILE` or `logs/medconnect.log`; LoggingInterceptor records transport execution metadata. No hosted log service is configured in this code. |
+| Logging | Pino integration implemented and locally verified | The Nest FileLogger adapter delegates JSON serialization and asynchronous writes to Pino 10.4.0. Stdout and `LOG_FILE` (default `logs/medconnect.log`) receive the same records; file failures fall back to stdout. No hosted log service is configured. |
 | Health monitoring | Implemented internally | DatabaseService supplies connection status; `/status` polls this application's JSON endpoints using browser fetch. No external monitoring provider is established. |
 | Cache, queue, scheduler, batch service | Not implemented | No Redis/shared rate-limit store, mail queue, or batch runtime wired into AppModule. |
 
@@ -917,6 +947,14 @@ password, and session-version writes. The response is MemberUpdateResult with an
 authenticated MemberSelf (private contact fields), requiresLogin, and
 imageCleanupPending. Public Member fields remain unchanged.
 
+FI-09 Step6's first service slice keeps this public facade and extracts three
+private MemberService responsibilities: `validateProfilePasswordChange`,
+`buildProfileUpdate` and `saveProfileUpdate`. The guarded write receives the same
+member snapshot/model and retains its version/status/type filters and validators.
+The facade still owns image claiming, definitive-versus-uncertain write recovery,
+post-save cleanup and response mapping. No provider/module/transaction boundary
+or API contract changes; deletion and reset flows remain in their existing paths.
+
 Allowed edits are name, nickname, phone, image, address and description; clinic name
 and city are clinic-only. Affiliation, approval, email/provider and role/status changes
 are outside this API. Password changes require currentPassword, newPassword and
@@ -1015,7 +1053,154 @@ authentication. No live MongoDB or deployment was exercised for this addition.
 
 ## Security and configuration
 
-The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor excludes bodies, tokens, GraphQL arguments/query text, and response data, but records request paths and exception messages/stacks; this is not a universal redaction service.
+The global ValidationPipe transforms DTO inputs and rejects unknown fields. CORS allows configured browser origins; it is not authentication. Passwords, JWT secrets, database credentials, raw refresh tokens, and private patient data must stay out of frontend code and logs. Member/auth responses use explicit allowlists; appointment reads use projections. The logging interceptor records HTTP route templates or GraphQL parent/field names, timing and failure status. It excludes raw URLs, bodies, tokens, GraphQL arguments/query text, response data and raw exception messages/stacks. Application-authored log strings must still exclude secrets; this is not a universal string-redaction service.
+
+### Timezone library evaluation
+
+FI-09 Step 5 (November 21, 2026) **defers Luxon adoption**. Production continues
+using `backend/src/components/appointment/appointment-slot.ts`: explicit UTC
+instants, native clinic-zone formatting, a bounded UTC candidate scan and shared
+range/schedule policy. Discovery and booking writes still call the same helpers;
+transactional availability reads and ownership remain in their existing services.
+
+A disposable Luxon3.7.2 prototype matched the selected modern-date matrix (25,354
+instant checks,88 candidate windows,1,188 schedule/write checks and six ranges),
+including DST/quarter-hour offsets and schedule overrides. It improves field
+access but retains scanning, alignment/continuity, strict date validation and all
+clinic rules. Zone normalization needs restriction to preserve accepted inputs;
+probes of years0001/0099/0999 also differ from the existing unpadded-year/NaN-weekday
+behavior (local B-033). That edge case was not changed; past starts cannot create
+new bookings. Equivalence is bounded, so no unrestricted replacement is claimed.
+
+Build/full types/lint,34 helper and195 disposable integration tests passed.
+Luxon remains only a transitive cron dependency; no application import, manifest,
+API or deployment change was made. The [refactoring plan](../../backend/PACKAGE_REFACTORING_PLAN.md#step-5-acceptance--november-21-2026)
+records the prototype, matrix, limits and reconsideration criteria.
+
+### Typed configuration
+
+FI-09 Step 4 centralizes environment settings in
+`backend/src/libs/config/application-config.service.ts` using exact
+`@nestjs/config` 12.1.1 and its injected `ConfigService`. The shared global
+`ApplicationConfigModule` is imported explicitly by root, database, booking and
+member modules. MediBridge's global-module pattern was inspected; its default
+file-loading behavior was not copied.
+
+`main.ts` calls the native `load-environment.ts` helper, validates normal startup,
+then dynamically imports AppModule. Existing exports override `.env`; missing
+files remain allowed. ConfigModule uses `ignoreEnvFile: true` and uncached reads,
+so importing a feature or CLI does not unexpectedly load credentials from disk.
+Database/model registration still uses the selected URI at module evaluation;
+loading environment values first remains essential. `database.config.ts` and
+`booking.config.ts` retain their consumed helper signatures as adapters to the
+central configuration policy for CLI/pure callers. No obsolete second parser is
+retained. Explicit environment objects are isolated from process fallback.
+
+ApplicationConfig owns typed database, JWT, Google, Gmail, recovery, worker,
+server/CORS, upload and logging settings. Auth/email and all four background workers
+accept injected configuration; independently owned instances use the uncached
+process-backed default unless an explicit instance is supplied. Recovery-origin
+and booking-flag validators were relocated, preserving their policies. SMTP and
+Google configuration remain lazy; enabled recovery requires its origin, provider
+configuration and existing storage readiness. Default-off flags, strict booking
+boolean syntax, recovery trimming, dependency checks, URI override precedence,
+production SRV selection, cookie security and optional-feature error contracts
+remain intact. Port validation now rejects blank, nonnumeric, fractional and
+out-of-range values with a static error; port 0 remains allowed for ephemeral binds.
+
+Normal startup requires MongoDB and a 32-byte JWT secret before constructing Nest.
+The configuration module's initialization validates flags/port and configured
+infrastructure while retaining database-free feature-module tests. Database
+migrations, operational readiness and worker ownership still belong to their
+existing services, not configuration validation. No configuration values are
+included in validation errors. Tests can override ConfigService/ApplicationConfig
+or use `configurationFor(explicitEnvironment)` without consulting local credentials.
+
+Local acceptance passed build/full types/lint, 191 unit, 233 API, 510 disposable
+MongoDB integration and 8 mocked deployment checks. Real Node subprocesses checked
+native loading precedence, import-time database registration, ignored `.env` files
+for module-only consumers and static startup failures. The runtime dependency
+audit reported no findings. Live providers, containers and deployment were not
+exercised.
+
+### Background worker scheduling
+
+FI-09 Step 3 uses exact `@nestjs/schedule` 12.0.4 through
+`backend/src/libs/scheduling/worker-scheduling.module.ts`, imported by the member,
+appointment and notification modules. Nest deduplicates this shared module; one
+`ScheduleModule.forRoot()` registry owns the named dynamic timeouts.
+`worker-scheduler.service.ts` centralizes the completion-driven loop: remove the
+fired timeout, await work, then register an unreferenced timeout one second later.
+Fixed intervals/cron would change the existing completion-to-next-run cadence.
+Recovery retains its zero-delay first tick; the other workers first wait one second.
+
+Notification delivery, waitlist lifecycle, promotion and recovery retain separate
+services, feature gates, startup readiness checks, bounded batches, safe failure
+messages and MongoDB claims/leases/fencing/transactions. The scheduler provides
+process-local timing only. Cross-process coordination and crash recovery still
+belong to MongoDB. Recovery keeps its existing `inFlight` coalescing for explicit
+and scheduled callers. No Redis or new infrastructure is required. Cron/Luxon are
+transitive package dependencies; appointment timezone policy has not migrated.
+
+Each service stops its loop and drains active work in `onModuleDestroy` before
+Mongoose closes connections in `onApplicationShutdown`. Recovery retains an
+idempotent application-shutdown hook for independently owned instances.
+`main.ts` now enables Nest shutdown hooks so SIGTERM/SIGINT invoke this lifecycle,
+as does `app.close()`. Shutdown waits for active operations; no new drain timeout
+or cancellation of an uncertain provider result was introduced. This does not
+establish deployment grace-period adequacy or production acceptance. Local Step 3
+verification passed build/full types/lint, 167 unit, 233 API, 195 disposable booking
+and 71 disposable recovery tests, plus a compiled SIGTERM active-work drain smoke.
+Runtime dependency audit reported no vulnerabilities; live providers and containers
+were not exercised.
+
+### Application logging
+
+FI-09 Step 2 was accepted locally November 21, 2026. Existing `main.ts` and
+`AppModule` wiring still installs `FileLogger` as the Nest logger and uses one
+global `LoggingInterceptor`. Pino supplies serialization, severity handling,
+multi-stream fan-out and asynchronous file writes. Direct Pino was selected because
+the current `nestjs-pino` adapter requires Nest 12.0.2+, while this application
+retains Nest 12.0.1. No HTTP auto-logger or second request interceptor was added.
+
+Both sinks now use Pino JSON: numeric `level`, ISO `time`, `message` and optional
+`context`. This replaces string levels/`timestamp`, colored terminal lines and
+error-only stderr routing. All application levels now use stdout plus the file;
+stderr is reserved here for a static file-output failure diagnostic. Nest `log`
+maps to info (30), warn to 40, debug to 20, verbose to trace (10), error to 50 and
+fatal to 60. Log consumers must account for the schema/output change; API response
+and error contracts are unchanged.
+
+`LOG_FILE` retains its working-directory-relative default `logs/medconnect.log`.
+Missing directories/new files are created with modes 0700/0600 respectively;
+permissions on existing paths are not rewritten. The file is opened once during
+logger construction; writes are asynchronous and drained/closed by the module
+destroy hook on `app.close()`. If opening or later writing fails, logging continues
+on stdout with a static stderr diagnostic that omits filesystem details. File
+records lost during an output failure are not replayed. No rotation or hosted
+collector is configured. The current Compose file does not mount logs, so durable
+collection across container replacement still needs deployment configuration.
+Step 3 subsequently enabled signal hooks; forcible process termination still
+does not provide a log-delivery guarantee.
+
+The adapter accepts application-authored strings and context only; unknown object
+payloads and Error contents are replaced with static messages, and supplied stacks
+are discarded. Database connection error events likewise log a static message.
+The interceptor records exception status (500 for unknown errors) and rethrows the
+original error unchanged. Global framework errors outside intercepted handlers may
+produce their own records; the one-start/one-result assertion covers intercepted
+operations, not every possible bootstrap/guard failure.
+
+Verification: 155 unit tests, 233 API tests including real loopback HTTP/GraphQL
+success/failure logs in both sinks, full TypeScript, lint and build passed. Focused
+checks cover severity mapping, private-field exclusion, failed file output,
+permissions and shutdown draining. A compiled CommonJS smoke passed, and the
+resolved backend runtime audit reported zero findings. Initial tests caught and
+corrected an async-open shutdown race before delivery; the sandbox asset watcher
+build needed an approved rerun. Local execution used Node 26.5.0; the Node 24.12.0
+container image, production log collection and deployment were not verified.
+
+### Configuration and abuse controls
 
 Auth endpoints share a 20-request/minute/IP/process limiter. It is not a distributed abuse-control system and does not cover every query. Public profile access and its projected fields must be considered when changing privacy requirements.
 
@@ -1097,7 +1282,7 @@ The observations describe the pre-refactor review; further proposals remain defe
 | --- | --- | --- |
 | At review, `appointment.service.ts` was 1,049 lines, combining creation, transactional status/outbox writes, promotion eligibility and three read APIs. REST and GraphQL share it; commitment and worker services use its explicit transaction methods. | Merging another workflow here increases the responsibility and regression surface. | Keep the public facade and transaction interfaces. Consider a separate read provider only if that improves maintenance after the validation cleanup; preserve REST versus GraphQL ordering, limits and projections. |
 | `appointment-schedule.service.ts:doctor` and `appointment.service.ts:requireApprovedDoctor` both query active clinic/approved doctor, specialty and timezone. Both services also load hours/overrides, while already sharing `appointment-slot.ts` calculations. | Database eligibility checks can drift even though pure slot calculations are shared. | Implemented a shared session-aware appointment-doctor.ts helper for both services. Keep caller authorization, booking policy, reservation and occupancy checks in the mutation path. Preserve optional specialty for schedule management and required specialty for booking. |
-| `appointment-promotion.service.ts` and `appointment-waitlist-lifecycle.service.ts` share timer/shutdown scaffolding, but promotion uses durable claims, fencing and retry backoff; lifecycle also expires entries, processes cleanup and handles cutoff openings while promotion is disabled. | A combined worker would couple distinct controls and recovery paths. | Keep workers separate. Retain their feature flags, cutoff behavior and transaction ownership; do not introduce a generic worker framework just to remove short timer code. |
+| Promotion and lifecycle retain distinct durable claims, fencing, cutoff and retry responsibilities. FI-09 Step 3 centralizes timing in WorkerScheduler using the Nest scheduler registry. | A combined business worker would still couple distinct controls and recovery paths. | Keep business workers separate and preserve MongoDB ownership; shared scheduling must remain limited to timing and draining. |
 | `appointment-commitment.service.ts` coordinates appointment/waitlist replacement in one BookingCoordinationService transaction. AppointmentService already injects WaitlistService. | Merging the orchestrator into WaitlistService would introduce a reverse service dependency; splitting replacement into independent calls would lose atomicity. | Retain the orchestrator in AppointmentModule. Clarify that a commitment means either a booked appointment or a waitlist place; avoid moving providers between modules solely to shorten names. |
 | `appointment-calendar.service.ts` owns authorized read snapshots, full-window revisions and pagination; `appointment-notification.service.ts` resolves owned notification targets through four existing services. | These are cohesive read workflows with different consistency and error contracts from booking writes. Moving notification context into NotificationService would reverse the current AppointmentModule-to-NotificationModule dependency. | Keep both services. A small orchestration service is justified here; optionally rename AppointmentNotificationService to AppointmentNotificationContextService to describe its actual role. |
 
@@ -1223,3 +1408,89 @@ check was inconclusive (blank native surface despite HTTP200), and is not report
 as passed. Test tabs/processes and disposable Mongo files were cleaned. Production
 storage/proxy/TLS/capacity, integration and deployment remain unverified; recovery
 stays default off. Detailed operator procedures and evidence are in the recovery plan.
+
+
+### Production booking activation — November 19, 2026
+
+Production Compose now explicitly selects NODE_ENV=production and MONGO_PROD, and
+defaults the booking, waitlist enrollment/replacement, in-app notification, lifecycle
+and promotion flags on. Application-level strict boolean parsing, dependency checks,
+replica-set coordination, migration readiness and startup snapshot auditing remain
+unchanged. A flag being enabled does not bypass these checks.
+
+The versioned multi-stage backend Dockerfile builds TypeScript with development
+tools and copies compiled output plus pruned production dependencies into the
+runtime image. Only uploads are host-mounted. The deploy script uses main with a
+fast-forward pull, explicit backend/.env interpolation, read-only booking readiness
+audit and Compose health waiting. An explicit initial-migration mode stops the
+managed writer before invoking the existing dry-run/apply CLI; unresolved records
+block activation. Other writers must be stopped by the operator before initial
+cutover. No production database or running VPS was changed during local preparation.
+
+
+## FI-09 final acceptance and queue decision — November 23, 2026
+
+Steps1–8are complete locally after the resumed socket-disconnect investigation
+and narrow client recovery correction recorded below. The first Step8 sign-off
+was premature and was withdrawn before that investigation; see [the refactoring plan](../../backend/PACKAGE_REFACTORING_PLAN.md)
+for the baseline comparison, separate branch commits, exact commands and limits.
+Pino10.4.0, @nestjs/schedule12.0.4 and @nestjs/config12.1.1 are the only new direct
+runtime packages. The existing logger facade, four business workers, original
+Mongo transactions, leases/fencing, event IDs, feature gates and API boundaries
+remain. No schema/DTO/appointment REST or GraphQL entry files changed from baseline.
+
+Fresh backend build/full types/lint and959tests pass:191unit,236HTTP/GraphQL,
+521disposableDB,3combined Next/Nest recovery/session,8mocked deployment regressions.
+Next types/210tests/isolated production build pass; runtime backend and recursive
+Next audits report no findings. Production hooks/actual adapters and Chrome verify
+care replacement, profile crop/save outage recovery,390pxcontrols/keyboard, and
+postcommit503booking/cancellation reconciliation with one mutation each. Providers
+are stubbed and all storage is disposable. The first combined runner returned
+nonzero after passing assertions; final instrumented rerun has Jest/runner exit0.
+
+BullMQ/Redis adoption is **deferred**. No production queue measurements establish
+need and no Redis operating owner/budget is specified. Existing Mongo durable claims,
+transactional outbox and idempotent inbox delivery remain authoritative. A separate
+queue adds persistence, connections, monitoring and recovery obligations; consult
+[BullMQ production guidance](https://docs.bullmq.io/guide/going-to-production).
+Revisit with measured backlog age/throughput/latency and funded operations. Any
+future relay must publish committed deterministic outbox IDs, tolerate missing or
+duplicate publishes and retain durable consumer idempotency. Mongo commit and Redis
+enqueue are not one transaction. No queue migration was designed or implemented.
+
+The initial finding, resolved by the resumed sign-off below, was a destroyed-
+response browser probe producing2wire
+attempts from1native confirmation and a conflict, with one retained active booking;
+transport retry was suspected but unproven at that point (NEXT-022). Postcommit503and programmatic
+socket-drop recovery pass; every connection-loss mode is not certified. B-033's
+historical-year edge case is unchanged. Production/container/runtime24, provider
+integration and shutdown grace periods remain unverified. All owned acceptance
+processes/storage cleaned; no appDB/env/flags/deployment/Git mutation. README setup
+is unchanged; no active sprint covers the date.
+
+
+### Resumed Step8sign-off — November 23, 2026
+
+NEXT-022 is resolved by evidence and a scoped client correction. Baseline/current
+fixture-only fetch-ID traces show one JavaScript POST resent on two TCP connections
+by Chrome after a committed response was destroyed before headers. The same false-
+conflict UI existed before the refactor. Truncating a response after headers instead
+reconciles booking/cancel by reads. Chromium's
+[transaction implementation](https://chromium.googlesource.com/chromium/src.git/+/HEAD/net/http/http_network_transaction.cc)
+supports the observed transport behavior. No application automatic replay occurred.
+
+Next useCareAction now reads current state for a CREATE conflict identifying an
+owned same-kind/exact-target ID absent from the baseline, only after execute was
+attempted. Ordinary conflicts remain; failed/ambiguous checks stay read-only. Native
+pre-header socket-loss retest reaches CONFIRMED, and actual reads prove one target
+appointment. No backend policy/API/schema/transaction or retry change was needed.
+
+Fresh Next220tests/types/noUnused and corrected instrumented/uninstrumented builds
+pass. Backend source/dependencies are unchanged, so previous959backend tests/checks
+remain applicable (1,179total coverage; not all rerun). All five investigation ports,
+owned processes and DB/uploads cleaned. Evidence:
+`/private/tmp/fi09-step8-investigate-evidence.json`; final production build:
+`/private/tmp/fi09-step8-resumed-release/next`. Queue defer decision unchanged.
+Steps7–8and FI-09are now complete locally; earlier unresolved statements describe
+the initial attempt. Production/providers/Node24container/grace periods and B-033
+remain outside this acceptance. No staging/commit/push/deploy or live data changes.

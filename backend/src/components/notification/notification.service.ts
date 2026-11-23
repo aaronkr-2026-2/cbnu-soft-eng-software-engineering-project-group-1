@@ -1,3 +1,11 @@
+import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
+  WorkerScheduler,
+  type WorkerLoop,
+} from '../../libs/scheduling/worker-scheduler.service.js';
 import type { Notice } from '../../libs/types/notification.types.js';
 import {
   BadRequestException,
@@ -25,7 +33,6 @@ import {
   NotificationOutboxSchema,
 } from '../../schemas/notification.model.js';
 import { BookingPolicyService } from '../booking/booking-policy.service.js';
-import { waitlistNotificationsEnabled } from '../booking/booking.config.js';
 import { MemberType } from '../../libs/enum/member.enum.js';
 import type { MemberPrincipal } from '../../libs/types/member.types.js';
 import type { MyNotificationsInput } from '../../libs/dto/notification/notification.js';
@@ -56,10 +63,10 @@ const messages: Record<string, string> = {
 export class NotificationService implements OnModuleInit, OnModuleDestroy {
   private initialization?: Promise<void>;
   private readonly logger = new Logger(NotificationService.name);
-  private timer?: ReturnType<typeof setTimeout>;
-  private running?: Promise<boolean>;
+  private loop?: WorkerLoop;
   private stopped = false;
   constructor(
+    private readonly scheduler: WorkerScheduler,
     private readonly policy: BookingPolicyService,
     @Optional() @InjectConnection() private readonly connection?: Connection,
     @Optional()
@@ -70,36 +77,27 @@ export class NotificationService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @InjectModel(NOTIFICATION)
     private readonly inbox?: Model<InferSchemaType<typeof NotificationSchema>>,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
   ) {}
   isEnabled() {
-    return waitlistNotificationsEnabled();
+    return this.config.notificationsEnabled;
   }
   async onModuleInit() {
     if (this.isEnabled()) {
       await this.policy.assertMigrated();
       await this.prepare();
-      this.schedule();
+      this.loop = this.scheduler.start(
+        'notification-delivery',
+        () => this.poll(),
+        () => this.logger.error('WAITLIST_NOTICE_POLL_FAILED'),
+      );
     }
   }
   async onModuleDestroy() {
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    await this.running;
+    await this.loop?.stop();
   }
-  private schedule() {
-    this.timer = setTimeout(() => {
-      this.running = this.poll()
-        .catch(() => {
-          this.logger.error('WAITLIST_NOTICE_POLL_FAILED');
-          return false;
-        })
-        .finally(() => {
-          this.running = undefined;
-          if (!this.stopped) this.schedule();
-        });
-    }, 1000);
-    this.timer.unref();
-  }
+
   private async poll() {
     let worked = false;
     for (let n = 0; n < 25 && !this.stopped; n++) {

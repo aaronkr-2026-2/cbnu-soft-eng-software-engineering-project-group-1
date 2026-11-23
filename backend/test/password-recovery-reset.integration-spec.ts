@@ -1,3 +1,5 @@
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { WorkerScheduler } from '../src/libs/scheduling/worker-scheduler.service.js';
 import { Test } from '@nestjs/testing';
 import {
   BadRequestException,
@@ -544,6 +546,7 @@ describe('Atomic recovery through the real app and disposable MongoDB', () => {
     await issue();
     await members.resetPassword(resetInput());
     const other = new PasswordRecoveryService(
+      new WorkerScheduler(new SchedulerRegistry()),
       mail as unknown as EmailDeliveryService,
       model,
     );
@@ -592,6 +595,7 @@ describe('Atomic recovery through the real app and disposable MongoDB', () => {
     await entered.promise;
     advance(LEASE);
     const other = new PasswordRecoveryService(
+      new WorkerScheduler(new SchedulerRegistry()),
       mail as unknown as EmailDeliveryService,
       model,
     );

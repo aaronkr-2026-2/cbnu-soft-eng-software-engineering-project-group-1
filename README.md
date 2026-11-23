@@ -104,7 +104,8 @@ this does not establish deployed integration or enable automatic waitlist bookin
   bounded cursor pagination and optional status/UTC date filters. The Next.js patient screen consumes this API.
 - **Appointment booking:** Authenticated USER booking through GraphQL and REST,
   creating an immediately CONFIRMED, specialty-aware 30-minute appointment. Writes
-  require policy V2 activation and completed migration; disabled by default.
+  require policy V2 activation and completed migration. Production Compose enables
+  booking and the waitlist stack by default; bare-process flags remain opt-in.
 - **Booking validation:** Approved doctor affiliation, active clinic/doctor checks,
   clinic-timezone slot alignment, weekday 09:00–17:00 hours with a 12:00–13:30 lunch break, weekly working hours, date-specific overrides,
   occupied-slot checks backed by a unique active-slot index, transactional 24-hour
@@ -131,8 +132,9 @@ this does not establish deployed integration or enable automatic waitlist bookin
   doctor, or clinic, with ownership checks.
 - **API documentation:** Swagger UI and OpenAPI JSON for REST, plus a GraphQL
   schema and development GraphiQL interface.
-- **Request logging:** HTTP and GraphQL execution logging, including timings and
-  failures, without logging GraphQL arguments or response data.
+- **Request logging:** Pino JSON logs on stdout and in the configured file, with
+  HTTP/GraphQL timings and failure statuses; request payloads and raw exceptions
+  are excluded. See [logging configuration](docs/architecture/architecture-backend.md#application-logging).
 - **Service monitoring:** API information, liveness and database readiness checks,
   and a public status page with manual refresh and automatic polling.
 - **Next.js discovery:** `/doctors` and `/clinics` share server name/city/specialty
@@ -254,12 +256,18 @@ npm --prefix backend run start:dev
 
 ## Environment configuration
 
-The backend loads `.env` from its working directory before loading application modules.
+The backend uses Node's native loader for its working-directory `.env` before
+loading application modules; existing exported variables take precedence.
+`@nestjs/config` supplies typed reads without loading another file. Startup validates
+the required database/signing settings and worker flags with secret-safe errors.
+Optional SMTP/Google credentials remain required only when their features are used;
+enabled password recovery validates its origin and mail prerequisites at startup.
+See [typed configuration](docs/architecture/architecture-backend.md#typed-configuration).
 
 | Variable | Purpose | Default or requirement |
 |---|---|---|
 | `NODE_ENV` | Runtime environment | Set `development` locally; `production` on the server |
-| `PORT_API` | API listening port | Falls back to `PORT`, then 3000 |
+| `PORT_API` | API listening port | Falls back to `PORT`, then 3000; selected value must be an integer from 0–65535 (0 requests an ephemeral port) |
 | `MONGO_URI` | Explicit MongoDB connection override | Takes precedence in all environments |
 | `MONGO_DEV` | Development/test MongoDB connection | Used outside production when `MONGO_URI` is unset |
 | `MONGO_PROD` | Production MongoDB connection | Used in production when `MONGO_URI` is unset; use `mongodb+srv://` |
@@ -563,6 +571,7 @@ Signup defaults to `USER` when `memberType` is omitted; those accounts are also
 returned by this query. Resolver execution logs include
 `MemberResolver.getMember` and `GraphQL Query.getMember` start/completion/failure
 messages without logging GraphQL arguments, query text, or response data.
+Failure records include the status, with raw exception messages/stacks omitted.
 
 ### Public doctor directory
 
@@ -1559,13 +1568,54 @@ install dependencies with `npm ci`, configure the production environment, then r
 `npm run build` and `npm run start:prod`. Configure the process manager, browser
 origins, reverse proxy, and TLS for the actual hosting environment.
 
-Local `deploy.sh` and `docker-compose.yml` are Git-ignored. Compose mounts and runs
-the API from `backend/`, with a separate volume for container dependencies. Set
-`PORT_API` and the required backend configuration in `backend/.env`, ensure the
-external `medconnect-shared` Docker network exists, then run
-`docker compose --env-file backend/.env up -d` from the repository root.
-The script still selects `master` and needs reconciliation before reuse.
-Container startup and production deployment remain unverified.
+`docker-compose.yml`, `deploy.sh`, and `backend/Dockerfile` are versioned production
+configuration. Compose builds the backend once and runs `node dist/main.js` from a
+runtime image with production dependencies. Only uploads are bind-mounted; source
+and host dependencies do not replace the built image. The Next.js frontend remains
+a separate Vercel deployment.
+
+Set `PORT_API`, `MONGO_PROD` (the production Atlas SRV URI), and authentication/origin
+settings in the server's private `backend/.env`. Compose forces `NODE_ENV=production`
+and selects `MONGO_PROD` as `MONGO_URI`. It defaults these flags to `true`:
+`BOOKING_POLICY_V2_ENABLED`, `WAITLIST_ENROLLMENT_ENABLED`,
+`COMMITMENT_REPLACEMENT_ENABLED`, `WAITLIST_NOTIFICATIONS_ENABLED`,
+`WAITLIST_LIFECYCLE_ENABLED`, and `WAITLIST_PROMOTION_ENABLED`. Explicit server flag
+overrides are respected and must satisfy the existing dependencies. These Compose
+defaults do not change the opt-in defaults for a bare Node process. Other features,
+such as password recovery, retain their separate configuration.
+
+From a clean, committed `main` checkout on the VPS, run:
+
+```bash
+./deploy.sh
+```
+
+The script pulls `main` with `--ff-only`, supplies `--env-file backend/.env` to
+Compose, prepares the shared Docker network, builds the image, validates feature
+flags and audits booking readiness before replacing the running API. It waits for
+`/health/ready` before reporting success. Docker Engine and modern Docker Compose
+with `up --wait` support must be installed. It never resets Git or discards local
+changes. `DEPLOY_BRANCH` can explicitly select a different already-checked-out branch.
+
+If the initial booking readiness marker is missing, use the migration procedure
+above to back up and review legacy records first. Stop any API/worker writers
+outside this Compose service, then run:
+
+```bash
+./deploy.sh --migrate-booking
+```
+
+This mode stops the managed API, runs a dry-run and the existing transactional
+migration with booking disabled, then audits readiness before activation. Conflicts
+or ambiguous records abort; the script never guesses resolution decisions. If
+reviewed resolutions are needed, run the documented migration CLI with a private
+resolution file before retrying deployment. A failed migration leaves the API
+stopped. Normal deployments do not apply migrations automatically.
+
+Deployment control-flow checks: `cd backend && npm run test:deployment`. These use
+mock Git/Docker commands and never contact an application database. YAML/settings
+and shell syntax are checked locally; an actual image build and production rollout
+remain unverified until Docker/VPS access is available.
 
 ## Known limitations
 
@@ -1578,7 +1628,8 @@ Container startup and production deployment remain unverified.
 - FIFO promotion, lifecycle and IN_APP delivery passed a normal-worker local browser pilot;
   all flags still default off. External delivery providers remain unconfigured.
 - Authentication rate limiting is per process, without a shared multi-instance store.
-- Local deployment scripts still need the alignment described above.
+- Production deployment files are aligned locally; actual image startup, migration
+  state and live feature activation still require VPS verification.
 
 ## Project records
 

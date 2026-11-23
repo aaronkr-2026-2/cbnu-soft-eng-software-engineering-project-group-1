@@ -19,6 +19,7 @@ import { DoctorSpecialization } from '../src/libs/enum/member.enum.js';
 import type {
   BookingCommitment,
   BookingScope,
+  BookingTransaction,
 } from '../src/libs/types/booking.types.js';
 
 if (
@@ -312,6 +313,89 @@ describe('Booking coordination on a real disposable replica set', () => {
     ).toBe(0);
   });
 
+  it('rejects an empty scope before invoking work', async () => {
+    const callback = jest.fn();
+    await expect(
+      service.run({ patientIds: [], slots: [] }, callback),
+    ).rejects.toThrow('requires coordination keys');
+    expect(callback).not.toHaveBeenCalled();
+    expect(
+      await connection.db!.collection('booking_gates').countDocuments(),
+    ).toBe(0);
+  });
+
+  it.each([
+    'checkReservation',
+    'reserve',
+    'updateWaitlistStatus',
+    'release',
+    'holdSlot',
+    'resolveSlot',
+    'slotState',
+    'nextQueueSequence',
+  ] as const)(
+    'keeps %s inside the declared scope and rolls back gate writes',
+    async (operation) => {
+      const foreign = makeEntry({
+        kind: 'WAITLIST',
+        version: 'before',
+        status: 'ACTIVE',
+      });
+      await save(foreign);
+      const locked = makeEntry();
+      await expect(
+        service.run(scopeFor(locked), async (tx) => {
+          switch (operation) {
+            case 'checkReservation':
+              return tx.checkReservation(foreign, 0, foreign.commitmentId);
+            case 'reserve':
+              return tx.reserve(foreign);
+            case 'updateWaitlistStatus':
+              return tx.updateWaitlistStatus(
+                foreign.commitmentId,
+                'before',
+                'after',
+                'NOTIFICATION_ONLY',
+              );
+            case 'release':
+              return tx.release('WAITLIST', foreign.commitmentId);
+            case 'holdSlot':
+              await tx.holdSlot(foreign);
+              return;
+            case 'resolveSlot':
+              return tx.resolveSlot(foreign, 0);
+            case 'slotState':
+              await tx.slotState(foreign);
+              return;
+            case 'nextQueueSequence':
+              await tx.nextQueueSequence(foreign);
+              return;
+          }
+        }),
+      ).rejects.toThrow('outside its locked scope');
+      expect(
+        await connection
+          .db!.collection('booking_commitments')
+          .findOne({ commitmentId: foreign.commitmentId }),
+      ).toMatchObject({ version: 'before', status: 'ACTIVE' });
+      for (const key of [
+        `patient:${locked.patientId.toHexString()}`,
+        `slot:${locked.doctorId.toHexString()}:${locked.startsAt.getTime()}`,
+      ]) {
+        expect(
+          await connection
+            .model(BOOKING_GATE, BookingGateSchema)
+            .findById(key)
+            .lean(),
+        ).toMatchObject({
+          revision: 0,
+          generation: 0,
+          allocationPending: false,
+        });
+      }
+    },
+  );
+
   it('retains the existing appointment unique active-slot index', async () => {
     const model = connection.model(APPOINTMENT_MODEL_NAME);
     const row = makeEntry();
@@ -393,7 +477,9 @@ describe('Booking coordination on a real disposable replica set', () => {
   it('retries a transient transaction failure without retaining the first attempt writes', async () => {
     const entry = makeEntry();
     let attempts = 0;
+    const transactions: BookingTransaction[] = [];
     await service.run(scopeFor(entry), async (tx) => {
+      transactions.push(tx);
       await tx.reserve(entry);
       if (++attempts === 1) {
         throw new mongo.MongoServerError({
@@ -403,6 +489,8 @@ describe('Booking coordination on a real disposable replica set', () => {
       }
     });
     expect(attempts).toBe(2);
+    expect(transactions[0].session).toBe(transactions[1].session);
+    expect(transactions[0].session.hasEnded).toBe(true);
     expect(
       await connection.db!.collection('booking_commitments').countDocuments(),
     ).toBe(1);

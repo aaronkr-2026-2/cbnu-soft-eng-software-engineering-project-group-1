@@ -37,6 +37,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                                 | —                 |
 | FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`               | November 5, 2026  |
 | FI-08 | Email verification                         | Verify email ownership with an expiring code before creating a new email/password account                       | Medium         | **Completed** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md)       | November 13, 2026 |
+| FI-09 | Package adoption and modular refactoring | Reduce custom infrastructure and split large backend/frontend functions while preserving existing behavior | Larger | **Completed locally** | [Refactoring plan](PACKAGE_REFACTORING_PLAN.md) | November 23, 2026 |
 
 ## Scope notes for future plans
 
@@ -173,6 +174,119 @@ one account/proof consumption, verification time and fixed-expiry token rotation
 Completed locally November 13, 2026. Disposable data/processes were removed;
 application database setup and coordinated production deployment remain unperformed.
 This item is separate from FI-03 password recovery and FI-02 reminders.
+
+### FI-09 — Package adoption and modular refactoring — Completed locally
+
+The [dedicated plan](PACKAGE_REFACTORING_PLAN.md) defines eight steps: baseline,
+logging, scheduling, configuration, timezone evaluation, backend function splits,
+frontend component splits, and final acceptance with a queue decision. Start with
+the baseline, logging and scheduling as the first batch, delivering and reviewing
+one step at a time. Evaluate compatible packages rather than copying MediBridge's
+dependency list. Preserve API contracts, authorization, transaction boundaries,
+worker recovery and uncertain-response handling. Luxon adoption is conditional;
+BullMQ/Redis implementation is deferred pending a concrete operational need and
+a separate agreed design. Step 1 baseline completed locally November 21, 2026:
+backend build/full types/lint, 895 backend tests, 167 frontend tests, frontend
+types/isolated build and a zero-finding backend runtime audit passed. Initial
+sandbox socket/DNS restrictions cleared on approved reruns; Mongoose/VM warnings
+remain. The plan records source inventory, function sizes and package compatibility,
+including the current Pino adapter's Nest patch mismatch. Application refactoring,
+dependency changes and deployment had not started at Step 1 acceptance.
+
+Step 2 completed locally November 21: Pino 10.4.0 now supplies logging through the
+existing Nest adapter, with stdout/configured-file output, safe request metadata,
+failure statuses and file-error fallback/draining. No existing dependency versions
+changed. Build/full types/lint, 155 unit and 233 API tests (388 total), compiled
+logger smoke and zero-finding runtime audit passed. The documented log schema now
+uses Pino numeric levels/ISO `time`; raw exceptions/URLs are omitted. Production
+collection/container behavior remains unverified.
+
+Step 3 completed locally November 21: exact @nestjs/schedule 12.0.4 supplies a
+shared registry for notification, lifecycle, promotion and recovery timeouts.
+Completion-driven cadence, non-overlap, gates, claims/leases/fencing and retry
+behavior are preserved; workers drain before database shutdown, and bootstrap
+now enables signal hooks. Build/full types/lint, 167 unit, 233 API, 195 booking and
+71 recovery tests (666 total), compiled SIGTERM drain smoke and a zero-finding
+runtime audit passed. Production grace periods/providers/container behavior remain
+unverified.
+
+Step 4 completed locally November 21: exact @nestjs/config 12.1.1 and typed
+ApplicationConfig centralize environment reads and secret-safe startup validation.
+Native env loading/import order, URI precedence, lazy credentials and default-off
+worker gates remain intact; invalid selected ports now fail early. Build/full
+types/lint, 191 unit, 233 API, 510 disposable database and 8 deployment-script
+checks (942 total), compiled bootstrap/configuration smoke and zero-finding runtime
+audit passed. The native loader test was corrected to use a real Node process;
+the final sandbox build watcher limit cleared on approved rerun. No runtime flag,
+application database, live provider or deployment changes.
+
+Step 5 completed November 21 with **Luxon adoption deferred**. A limited Luxon3.7.2
+prototype matched 25,354 instant checks, 88 candidate windows, 1,188 schedule/write
+checks and six date/range cases in the selected matrix. Broader probes found
+historical-year output differences. The small conversion simplification does not
+remove UTC scanning or clinic policy and does not justify compatibility work.
+Build/full types/lint,34 helper and195 disposable booking checks passed. Application
+source and dependencies remain unchanged; the plan records the prototype, limits
+and B-033 edge case.
+
+Step 6 is **complete locally as of November22**. Its MemberService slice completed locally November21:
+private password validation, patch construction and conditional persistence helpers
+reduce updateMember's source span from158 to100 lines. The facade retains image
+claims/recovery/cleanup ordering, authorization and deletion dispatch; version-based
+credential revocation remains intact. Build/full types/lint,191unit236API110realDB
+checks pass (537), including3new image-outcome regressions. No behavior/dependency
+or deployment changes.
+
+The appointment-transition slice also completed November21: private snapshot/time
+validation, canceled-slot handling and deterministic event construction reduce the
+transition orchestrator from151 to73 lines. Original session, gates, captured time,
+conditional writes, replay order, event IDs and atomic replacement/outbox behavior
+remain intact. Build/full types/lint,191unit236API257realDB tests pass (684).
+A new test assertion was corrected to the existing stored event type; no production
+behavior changed.
+
+The booking-coordination slice completed November22: private key construction,
+sequential gate acquisition and transaction-operation construction reduce run from
+190 to36 lines. The original session, sorted scope, retry bounds/options, cleanup,
+reservation rules and generation/queue fencing remain intact. Build/full types/lint,
+191unit236API266disposableDB tests pass (693), including9new empty/foreign-scope
+cases and strengthened retry/session cleanup assertions.
+
+The final promotion slice completed November22: private claim, candidate, booking,
+cutoff and recovery helpers reduce runOnce from192 to14lines. Original scopes,
+session, token/generation fencing, FIFO, live cutoff checks, atomic event writes,
+recovery catch boundaries and backoff remain intact. Build/full types/lint,
+191unit236API268disposableDB tests pass (695);2new regressions cover post-booking
+cutoff rollback and failed-handoff lease recovery. All four Step6 slices are complete;
+stop here for review/manual commit. Steps7–8 remain pending.
+Detailed evidence, limits and commit boundaries are in the plan; no deadline or
+source-line reduction is claimed.
+
+
+Step7 completed locally November23. Step8 was reopened after its premature
+completion claim; resumed acceptance below resolves NEXT-022 before final closure. The four Next slices are committed through
+`ea8c789`; final review removed one unused type export. Fresh backend build/full
+types/lint,959backend and210Next tests (1,169total), Next types/isolated build and
+both dependency audits pass. Real-stack Chrome closes profile crop/save-outage/
+lower-mobile gaps and verifies replacement consents, keyboard/mobile dialogs and
+postcommit503booking/cancellation read reconciliation without application replay.
+BullMQ/Redis adoption is deferred: no measured queue need or funded operations;
+retain the Mongo transactional outbox/idempotency and require a separate design
+if adoption is later justified. The plan records the socket-disconnect probe's
+2wire attempts/conflict (transport cause unconfirmed), B-033, and unverified
+production/providers/container behavior. No deployment or branch integration is
+implied. Earlier pending statements above describe historical slice checkpoints.
+
+
+Resumed Step8completed November23after correcting the premature sign-off. Fetch-ID
+traces prove Chrome transparently resent one POST when its reused connection lost
+the response before headers; baseline77c63deand current reproduced it. A narrow
+Next fix reconciles a newly visible owned exact-target CREATE conflict by reads;
+actual socket-reset retest now shows CONFIRMED with exactly1persisted target.
+Actual partial-body socket losses also reconcile booking/cancel; ordinary conflicts
+remain intact.220Next tests/types and both corrected builds pass; unchanged backend
+959-test evidence retained (1,179total). NEXT-022 is resolved. BullMQ stays deferred;
+production limits and B-033 remain. See the plan's resumed acceptance for full proof.
 
 ## Modular delivery workflow
 

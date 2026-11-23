@@ -74,6 +74,16 @@ import { WaitlistService } from '../waitlist/waitlist.service.js';
 
 type AppointmentEntity = InferSchemaType<typeof AppointmentSchema>;
 type AppointmentRecord = AppointmentEntity & { _id: Types.ObjectId };
+type AppointmentTransition = {
+  status: AppointmentStatus;
+  version: string;
+  actorId: Types.ObjectId;
+  occurredAt: Date;
+};
+type CanceledSlotRelease = {
+  slotGeneration: number;
+  releaseMode: SlotReleaseMode;
+};
 
 @Injectable()
 export class AppointmentService {
@@ -705,6 +715,122 @@ export class AppointmentService {
     );
   }
 
+  private validateTransitionSnapshot(
+    original: AppointmentRecord,
+    current: AppointmentRecord,
+    expectedVersion?: string,
+  ) {
+    if (
+      !['doctorId', 'clinicId', 'patientId'].every(
+        (key) =>
+          String(current[key as 'doctorId' | 'clinicId' | 'patientId']) ===
+          String(original[key as 'doctorId' | 'clinicId' | 'patientId']),
+      ) ||
+      +current.startsAt !== +original.startsAt
+    )
+      throw new BookingConflictException('STALE_COMMITMENT');
+    if (expectedVersion && current.version !== expectedVersion)
+      throw new BookingConflictException('STALE_COMMITMENT');
+  }
+
+  private validateStatusTransition(
+    current: AppointmentRecord,
+    status: AppointmentStatus,
+    now: Date,
+  ) {
+    if (
+      current.status !== AppointmentStatus.CONFIRMED ||
+      (status === AppointmentStatus.CANCELED
+        ? current.startsAt <= now
+        : current.endsAt > now)
+    )
+      throw new ConflictException('Unsupported appointment transition or time');
+    if (!current.version)
+      throw new BookingUnavailableException('MIGRATION_REQUIRED');
+  }
+
+  private async handleCanceledSlot(
+    current: AppointmentRecord,
+    models: ReturnType<AppointmentService['bookingModels']>,
+    tx: BookingTransaction,
+    transition: AppointmentTransition,
+  ): Promise<CanceledSlotRelease> {
+    const slot = {
+      doctorId: current.doctorId,
+      startsAt: current.startsAt,
+    };
+    const slotGeneration = await tx.holdSlot(slot);
+    const queued =
+      +current.startsAt - +transition.occurredAt >= 48 * 3600_000 &&
+      Boolean(
+        await this.commitments!.exists({
+          kind: 'WAITLIST',
+          doctorId: current.doctorId,
+          clinicId: current.clinicId,
+          startsAt: current.startsAt,
+          endsAt: current.endsAt,
+        }).session(tx.session),
+      );
+    const available = await this.canReopen(current, models, tx.session);
+    const releaseMode = !available
+      ? SlotReleaseMode.UNAVAILABLE
+      : queued
+        ? SlotReleaseMode.QUEUE
+        : SlotReleaseMode.MANUAL;
+    if (!queued) await tx.resolveSlot(slot, slotGeneration);
+    if (available && +current.startsAt - +transition.occurredAt < 48 * 3600_000)
+      await this.waitlists?.notifyOpening(
+        current,
+        this.transitionEventId('release', current._id, transition.version),
+        tx,
+      );
+    return { slotGeneration, releaseMode };
+  }
+
+  private transitionEventId(
+    kind: 'status' | 'release',
+    appointmentId: Types.ObjectId,
+    version: string,
+  ) {
+    return `${kind}:${String(appointmentId).toLowerCase()}:${version}`;
+  }
+
+  private buildTransitionEvents(
+    current: AppointmentRecord,
+    transition: AppointmentTransition,
+    release?: CanceledSlotRelease,
+  ) {
+    const event = {
+      appointmentId: current._id,
+      appointmentVersion: transition.version,
+      appointmentStatus: transition.status,
+      patientId: current.patientId,
+      clinicId: current.clinicId,
+      doctorId: current.doctorId,
+      actorId: transition.actorId,
+      startsAt: current.startsAt,
+      endsAt: current.endsAt,
+      occurredAt: transition.occurredAt,
+      specialty: current.specialty,
+    };
+    return [
+      {
+        ...event,
+        _id: this.transitionEventId('status', current._id, transition.version),
+        type: AppointmentEventType.STATUS_CHANGED,
+      },
+      ...(transition.status === AppointmentStatus.CANCELED
+        ? [{
+            ...event,
+            _id: this.transitionEventId('release', current._id, transition.version),
+            type: AppointmentEventType.SLOT_RELEASED,
+            slotGeneration: release?.slotGeneration,
+            releaseMode: release?.releaseMode,
+          }]
+        : []),
+    ];
+  }
+
   private async transitionInTransaction(
     original: AppointmentRecord,
     status: AppointmentStatus,
@@ -714,7 +840,6 @@ export class AppointmentService {
     expectedVersion?: string,
   ) {
     const models = this.bookingModels();
-    const id = String(original._id);
     const scope = {
       _id: original._id,
       [member.memberType === MemberType.CLINIC ? 'clinicId' : 'patientId']:
@@ -730,32 +855,14 @@ export class AppointmentService {
       .lean()
       .exec();
     if (!current) throw new NotFoundException('Appointment not found');
-    if (
-      !['doctorId', 'clinicId', 'patientId'].every(
-        (key) =>
-          String(current[key as 'doctorId' | 'clinicId' | 'patientId']) ===
-          String(original[key as 'doctorId' | 'clinicId' | 'patientId']),
-      ) ||
-      +current.startsAt !== +original.startsAt
-    )
-      throw new BookingConflictException('STALE_COMMITMENT');
-    if (expectedVersion && current.version !== expectedVersion)
-      throw new BookingConflictException('STALE_COMMITMENT');
+    this.validateTransitionSnapshot(original, current, expectedVersion);
     if (current.status === status)
       return {
         ...current,
         source: current.source ?? AppointmentSource.LEGACY,
       };
     const now = new Date(Date.now());
-    if (
-      current.status !== AppointmentStatus.CONFIRMED ||
-      (status === AppointmentStatus.CANCELED
-        ? current.startsAt <= now
-        : current.endsAt > now)
-    )
-      throw new ConflictException('Unsupported appointment transition or time');
-    if (!current.version)
-      throw new BookingUnavailableException('MIGRATION_REQUIRED');
+    this.validateStatusTransition(current, status, now);
     await tx.release('APPOINTMENT', current._id);
     const changed = await models.appointments
       .findOneAndUpdate(
@@ -784,71 +891,12 @@ export class AppointmentService {
       .lean()
       .exec();
     if (!changed) throw new BookingConflictException('STALE_COMMITMENT');
-    const event = {
-      appointmentId: current._id,
-      appointmentVersion: version,
-      appointmentStatus: status,
-      patientId: current.patientId,
-      clinicId: current.clinicId,
-      doctorId: current.doctorId,
-      actorId: member._id,
-      startsAt: current.startsAt,
-      endsAt: current.endsAt,
-      occurredAt: now,
-      specialty: current.specialty,
-    };
-    let slotGeneration: number | undefined;
-    let releaseMode: SlotReleaseMode | undefined;
-    if (status === AppointmentStatus.CANCELED) {
-      const slot = {
-        doctorId: current.doctorId,
-        startsAt: current.startsAt,
-      };
-      slotGeneration = await tx.holdSlot(slot);
-      const queued =
-        +current.startsAt - +now >= 48 * 3600_000 &&
-        Boolean(
-          await this.commitments!.exists({
-            kind: 'WAITLIST',
-            doctorId: current.doctorId,
-            clinicId: current.clinicId,
-            startsAt: current.startsAt,
-            endsAt: current.endsAt,
-          }).session(tx.session),
-        );
-      const available = await this.canReopen(current, models, tx.session);
-      releaseMode = !available
-        ? SlotReleaseMode.UNAVAILABLE
-        : queued
-          ? SlotReleaseMode.QUEUE
-          : SlotReleaseMode.MANUAL;
-      if (!queued) await tx.resolveSlot(slot, slotGeneration);
-      if (available && +current.startsAt - +now < 48 * 3600_000)
-        await this.waitlists?.notifyOpening(
-          current,
-          `release:${id.toLowerCase()}:${version}`,
-          tx,
-        );
-    }
+    const transition = { status, version, actorId: member._id, occurredAt: now };
+    const release = status === AppointmentStatus.CANCELED
+      ? await this.handleCanceledSlot(current, models, tx, transition)
+      : undefined;
     await this.outbox!.create(
-      [
-        {
-          ...event,
-          _id: `status:${id.toLowerCase()}:${version}`,
-          type: AppointmentEventType.STATUS_CHANGED,
-        },
-        ...(status === AppointmentStatus.CANCELED
-          ? [
-              {
-                ...event,
-                _id: `release:${id.toLowerCase()}:${version}`,
-                type: AppointmentEventType.SLOT_RELEASED,
-                slotGeneration,
-                releaseMode,
-              },
-            ]
-          : []),
-      ],
+      this.buildTransitionEvents(current, transition, release),
       { session: tx.session, ordered: true },
     );
     return {

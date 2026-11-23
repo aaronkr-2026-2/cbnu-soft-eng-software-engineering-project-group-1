@@ -1,6 +1,11 @@
 import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
   BadRequestException,
   Injectable,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { isEmail } from 'class-validator';
@@ -13,7 +18,7 @@ import {
   passwordRecoveryEmail,
   passwordChangedEmail,
 } from './recovery-email.js';
-import { recoveryLink, recoveryWebOrigin } from './password-recovery-policy.js';
+import { recoveryLink } from './password-recovery-policy.js';
 
 export class EmailDeliveryException extends ServiceUnavailableException {
   constructor(readonly deliveryOutcome: EmailDeliveryOutcome) {
@@ -27,6 +32,9 @@ export class EmailDeliveryException extends ServiceUnavailableException {
 
 @Injectable()
 export class EmailDeliveryService {
+  constructor(
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
+  ) {}
   async sendVerificationCode(email: string, code: string): Promise<void> {
     const recipient = email.trim().toLowerCase();
     if (recipient.length > 254 || !isEmail(recipient) || !/^\d{6}$/.test(code))
@@ -36,13 +44,16 @@ export class EmailDeliveryService {
   }
 
   async sendRecoveryLink(email: string, token: string): Promise<void> {
-    return this.send(email, passwordRecoveryEmail(recoveryLink(token)));
+    return this.send(
+      email,
+      passwordRecoveryEmail(recoveryLink(token, this.config.recoveryEnvironment)),
+    );
   }
 
   async sendPasswordChanged(email: string): Promise<void> {
     return this.send(
       email,
-      passwordChangedEmail(`${recoveryWebOrigin()}/auth`),
+      passwordChangedEmail(`${this.config.recoveryOrigin}/auth`),
     );
   }
 
@@ -51,17 +62,11 @@ export class EmailDeliveryService {
   }
 
   private configuration() {
-    // Read lazily so unrelated features can start without SMTP credentials.
-    const user = process.env.GOOGLE_SMTP_USER?.trim();
-    const pass = process.env.GOOGLE_SMTP?.replace(/\s/g, '');
-    if (
-      !user ||
-      !isEmail(user) ||
-      user.length > 254 ||
-      !/^[a-zA-Z0-9]{16}$/.test(pass ?? '')
-    )
+    try {
+      return this.config.smtpCredentials();
+    } catch {
       throw new EmailDeliveryException('NOT_SENT');
-    return { user, pass: pass! };
+    }
   }
 
   private async send(

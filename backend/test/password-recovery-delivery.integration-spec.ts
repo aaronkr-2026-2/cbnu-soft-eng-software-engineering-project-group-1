@@ -1,3 +1,5 @@
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { WorkerScheduler } from '../src/libs/scheduling/worker-scheduler.service.js';
 import { randomUUID } from 'node:crypto';
 import { Test } from '@nestjs/testing';
 import { ValidationPipe, type INestApplication } from '@nestjs/common';
@@ -76,6 +78,7 @@ describe('Recovery request and delivery lifecycle on disposable MongoDB', () => 
   };
   const makeService = () => {
     const instance = new PasswordRecoveryService(
+      new WorkerScheduler(new SchedulerRegistry()),
       mail as unknown as EmailDeliveryService,
       connection.model<MemberEntity>(MEMBER),
     );
@@ -485,6 +488,7 @@ describe('Recovery request and delivery lifecycle on disposable MongoDB', () => 
 
   it('preserves no-database startup when disabled and rejects missing database/SMTP prerequisites when enabled', async () => {
     const noDatabase = new PasswordRecoveryService(
+      new WorkerScheduler(new SchedulerRegistry()),
       mail as unknown as EmailDeliveryService,
     );
     process.env.PASSWORD_RECOVERY_ENABLED = 'false';
@@ -515,7 +519,7 @@ describe('Recovery request and delivery lifecycle on disposable MongoDB', () => 
     await service.onModuleInit();
     await entered.promise;
     let stopped = false;
-    const stopping = service.onApplicationShutdown().then(() => {
+    const stopping = service.onModuleDestroy().then(() => {
       stopped = true;
     });
     await Promise.resolve();

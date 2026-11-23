@@ -882,6 +882,90 @@ export class MemberService implements OnModuleInit {
     }
   }
 
+  private async validateProfilePasswordChange(
+    member: MemberDocument,
+    input: MemberUpdateInput,
+  ): Promise<boolean> {
+    const changePassword =
+      input.currentPassword !== undefined ||
+      input.newPassword !== undefined ||
+      input.confirmPassword !== undefined;
+    if (changePassword) {
+      if (
+        !input.currentPassword ||
+        !input.newPassword ||
+        !input.confirmPassword ||
+        input.newPassword !== input.confirmPassword
+      )
+        throw new BadRequestException(
+          'Provide the current password and matching new passwords',
+        );
+      if (member.authProvider !== AuthProvider.EMAIL)
+        throw new ForbiddenException(
+          'Password changes require an email account',
+        );
+      if (!(await verifyPassword(input.currentPassword, member.memberPassword)))
+        throw new BadRequestException('Current password is incorrect');
+    }
+    return changePassword;
+  }
+
+  private async buildProfileUpdate(
+    input: MemberUpdateInput,
+    changePassword: boolean,
+  ): Promise<Record<string, unknown>> {
+    const update: Record<string, unknown> = {};
+    for (const field of [
+      'memberFullName',
+      'memberNick',
+      'memberPhone',
+      'memberImage',
+      'memberAddress',
+      'memberDesc',
+      'clinicName',
+      'location',
+    ] as const) {
+      if (input[field] !== undefined) update[field] = input[field];
+    }
+    if (input.memberNick !== undefined)
+      Object.assign(update, this.usernameFields(input.memberNick));
+    if (changePassword)
+      update.memberPassword = await hashPassword(input.newPassword!);
+    if (!Object.keys(update).length)
+      throw new BadRequestException('No fields to update');
+
+    return update;
+  }
+
+  private saveProfileUpdate(
+    members: Model<MemberEntity>,
+    member: MemberDocument,
+    update: Record<string, unknown>,
+    changePassword: boolean,
+  ): Promise<MemberDocument | null> {
+    // Compare-and-swap prevents concurrent saves/password checks from overwriting newer state.
+    const version = member.get('__v') as number | undefined;
+    return members
+      .findOneAndUpdate(
+        {
+          _id: member._id,
+          memberStatus: MemberStatus.ACTIVE,
+          deletedAt: null,
+          memberType: member.memberType,
+          ...(version === undefined
+            ? { __v: { $exists: false } }
+            : { __v: version }),
+        },
+        {
+          $set: update,
+          $inc: { __v: 1, ...(changePassword ? { authVersion: 1 } : {}) },
+        },
+        { new: true, runValidators: true, context: 'query' },
+      )
+      .select('+authVersion')
+      .exec();
+  }
+
   async updateMember(
     principal: MemberPrincipal,
     input: MemberUpdateInput,
@@ -922,46 +1006,8 @@ export class MemberService implements OnModuleInit {
     )
       throw new BadRequestException('Clinic fields require a clinic account');
 
-    const changePassword =
-      input.currentPassword !== undefined ||
-      input.newPassword !== undefined ||
-      input.confirmPassword !== undefined;
-    if (changePassword) {
-      if (
-        !input.currentPassword ||
-        !input.newPassword ||
-        !input.confirmPassword ||
-        input.newPassword !== input.confirmPassword
-      )
-        throw new BadRequestException(
-          'Provide the current password and matching new passwords',
-        );
-      if (member.authProvider !== AuthProvider.EMAIL)
-        throw new ForbiddenException(
-          'Password changes require an email account',
-        );
-      if (!(await verifyPassword(input.currentPassword, member.memberPassword)))
-        throw new BadRequestException('Current password is incorrect');
-    }
-    const update: Record<string, unknown> = {};
-    for (const field of [
-      'memberFullName',
-      'memberNick',
-      'memberPhone',
-      'memberImage',
-      'memberAddress',
-      'memberDesc',
-      'clinicName',
-      'location',
-    ] as const) {
-      if (input[field] !== undefined) update[field] = input[field];
-    }
-    if (input.memberNick !== undefined)
-      Object.assign(update, this.usernameFields(input.memberNick));
-    if (changePassword)
-      update.memberPassword = await hashPassword(input.newPassword!);
-    if (!Object.keys(update).length)
-      throw new BadRequestException('No fields to update');
+    const changePassword = await this.validateProfilePasswordChange(member, input);
+    const update = await this.buildProfileUpdate(input, changePassword);
 
     const imageChanged =
       input.memberImage !== undefined &&
@@ -981,27 +1027,7 @@ export class MemberService implements OnModuleInit {
     }
     let saved: MemberDocument | null;
     try {
-      // Compare-and-swap prevents concurrent saves/password checks from overwriting newer state.
-      const version = member.get('__v') as number | undefined;
-      saved = await members
-        .findOneAndUpdate(
-          {
-            _id: member._id,
-            memberStatus: MemberStatus.ACTIVE,
-            deletedAt: null,
-            memberType: member.memberType,
-            ...(version === undefined
-              ? { __v: { $exists: false } }
-              : { __v: version }),
-          },
-          {
-            $set: update,
-            $inc: { __v: 1, ...(changePassword ? { authVersion: 1 } : {}) },
-          },
-          { new: true, runValidators: true, context: 'query' },
-        )
-        .select('+authVersion')
-        .exec();
+      saved = await this.saveProfileUpdate(members, member, update, changePassword);
     } catch (error) {
       const duplicate =
         typeof error === 'object' &&

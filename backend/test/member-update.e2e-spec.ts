@@ -644,6 +644,43 @@ describe('updateMember GraphQL', () => {
     conflict = false;
     expect(errorCode(await update({ memberImage: newImage }))).toBeUndefined();
   });
+  it.each([false, true])(
+    'retains image claims and defers cleanup after an unknown write outcome (committed: %s)',
+    async (committed) => {
+      const oldImage = await upload();
+      await update({ memberImage: oldImage });
+      const newImage = await upload();
+      const cleanup = jest.spyOn(uploads, 'deletePreviousProfileImage');
+      const write = updateWrite.getMockImplementation()!;
+      updateWrite.mockImplementationOnce((filter, patch) =>
+        query(async () => {
+          if (committed) await write(filter, patch).exec();
+          throw new Error('synthetic private write outcome');
+        }),
+      );
+      const result = await update({ memberImage: newImage });
+      expect(errorCode(result)).toBe('SERVICE_UNAVAILABLE');
+      expect(JSON.stringify(result.body)).not.toContain('synthetic private');
+      expect(rows[0].memberImage).toBe(committed ? newImage : oldImage);
+      expect(cleanup).not.toHaveBeenCalled();
+      await expect(access(path(oldImage))).resolves.toBeUndefined();
+      await expect(access(path(newImage))).resolves.toBeUndefined();
+      await expect(
+        uploads.claimProfileImage(newImage, String(owner._id), 'member'),
+      ).rejects.toThrow('already been saved');
+    },
+  );
+  it('releases an image claim after a definitive validation failure so it can be retried', async () => {
+    const image = await upload();
+    updateWrite.mockImplementationOnce(() => query(() => {
+      throw Object.assign(new Error('synthetic validation details'), { name: 'ValidationError' });
+    }));
+    const failed = await update({ memberImage: image });
+    expect(errorCode(failed)).toBe('BAD_USER_INPUT');
+    expect(JSON.stringify(failed.body)).not.toContain('synthetic validation');
+    expect(errorCode(await update({ memberImage: image }))).toBeUndefined();
+    expect(rows[0].memberImage).toBe(image);
+  });
   it('rejects foreign, external, missing and traversal image paths', async () => {
     const foreign = await upload(new Types.ObjectId());
     for (const image of [

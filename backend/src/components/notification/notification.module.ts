@@ -1,3 +1,4 @@
+import { WorkerSchedulingModule } from '../../libs/scheduling/worker-scheduling.module.js';
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { getMongoUri } from '../../database/database.config.js';
@@ -13,6 +14,7 @@ import { NotificationService } from './notification.service.js';
 import { NotificationResolver } from './notification.resolver.js';
 @Module({
   imports: [
+    WorkerSchedulingModule,
     BookingModule,
     MemberModule,
     ...(getMongoUri()

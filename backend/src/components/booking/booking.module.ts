@@ -1,3 +1,4 @@
+import { ApplicationConfigModule } from '../../libs/config/application-config.module.js';
 import { AccountDeletionCommitmentService } from './account-deletion-commitment.service.js';
 import { WAITLIST_CLEANUP, WaitlistCleanupSchema } from '../../schemas/waitlist-cleanup.model.js';
 import { WAITLIST, WaitlistSchema } from '../../schemas/waitlist.model.js';
@@ -27,6 +28,7 @@ import {
 @Module({
   imports: getMongoUri()
     ? [
+        ApplicationConfigModule,
         MongooseModule.forFeature([
           { name: BOOKING_GATE, schema: BookingGateSchema },
           { name: BOOKING_COMMITMENT, schema: BookingCommitmentSchema },
@@ -37,7 +39,7 @@ import {
           { name: WAITLIST_CLEANUP, schema: WaitlistCleanupSchema },
         ]),
       ]
-    : [],
+    : [ApplicationConfigModule],
   providers: [
     AccountDeletionCommitmentService,
     BookingCoordinationService,

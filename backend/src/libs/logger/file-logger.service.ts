@@ -1,49 +1,70 @@
-import { Injectable, LoggerService } from '@nestjs/common';
-import { appendFile, mkdir } from 'node:fs/promises';
+import { ApplicationConfig, environmentConfig } from '../config/application-config.service.js';
+import { Injectable, Optional, type LoggerService, type OnModuleDestroy } from '@nestjs/common';
+import { mkdirSync, openSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import pino, { type Level, type LoggerOptions } from 'pino';
+
+const options: LoggerOptions = {
+  level: 'trace',
+  base: undefined,
+  messageKey: 'message',
+  timestamp: pino.stdTimeFunctions.isoTime,
+};
 
 @Injectable()
-export class FileLogger implements LoggerService {
-  private readonly logFile = resolve(process.env.LOG_FILE ?? 'logs/medconnect.log');
-  private directoryReady?: Promise<string | undefined>;
+export class FileLogger implements LoggerService, OnModuleDestroy {
+  private logger = pino(options, process.stdout);
+  private file?: ReturnType<typeof pino.destination>;
 
-  log(message: unknown, context?: string): void { this.write('log', message, context); }
-  error(message: unknown, stack?: string, context?: string): void { this.write('error', message, context, stack); }
-  warn(message: unknown, context?: string): void { this.write('warn', message, context); }
-  debug(message: unknown, context?: string): void { this.write('debug', message, context); }
-  verbose(message: unknown, context?: string): void { this.write('verbose', message, context); }
-
-  private write(level: string, message: unknown, context?: string, stack?: string): void {
-    const output = `${JSON.stringify({
-      timestamp: new Date().toISOString(), level, context,
-      message: typeof message === 'string' ? message : JSON.stringify(message),
-      ...(stack ? { stack } : {}),
-    })}\n`;
-
-    // The file remains plain JSON; terminal output uses the familiar Nest-style colors.
-    const terminalOutput = `${this.color(level)}${output}\x1b[0m`;
-    (level === 'error' ? process.stderr : process.stdout).write(terminalOutput);
-    void this.append(output);
-  }
-
-  private async append(output: string): Promise<void> {
+  constructor(@Optional() config: ApplicationConfig = environmentConfig) {
     try {
-      this.directoryReady ??= mkdir(dirname(this.logFile), { recursive: true, mode: 0o700 });
-      await this.directoryReady;
-      await appendFile(this.logFile, output, { encoding: 'utf8', mode: 0o600 });
-    } catch (error) {
-      // A filesystem issue must never interrupt an API request or recurse through this logger.
-      process.stderr.write(`Unable to write application log: ${String(error)}\n`);
+      const path = resolve(config.logFile);
+      mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+      // Open once at startup so a failed async open cannot strand shutdown.
+      const file = pino.destination({ fd: openSync(path, 'a', 0o600), sync: false });
+      this.file = file;
+      file.on('error', () => {
+        this.logger = pino(options, process.stdout);
+        this.file = undefined;
+        file.destroy();
+        // Do not expose filesystem errors/paths or recurse through the failed sink.
+        process.stderr.write('Application file logging unavailable; continuing on stdout.\n');
+      });
+      this.logger = pino(options, pino.multistream([
+        { level: 'trace', stream: process.stdout },
+        { level: 'trace', stream: file },
+      ]));
+    } catch {
+      process.stderr.write('Application file logging unavailable; continuing on stdout.\n');
     }
   }
 
-  private color(level: string): string {
-    switch (level) {
-      case 'error': return '\x1b[31m'; // red
-      case 'warn': return '\x1b[33m'; // yellow
-      case 'debug': return '\x1b[35m'; // magenta
-      case 'verbose': return '\x1b[36m'; // cyan
-      default: return '\x1b[32m'; // green
+  log(message: unknown, context?: string): void { this.write('info', message, context); }
+  // Nest supplies raw exception stacks here. Keep them out of application logs.
+  error(message: unknown, _stack?: string, context?: string): void { this.write('error', message, context); }
+  warn(message: unknown, context?: string): void { this.write('warn', message, context); }
+  debug(message: unknown, context?: string): void { this.write('debug', message, context); }
+  verbose(message: unknown, context?: string): void { this.write('trace', message, context); }
+  fatal(message: unknown, context?: string): void { this.write('fatal', message, context); }
+
+  private write(level: Level, message: unknown, context?: string): void {
+    // Only application-authored text and context are accepted. Never serialize
+    // arbitrary errors/objects, which may contain credentials or patient data.
+    const text = typeof message === 'string'
+      ? message
+      : message instanceof Error ? 'Unhandled exception' : 'Non-text log omitted';
+    this.logger[level]({ context: typeof context === 'string' ? context : undefined }, text);
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    const file = this.file;
+    this.file = undefined;
+    this.logger = pino(options, process.stdout);
+    if (file) {
+      await new Promise<void>((done) => {
+        file.once('close', done);
+        file.end();
+      });
     }
   }
 }

@@ -1,3 +1,4 @@
+import { WorkerSchedulingModule } from '../../libs/scheduling/worker-scheduling.module.js';
 import { NotificationModule } from '../notification/notification.module.js';
 import { AppointmentNotificationService } from './appointment-notification.service.js';
 import { AppointmentNotificationResolver } from './appointment-notification.resolver.js';
@@ -48,6 +49,7 @@ const mongoUri = getMongoUri();
 
 @Module({
   imports: [
+    WorkerSchedulingModule,
     MemberModule,
     BookingModule,
     WaitlistModule,

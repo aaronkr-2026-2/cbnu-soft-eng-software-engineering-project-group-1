@@ -73,9 +73,7 @@ __pycache__/
 /next/FIXES-and-BUGS.md
 /next/OAUTH-FIX.md
 
-#Deployment
-/docker-compose.yml
-/deploy.sh
+# Production deployment files are versioned; backend/.env stays private.
 
 # Logs
 logs

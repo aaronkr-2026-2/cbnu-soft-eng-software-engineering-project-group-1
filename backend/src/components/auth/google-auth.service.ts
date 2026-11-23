@@ -1,5 +1,10 @@
 import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
+import {
   Injectable,
+  Optional,
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -12,7 +17,9 @@ import type { GoogleIdentity } from '../../libs/types/member.types.js';
 export class GoogleAuthService {
   private readonly client = new OAuth2Client();
 
-  constructor(private readonly jwt: JwtService) {}
+  constructor(private readonly jwt: JwtService,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
+  ) {}
 
   async createNonce(): Promise<string> {
     this.clientId();
@@ -91,7 +98,7 @@ export class GoogleAuthService {
   }
 
   private clientId(): string {
-    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    const clientId = this.config.googleClientId;
     if (!clientId)
       throw new ServiceUnavailableException('Google sign-in is not configured');
     return clientId;

@@ -1,3 +1,5 @@
+import { SchedulerRegistry } from '@nestjs/schedule';
+import { WorkerScheduler } from '../src/libs/scheduling/worker-scheduler.service.js';
 import { Test } from '@nestjs/testing';
 import {
   BadRequestException,
@@ -316,6 +318,7 @@ describe('Production Next HTTP proxy → normal Nest AppModule → disposable Mo
         .countDocuments({ email: resumedEmail, state: 'QUEUED' }),
     ).toBe(1);
     const restarted = new PasswordRecoveryService(
+      new WorkerScheduler(new SchedulerRegistry()),
       app.get(EmailDeliveryService),
       connection.model<MemberEntity>('Member'),
     );

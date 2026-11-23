@@ -1229,3 +1229,246 @@ These entries summarize SESSION_LOG.md. Dates and validation results refer to th
 **What I changed or rejected, and why:** Empty weekly schedules now restore standard weekday hours; partial configured schedules still close omitted weekdays. Lunch/evenings/weekends cannot be reopened by custom or legacy hours.
 **Something the AI got wrong that I had to catch:** I clarified that standard hours were intended after the AI suggested manual schedule configuration. Automated checks also caught and corrected optional constant-field typing and outdated empty-schedule test assumptions.
 **One decision I can explain without AI:** Pass the entire weekly schedule to the shared helper so an intentionally closed weekday is distinguishable from a doctor with no saved schedule.
+
+
+## Enable production booking configuration — 2026-11-19
+
+**Tool(s) used:** Codex, shell, Node/Jest, existing js-yaml parser and official Docker Compose references.
+**What I asked for:** Allow production booking/waitlist operations and inspect Docker Compose and deployment production mode after the paused-booking screenshot.
+**Pre-planning:** Original local Compose already set NODE_ENV=production but did not enable booking flags, which default off. Local backend env flags were unset; live server settings remain uninspected. Ignored deploy script reset Git, selected master and omitted explicit env interpolation and health waiting.
+**Planning:** Make production configuration versioned, enable the complete booking stack in Compose, select production database explicitly and retain all existing migration/coordination checks. Build a production image and verify deployment failure paths without touching application data.
+**Implementation process:** Added root Compose/deploy, backend Dockerfile/.dockerignore, test:deployment and8mock command-flow tests. Updated .gitignore, README and backend architecture. Shell/JS syntax, YAML/settings and whitespace pass;8deployment and14booking/database config tests pass. No Compose plugin or Docker daemon is available locally, so actual image build/startup is not verified. Asked for live SSH host/user/repository path; deployment awaits that information. No production data/config changes or Git actions. No sprint covers this date.
+**What I kept as-is:** Bare-process flags still default off; strict boolean/dependency parsing, startup marker/snapshot/index checks and existing reviewed transactional migration remain enforced. Private backend/.env stays ignored.
+**What I changed or rejected, and why:** Production Compose defaults all six booking/waitlist flags on and maps MONGO_PROD explicitly. Replaced restart-time installs/source mounts with a compiled runtime image. Deployment uses ff-only main, explicit env, pre-activation audits and health waiting; initial migration is explicit and unresolved records stop activation.
+**Something the AI got wrong that I had to catch:** I pointed out the production booking flow still failed after the slot fix; the earlier task had not checked deployment activation flags.
+**One decision I can explain without AI:** Production mode and feature activation are separate settings. Enable the intended production features explicitly while preserving the database readiness gate.
+
+
+## Remove confirmed unused code — 2026-11-19
+
+**Tool(s) used:** Codex, shell, TypeScript, existing tests and oxlint.
+
+**What I asked for:** Sanitize the codebase and retain used code.
+
+**Pre-planning:** Checked references and the owning worktree instructions before deleting candidates identified in the review.
+
+**Planning:** Remove confirmed unused code first; keep active repeated code for a separately verified refactor.
+
+**Implementation process:** Deleted empty src/libs/config.ts and unreferenced src/libs/types/common.ts. Preserved existing deployment changes. TypeScript with noUnusedLocals/noUnusedParameters, lint and all 145 unit tests (10 suites) passed. Source/test/config reference checks found no consumers of either deleted file. No live integration/build checks were run.
+
+**What I kept as-is:** Public API behavior, dependencies, operational tools and framework entry points.
+
+**What I changed or rejected, and why:** Removed unused declarations rather than redesigning active behavior. No sprint covers November 19; closed sprint records remain unchanged.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A declaration with no ordinary caller can still be a framework entry point, so references must be checked before removal.
+
+## FI-09 Step 2 — Pino application logging — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Pino documentation, npm, TypeScript, Jest, Supertest and oxlint.
+
+**What I asked for:** Implement Step 2 of the package-adoption/refactoring plan and stop before scheduling work.
+
+**Pre-planning:** Reviewed the clean backend worktree, baseline, logger callers, HTTP/GraphQL interception, file output and current Nest versions.
+
+**Planning:** Use exact Pino10.4.0 through the existing Nest adapter because the current nestjs-pino peer range excludes Nest12.0.1. Retain file/stdout output and document operational schema changes rather than upgrade the framework for logging.
+
+**Implementation process:** Replaced custom serialization/color/append mechanics with Pino streams and added safe route/status logging, static file-failure fallback and shutdown draining. Build/full types/lint,155unit233API tests (388), compiled CommonJS smoke and runtime audit with zero findings passed. The sandbox asset watcher needed an approved build rerun. Updated plan, roadmap, README and existing architecture. No live provider, appDB, frontend, deployment or Git changes; no sprint covers this date.
+
+**What I kept as-is:** Nest versions, logger registration, HTTP/GraphQL response contracts, LOG_FILE default, booking transactions, worker timing and release flags.
+
+**What I changed or rejected, and why:** Removed handwritten log formatting/output mechanics and avoided a framework upgrade. Raw exception payloads/stacks and URL values are withheld; status/timing/context remain. Strings supplied by application callers must still be safe. Pino numeric levels/ISO time and JSON stdout are documented. Production log persistence remains unverified.
+
+**Something the AI got wrong that I had to catch:** Automated tests caught an introduced shutdown hang after a failed asynchronous file open. The corrected adapter opens once at startup and writes asynchronously. A separate test assertion also captured an unrelated VM warning and was narrowed to application diagnostics. These were caught by verification, not by me manually.
+
+**One decision I can explain without AI:** A package should own generic serialization and stream output, while the application retains privacy and lifecycle policy. A smaller maintenance burden does not necessarily mean fewer adapter lines.
+
+
+## FI-09 Step 3 — Background worker scheduling — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Nest scheduling documentation, npm, TypeScript, Jest, Supertest, oxlint and disposable MongoDB runners.
+
+**What I asked for:** Implement PACKAGE_REFACTORING_PLAN.md Step 3 and stop at that delivery boundary.
+
+**Pre-planning:** Reviewed the clean backend worktree, session/bug records, four worker loops, module wiring, direct test constructors and existing integration coverage. Verified package peers/source and found no MediBridge scheduler pattern to reuse.
+
+**Planning:** Use exact @nestjs/schedule12.0.4 and its dynamic timeout registry with one shared completion-loop helper. Keep a full second after work finishes rather than change polling throughput with fixed intervals. Retain durable MongoDB coordination.
+
+**Implementation process:** Added WorkerSchedulingModule/WorkerScheduler, migrated notification/lifecycle/promotion/recovery timing, updated independent fixtures, enabled signal hooks and moved recovery draining before database teardown. Build/full types/lint,167unit233API195booking71recovery tests (666), compiled CommonJS SIGTERM drain smoke and zero-finding runtime audit pass. Final focused12/recovery71 reruns pass. Updated plan, roadmap and existing architecture. Initial socket/DNS restrictions were handled by approved execution and installed-source inspection; no production/provider/frontend checks claimed.
+
+**What I kept as-is:** Feature flags/readiness, completion cadence and startup delays, batches, recovery coalescing, API contracts, leases/fences/transactions, retry/backoff and uncertain-result handling. Existing locked package entries are unchanged; no Redis is introduced.
+
+**What I changed or rejected, and why:** Centralized scheduling/stop/drain mechanics while retaining separate business workers. Shutdown signals now invoke Nest hooks; active work finishes before database connections close. Cron/Luxon are transitive dependencies only; timezone adoption remains a later evaluation. No sprint covers this date; closed history is preserved. No application database, live email, release flag, staging, commit, push, merge or deployment changes.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A scheduling package owns local wakeups, while MongoDB claims and fencing still decide which process owns a durable event. Replacing timers must preserve both the completion-based delay and orderly draining.
+
+
+## FI-09 Step 4 — Typed application configuration — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Nest documentation, npm, TypeScript, Jest, Supertest, oxlint, disposable MongoDB and Node subprocesses.
+
+**What I asked for:** Implement Step4 of PACKAGE_REFACTORING_PLAN.md and stop before timezone evaluation.
+
+**Pre-planning:** Reviewed clean backend95f78e7, project/session/bug instructions, every environment read, import-time model selection and lazy authentication/email/worker consumers. Checked MediBridge's global configuration pattern and package compatibility.
+
+**Planning:** Install exact @nestjs/config12.1.1, retain Node's native loading before dynamic AppModule import, and use a typed injected service with uncached reads. Keep explicit pure/CLI environment adapters and existing validators; avoid changing optional-feature credential requirements or database readiness ownership.
+
+**Implementation process:** Centralized database/auth/email/recovery/worker/server/CORS/upload/log settings, injected service consumers and added secret-safe startup validation. Added24meaningful configuration/native-loader checks. Build/full types/lint,191unit233API510disposableDB8deployment checks pass (942), compiled loading/import/isolation/bootstrap smokes and zero-finding runtime audit pass. Final focused checks rerun. A final sandbox EMFILE asset-watch error cleared on approved build rerun. Updated README, plan, roadmap and existing architecture; no sprint covers this date.
+
+**What I kept as-is:** Native file/export precedence, module evaluation order, URI aliases/production policy, default-off flags, runtime rechecks, lazy SMTP/Google credentials, recovery readiness, API errors, worker timing, leases/transactions and all existing locked package entries. No frontend, application database, credentials/env, flags, live emails or deployment changed.
+
+**What I changed or rejected, and why:** Added one typed policy owner using ConfigService without automatic dotenv loading or value expansion. Consumed database/booking helper signatures remain thin adapters. Invalid selected ports now fail early with a static validation error, including blank/fractional/out-of-range values; ephemeral0 remains valid. Kept operational storage/migration checks in their owning services. Local tests do not establish container/production behavior.
+
+**Something the AI got wrong that I had to catch:** Full unit verification caught a native-loader fixture expecting process.loadEnvFile to update Jest's process.env proxy. The corrected test uses a real Node subprocess and synthetic values; no production loader change was needed (B-032). This was caught by automated verification, not by me manually.
+
+**One decision I can explain without AI:** Environment loading must finish before modules decide which database models exist. A configuration package should provide typed access and validation without changing that ordering or requiring credentials for disabled features.
+
+
+## FI-09 Step 5 — Timezone library evaluation — 2026-11-21
+
+**Tool(s) used:** Codex, shell, official Luxon documentation/source, installed Luxon3.7.2, Node assertions, TypeScript, Jest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Complete Step5's timezone simplification evaluation, adopting Luxon only if behavior and maintainability justify it.
+
+**Pre-planning:** Verified clean backend7471b99 and local guidance; traced appointment-slot helpers through discovery, booking writes and schedule edits. Inspected existing34 helper tests and package/source metadata; no relevant Luxon helper existed in the inspected MediBridge API.
+
+**Planning:** Prototype only explicit-instant conversion and keep the existing range parser, UTC scan and clinic policy. Compare DST/date boundaries, quarter-hour offsets, alignment, weekdays/lunch and overrides before deciding.
+
+**Implementation process:** Built a disposable prototype/harness.25,354instant88candidate1,188schedule-write6range comparisons matched the selected matrix. Four historical probes found existing unpadded-year/NaN-weekday behavior (B-033), disproving unrestricted equivalence. Build/full types/lint,34helper195disposable booking checks passed (229). Recorded the prototype, evidence and defer decision in the plan, roadmap and existing architecture. No application source or dependencies changed.
+
+**What I kept as-is:** Explicit UTC instants, current date/range validation, shared read/write slot policy, half-hour/continuity rules, standard weekday hours/lunch/overrides, transaction/lease boundaries, flags and frontend behavior.
+
+**What I changed or rejected, and why:** Deferred Luxon adoption because shorter field access leaves the scanning/policy code and requires compatibility handling. Luxon remains transitive only; no new direct import or package install. No speed or exhaustive-equivalence claim. Historical helper normalization needs a separately scoped choice; no fix attempted. No sprint covers this date; no appDB/env/live mail/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task. The low-year issue is pre-existing and was found by comparison, not introduced by the prototype or reported by me manually.
+
+**One decision I can explain without AI:** A date library can simplify field access without replacing clinic scheduling rules. A behavior-preserving migration needs a clear maintenance benefit and must account for accepted inputs that produce different results.
+
+
+## FI-09 Step 6a — Member profile update responsibilities — 2026-11-21
+
+**Tool(s) used:** Codex, shell, TypeScript AST/typecheck, Jest, Supertest, oxlint, actual temporary upload files and disposable MongoDB runner.
+
+**What I asked for:** Start Step6 of the package refactoring plan, delivering one coherent service change at a time.
+
+**Pre-planning:** Verified clean backend88196c8, instructions/session/bug records, updateMember's resolver/DTO/model/upload/auth paths, existing profile and race tests, and the MediBridge reference. Kept stronger current validation/version/image rules instead of copying its simpler update method.
+
+**Planning:** Extract private password validation, patch construction and guarded persistence methods in MemberService. Keep catches and image-claim/cleanup ownership in the facade; preserve the original snapshot/model and query options without a new provider or transaction.
+
+**Implementation process:** Extracted3helpers and reduced updateMember's source span158→100lines. Added3API regressions for uncertain image writes with/without commit and known validation-failure claim release. Full types/lint/build,191unit236API110disposableDB tests pass (537). Initial localhost EPERM and build watcher EMFILE restrictions cleared on approved reruns; existing VM/Mongoose warnings remain. Updated plan/roadmap/existing architecture and session records. No sprint covers this date.
+
+**What I kept as-is:** Deletion dispatch, fresh-principal/role checks, password/username validation order, allowed fields, query validators/type/version/status filters, authVersion increment and old-token rejection, uncertain-outcome image claims, confirmed-write cleanup ordering and API responses.
+
+**What I changed or rejected, and why:** Split responsibilities within the existing service; avoided an injected abstraction/repository without reuse. No total-line reduction claim. Step6 remains in progress: appointment transitions, coordination and promotion are pending under the plan's per-service review boundary. No README setup, frontend, appDB/env/flag/dependency/live mail/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** Image recovery belongs with the orchestration that knows whether a database write definitely failed or may have committed. A persistence helper should preserve that distinction and leave uncertain claims intact.
+
+
+## FI-09 Step 6b — Appointment transition responsibilities — 2026-11-21
+
+**Tool(s) used:** Codex, shell, TypeScript AST/typecheck, Jest, Supertest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Continue with the next Step6 slice after clarifying that Step7 would skip unfinished backend slices.
+
+**Pre-planning:** Verified clean backendd77b40e, instructions/session/bug records and the transition call chain from resolver/participant guard through cancellation/replacement and booking transactions. Inspected schemas, outbox/slot operations, existing rollback/race tests and the MediBridge cancellation reference. No frontend changes had been made during Step7 inspection.
+
+**Planning:** Keep transitionInTransaction as orchestration and extract private snapshot/time validation, canceled-slot handling and deterministic event building. Pass the existing tx/session and captured timestamp; preserve validation/replay/write ordering and version generation without a new provider/transaction.
+
+**Implementation process:** Added private helpers and typed transition/release context; transition method span151→73lines. Strengthened existing cancellation/outcome API/database tests for exact event IDs and persisted metadata. Build/full types/lint,191unit236API257disposableDB tests pass (684). Initial new enum-literal assertions failed2cases and were corrected (B-034); final257DB checks pass. Updated plan/roadmap/existing architecture and session/bug records; no sprint covers this date.
+
+**What I kept as-is:** Participant/current-account enforcement, migration checks, expected-version and idempotent replay order, conditional status/version writes, ledger release, queue/cutoff/schedule decisions, generation fencing, notification IDs, shared session, transactional outbox and replacement rollback.
+
+**What I changed or rejected, and why:** Extracted service-private responsibilities; retained explicit ordered outbox insertion in the orchestrator. Did not copy the reference's weaker direct update or change UUID call sites, schema, API, dependencies, flags or business policy. No total-source reduction/performance claim. Coordination and promotion slices remain pending. No appDB/env/live mail/frontend/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** The new outcome assertion confused the STATUS_CHANGED enum key with its APPOINTMENT_STATUS_CHANGED stored value. Automated real-MongoDB tests caught it; the assertion was corrected without changing production behavior. This was not caught by me manually.
+
+**One decision I can explain without AI:** Helpers must use the caller's transaction and captured time so appointment, ledger, slot generation and outbox changes either commit together or roll back together. Stable event IDs must remain identical for replay and downstream deduplication.
+
+
+## FI-09 Step 6c — Booking coordination responsibilities — 2026-11-22
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck, Jest, Supertest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Implement Step6's BookingCoordinationService.run slice from the package refactoring plan.
+
+**Pre-planning:** Verified clean backend2b2cd54 and worktree instructions/session/bug records. Inspected coordination callers, BookingModule, transaction types, gate/ledger schemas and existing rollback/retry/race tests. Plan requires three private extractions and a service-level stopping boundary.
+
+**Planning:** Extract key construction, gate acquisition and operation construction. Keep session lifetime, retry counter/options and cleanup in run; pass the original session/models to helpers without new providers, catches or transactions.
+
+**Implementation process:** Added coordinationKeys/acquireGates/createTransaction; run190→36lines. Added9real-database empty/foreign-scope cases checking unchanged commitments and rolled-back gate revisions; strengthened retry session/cleanup assertions. Build/full types/lint,191unit236API266disposableDB tests pass (693). Original operation expressions match via AST printing. Sandbox asset-watcher EMFILE resolved on approved rerun. Updated plan/roadmap/existing architecture/session records; no sprint covers date.
+
+**What I kept as-is:** Public API, captured models/session, sorted deduplicated scope, pretransaction seeding, sequential gate writes, eight-attempt bound and transaction concerns/timeouts, conflict and reservation policy, generation/queue fencing, query/write order and finally cleanup.
+
+**What I changed or rejected, and why:** Used private helpers as required; retained the scoped-operation factory together without adding injected services or repositories. No performance/total-source reduction claim. Promotion remains pending; stop for manual review/commit. No appDB/env/flags/dependency/frontend/live provider/deployment/staging/commit/push/merge changes.
+
+**Something the AI got wrong that I had to catch:** An initial edit command used a repository-relative path from the application directory and failed before writing. Codex corrected the path; no source change resulted from the failed command (B-035). No manually caught or application error is claimed.
+
+**One decision I can explain without AI:** Gates must be acquired in the existing transaction before constructing callback operations on every retry, so scope protection and business writes share one atomic outcome and cleanup still runs on failure.
+
+
+## FI-09 Step 6d — Promotion processing responsibilities — 2026-11-22
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck, Prettier, Jest, Supertest, oxlint and disposable MongoDB runner.
+
+**What I asked for:** Continue to the next Step6 slice after booking coordination.
+
+**Pre-planning:** Verified clean backended784e3 and worktree instructions/session/bug records. Inspected promotion scheduling/module wiring, waitlist head and eligibility interfaces, gate/transaction contracts and existing race/rollback/recovery tests. Promotion was the last of four Step6 slices.
+
+**Planning:** Keep runOnce as preparation/claim/recovery dispatch; extract private claim, loop, candidate, booking, cutoff and recovery responsibilities. Preserve original transaction scopes, live clock calls and catch boundaries, especially a recovery failure that must escape for lease takeover.
+
+**Implementation process:** Added7private methods; runOnce192→14lines. Added2real-database tests for post-booking cutoff rollback and failed handoff recovery after lease expiry. Build/full types/lint,191unit236API268disposableDB tests pass (695). AST checks confirm claim query/options, event write, recovery transaction, fence/finish/retry methods and clock call count. Updated plan/roadmap/existing architecture/session records; Step6 complete locally, Steps7–8pending. No sprint covers date.
+
+**What I kept as-is:** Enablement/readiness, claim ordering/lease/token,25candidate bound, FIFO recheck, original clinic/doctor/patient/slot scopes, current session, generation/occupancy checks, typed eligibility skipping, live cutoff checks before/after writes, booking source/event IDs/payload, atomic writes, cutoff recovery, backoff and scheduler/shutdown behavior.
+
+**What I changed or rejected, and why:** Used private helpers without new providers or transactions. Kept the initial cutoff path distinct from post-rollback recovery because their scopes/results differ. No total-source or performance claim. No appDB/env/flags/dependency/frontend/live provider/deployment/staging/commit/push/merge changes; stop after Step6 for manual review/commit.
+
+**Something the AI got wrong that I had to catch:** Codex diff review caught unrelated whole-file formatter changes and removed them. A temporary AST check matched raw multiline source incorrectly; normalized whitespace and reran successfully (B-036). Neither issue changed production behavior, and no manual or application test failure is claimed.
+
+**One decision I can explain without AI:** A booking crossing the48hourcutoff must roll back before the existing fenced manual handoff. If the handoff fails too, preserving its recoverable lease is safer than swallowing the error or closing the FIFO patient as ineligible.
+
+
+## FI-09 Step 8 — Final acceptance and queue decision — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/types, npm/Jest/oxlint, Yarn/Node/Next Webpack, native Chrome, disposable Next/Nest/Mongo fixtures and official BullMQ documentation via web search.
+
+**What I asked for:** Do Step8 and mark Step7 completed.
+
+**Pre-planning:** Verified clean backend919b4a9/Next ea8c789/main f79f81f, local instructions/logs/bug records, baseline plan and all four committed frontend slices. The explicit request includes the backend plan/roadmap; application work remains in its own worktree.
+
+**Planning:** Compare baseline ownership/dependencies, check unused declarations, run full relevant checks/combined disposable journeys, close browser gaps and record adopt/defer without implementing a queue.
+
+**Implementation process:** Plan marks Steps7–8complete locally; roadmap and existing owning architecture records updated. Removed unused CareActionState in Next only. Backend build/full types/lint,191unit236API521DB3combined recovery8deployment regressions pass (959); Next types/noUnused210tests/isolated build pass (1,169total). Both audits zero findings. AST entry spans100/73/36/14/127backend and121/170/110/237frontend; only direct package additions Pino/config/schedule, no schema/DTO/appointment transport changes. Real hooks/adapters and Chrome verify crop/save outage/explicit retry/square image readback,390pxlower profile/dialog controls, replacement consent/keyboard and postcommit503booking/cancel reconciliation (1write each,1patient record). Initial socket-drop browser result remains2wire attempts/conflict, cause unconfirmed; NEXT-022 retains it. Declined saving credentials, signed out/restored browser/closed owned tabs; stopped both owned fixture generations, four final ports closed and DB/uploads removed. No sprint covers date.
+
+**What I kept as-is:** API/authorization/session/image guarantees, transaction/session ownership, FIFO/cutoff/races, Mongo outbox/event IDs, leases/fencing/backoff/draining, default-off gates and setup instructions. B-033 and production/provider/container limits remain.
+
+**What I changed or rejected, and why:** Deferred BullMQ/Redis: no measured production queue need or operating budget. A future adoption needs committed-outbox relay, durable idempotency, publish-gap/recovery design and funded persistence/monitoring. No queue/version/install/design implementation, appDB/env/flag/live provider/Git/deployment changes. Proposed backend commit: docs(backend): complete refactoring acceptance and queue evaluation.
+
+**Something the AI got wrong that I had to catch:** Codex caught and corrected a syntax error in the temporary read-only port probe; final four-port checks pass. Initial sandbox API EPERM cleared on loopback rerun. An initial combined runner returned nonzero after3passing assertions; instrumented rerun records Jest/runner exit0, cause of first exit unknown. Native chooser path required exact AX setValue after pasted path was incomplete. These did not change production code; no manual owner catch is claimed.
+
+**One decision I can explain without AI:** Redis enqueue and Mongo business commit are separate operations. A queue cannot replace a transactional outbox or durable idempotency just because it can retry jobs.
+
+
+## FI-09 Step8 — Resolve acceptance before closure — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, Git/source review, TypeScript/AST, Yarn/Node/Next Webpack, native Chrome, disposable Next/Nest/Mongo and official Chromium source via web search.
+
+**What I asked for:** Start Step8after I challenged the premature completion claim.
+
+**Pre-planning:** Verified existing uncommitted Step8work and backend919b4a9/Next ea8c789/main f79f81f. Read instructions/session/bug records and actual hook/adapter/contracts. Corrected current plan/roadmap/architecture/session to In progress before investigating; retained earlier passing evidence.
+
+**Planning:** Identify JavaScript fetch versus browser transport replay using fixture-only per-fetch IDs and baseline comparison. Exercise real socket loss, correct the demonstrated recovery gap with no mutation replay, then verify/clean up before closure.
+
+**Implementation process:** Baseline77c63deand current instrumented builds reproduced1fetch/2wire attempts on different TCP ports after pre-header response destruction. Chrome resend cause established; no second app submit. Actual truncated HTTP200body reconciles create/cancel. Recorded scope tradeoff before adding a narrow useCareAction guard: only attempted CREATE with a new owned same-kind/exact-target conflict enters existing reconciliation. Native exact-fault retest reaches CONFIRMED; actual reads verify1target, and ordinary different-slot conflict retains choices. Added10regressions (real Response streams/actual adapter, positive/negative matches, preflight failure and failed/ambiguous recovery):220Next tests/types/noUnused and corrected instrumented/uninstrumented builds pass. Prior959backend tests/checks/audits retained because production backend source/dependencies unchanged;1,179coverage total, not all rerun. Sources match build; tracer absent from production document. Updated plan/roadmap/owning architecture/logs/registers; Step8closed only after fix and verified cleanup. No sprint covers date.
+
+**What I kept as-is:** Existing UI/keys/consents/API/session/backend transactions/policy/feature gates/dependencies, normal conflicts and uncertain read-only/no-app-replay behavior. BullMQ defer and production/provider/container/grace/B-033limits remain.
+
+**What I changed or rejected, and why:** Corrected the false-conflict recovery gap instead of waiving the unfavorable result. Did not override browser networking or add queue/idempotency infrastructure. Temporary fetch-ID scripts/fault middleware are outside repo source. Both synthetic accounts signed out, credential saving declined, owned tab closed and all5ports/processes/DB/uploads cleaned. No staging/commit/push/deploy/appDB/env/live provider changes.
+
+**Something the AI got wrong that I had to catch:** I challenged the claim that Step8was complete while a required socket-disconnect finding remained unresolved. Codex had confused documented limitations with passed acceptance (B-038). It reopened status, established the cause against baseline, added the scoped fix and only then closed acceptance. The recovery gap itself predates the refactor; the premature completion claim was the agent's mistake.
+
+**One decision I can explain without AI:** One JavaScript fetch can appear twice on the wire when a browser retries a reused connection. The client must read current owned state before treating the resulting new exact-slot conflict as a request failure; it must never issue another mutation to check.

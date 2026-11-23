@@ -1,3 +1,7 @@
+import {
+  ApplicationConfig,
+  environmentConfig,
+} from '../../libs/config/application-config.service.js';
 import { HttpException, Injectable, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import {
@@ -52,6 +56,7 @@ export class EmailVerificationService {
     @Optional()
     @InjectModel(MEMBER)
     private readonly members?: Model<MemberEntity>,
+    @Optional() private readonly config: ApplicationConfig = environmentConfig,
   ) {}
 
   // Overridden only by controlled test clocks; never uses browser timestamps.
@@ -68,7 +73,7 @@ export class EmailVerificationService {
     };
   }
   private codeHash(email: string, id: string, code: string) {
-    const secret = process.env.JWT_ACCESS_SECRET;
+    const secret = this.config.jwtSecret;
     if (!secret || Buffer.byteLength(secret) < 32) throw unavailable();
     const key = createHmac('sha256', secret)
       .update('medconnect:email-code:v1')
