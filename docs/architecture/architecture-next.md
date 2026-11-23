@@ -1094,3 +1094,115 @@ README setup/features unchanged; no sprint covers this date and closed history i
 preserved.
 
 Manual commit: `refactor(next): separate care dialog state and presentation`.
+
+
+## FI-09 Step 7 completion and Step 8 acceptance — November 23, 2026
+
+Step7is complete locally. Step8was reopened after its premature sign-off and is
+now complete only after the resumed verification/correction below. BookingForm5703bc3, PersonalInfo2d88903,
+TeamSchedulese7e84b4 and ActionDialogea8c789. Step8review removes the unused
+CareActionState export; inspected hooks/views/other shared types have callers.
+No Next dependency or API changes. Final AST entry spans are121/170/110/237lines
+respectively (baseline557/558/469/392); this is ownership separation, not total
+source/performance reduction. Prior dated pending statements are historical.
+
+Fresh Next types/noUnused checks,210tests and isolated production Webpack build
+pass; final source matches build. Backend build/full types/lint and959tests pass,
+including521disposableDB and3combined Next/Nest recovery/session cases. Both audits
+report zero findings. No live mail, real accounts or production data were used.
+
+Native Chrome now closes earlier PersonalInfo acceptance gaps: keyboard crop/zoom,
+square selection,503save failure retaining crop and successful explicit retry;
+real API/image fetch verifies persisted square JPEG.390×844screenshots cover lower
+password/image controls, wrapped warnings, visible focus and save/cancel actions.
+Canceled image-removal draft preserves saved state. Exact-slot care review/Escape,
+structured conflict, both replacement consents reset/required, keyboard confirmation
+and ACTIVE receipt pass; mobile dialog original/target, warnings, consents and
+scrollable actions were inspected. Prior TeamSchedules browser evidence is retained.
+
+A fresh owned fixture replaces successful committed replies with503/{}. Browser
+booking reconciles to CONFIRMED with1mutation and2reads, then cancellation reconciles
+to CANCELED with1cancellation. Actual read confirms exactly1patient appointment.
+Final counters:1booking,1cancellation,7owned reads including final verification,
+2intercepted postcommit responses. These checks close the earlier browser unknown-
+response gap for this deterministic failure. Production hook/actual adapters also
+pass socket-drop booking/withdrawal and atomic replacement checks.
+
+An additional destroyed-socket browser probe produced2wire booking attempts from
+one native confirmation click and then a conflict; one active booking was retained.
+Application code has no automatic retry branch; browser/transport retry is a
+hypothesis. NEXT-022 initially tracked this diagnostic; the resumed sign-off below resolves
+its cause and false-conflict recovery. Do not describe every
+connection-loss mode as verified. No unrelated protocol/idempotency redesign was
+introduced. NEXT-019's earlier crop/mobile/outage and deterministic browser
+reconciliation gaps are now closed, preserving their historical failed attempts.
+
+Step8records **defer BullMQ/Redis** in the backend plan/architecture. There is no
+measured production queue need or funded operating arrangement. Retain Mongo
+transactional outbox, claims/fencing and durable idempotency; a future relay must
+handle commit/publish gaps and duplicate delivery. Redis operations would add
+persistence/connections/monitoring, as described by
+[BullMQ's official production guidance](https://docs.bullmq.io/guide/going-to-production).
+No new queue package, service or migration design is warranted now.
+
+Signed out/declined password saving, restored desktop/closed DevTools and owned
+tabs. Fixture generations runner26280/Nest26410 and runner32794/Nest32842 stopped;
+final Next32861/Mongo32809+32825stopped, ports43471/43472/51369/51375closed and
+DB/uploads removed. Sanitized evidence `/private/tmp/medconnect-fi09-step8-evidence.json`;
+initial socket probe `/private/tmp/medconnect-fi09-step8-first-evidence.json`;
+final build `/private/tmp/medconnect-fi09-step8-release/next`. All disposable-suite
+runners cleaned their storage. Backend plan/roadmap updated under the owner's
+explicit Step8/Step7completion request; each application's records stay in its own
+worktree. No README setup/features change, active sprint, appDB/env/dependency/flag,
+provider, staging/commit/push/merge/deployment changes. Production/providers,
+Node24container/grace periods and pre-existing B-033 remain outside verified results.
+
+Manual Next commit: `refactor(next): close frontend refactoring acceptance`.
+
+
+### Resumed Step8 — Socket-loss recovery accepted — November 23, 2026
+
+The initial Step8completion claim was incorrect while NEXT-022 was unresolved.
+Reopened the plan/roadmap/owning records before continuing. Isolated baseline77c63de
+and current builds added only a document-level fetch-ID tracer: one native click
+issued one JavaScript mutation fetch on two TCP connections after a committed
+response was destroyed before headers. Both builds showed the same conflict. This
+establishes Chrome transport resend rather than a refactor-induced second submit.
+Actual socket loss after HTTP200headers but during JSON instead reconciles booking
+and cancellation by reads, producing correct receipts with one wire mutation each.
+
+The narrow fix is in `components/booking/useCareAction.ts`. After a CREATE execute
+attempt, structured conflict data showing an owned same-kind/exact-target ID absent
+from the baseline enters existing read reconciliation. The dialog hides replacement
+choices while uncertain; failed or ambiguous checks stay read-only. Existing,
+different-target or different-kind conflicts retain normal choices. No mutation
+retry, endpoint, backend policy, styling, parent mount/key or general idempotency
+protocol is introduced. The unrelated unused CareActionState export remains removed.
+
+Native retest of the exact original pre-header failure now shows CONFIRMED, followed
+by a real API assertion of exactly1target appointment. Trace shows one application
+mutation fetch resent by Chrome and then a recovery read. A genuine different-slot
+conflict still shows Keep existing commitment/Review replacement. This resolves
+NEXT-022's recovery gap; network-level exactly-once delivery is not claimed.
+
+Added10regressions to care-action.test.cjs, including real Response stream failure
+through the actual adapter, positive/negative conflict matching, preflight failure,
+and failed/ambiguous recovery without replay.220Next tests, types/noUnused and fresh
+corrected instrumented/uninstrumented production builds pass. Final hook/adapter/
+view/test source equals both build copies; production `_document.tsx` has no tracer.
+Previous backend959tests/build/types/lint/audits retained because production backend
+source/dependencies did not change (1,179total coverage; not all tests rerun here).
+
+Both accounts signed out, saving passwords declined and owned tab closed; unrelated
+browser tab retained. No emulation/DevTools used this run. Verified runner57220/
+Nest57268, Next57287/57288/63611 and Mongo57235/57252stopped, five ports
+43471/43472/43473/51883/51889closed and DB/uploads removed. Evidence/trace:
+`/private/tmp/fi09-step8-investigate-{evidence,trace}.json`; repeatable assertions:
+`/private/tmp/fi09-step8-investigate-verify.cjs`; final production build:
+`/private/tmp/fi09-step8-resumed-release/next`. Temporary instrumentation/faults are
+outside repository code. Steps7–8and FI-09now complete locally; BullMQ defer,
+B-033 and production/provider/container/grace-period limits remain. No active sprint,
+README setup change, backend source/env/dependency/live provider/staging/commit/push/
+merge/deployment changes.
+
+Manual Next commit: `fix(next): reconcile booking conflicts after lost responses`.

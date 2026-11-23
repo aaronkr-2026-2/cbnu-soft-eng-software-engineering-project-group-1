@@ -1163,3 +1163,45 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI implementation error identified during this task. A resumed record lookup used a Next-relative path from the backend worktree and failed read-only; corrected the cwd. Native blank capture and sandbox-blocked localhost access are environment limits; the integration probe passed with reviewed localhost access. No manual owner catch is claimed.
 
 **One decision I can explain without AI:** A lost response can follow a committed write. Checking current records must preserve the original baseline and must never automatically repeat the mutation.
+
+
+## FI-09 Step 8 — Close frontend refactoring acceptance — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/types, Yarn/Node tests/Next Webpack, npm/Jest/oxlint, native Chrome, disposable Next/Nest/Mongo and official BullMQ web documentation.
+
+**What I asked for:** Do Step8 and mark Step7 completed.
+
+**Pre-planning:** Verified clean Next ea8c789/backend919b4a9, instructions/session/bug records, original plan and all four frontend commits. Read installed Pages Router state guidance before removing an unused type.
+
+**Planning:** Review baseline ownership/dependencies, remove only demonstrated unused code, run relevant checks, finish prior browser gaps and maintain each worktree's owning records. The explicit Step8/Step7request authorizes the backend plan/roadmap update.
+
+**Implementation process:** Removed unused CareActionState export. Types/noUnused210tests/fresh isolated production build pass; source matches build, no dependency diff from Next77c63de. Backend959tests/build/full types/lint pass (1,169total); both audits zero. Real hooks/adapters and Chrome verify profile crop/keyboard/zoom,503draft retention and explicit successful retry, real square image readback,390×844lower profile controls. Mobile conflict/replacement resets/requires both consents; keyboard confirm produces ACTIVE receipt. Fresh fixture postcommit503booking and cancel reconcile with1mutation each/1patient appointment. Updated architecture/AI/session/NEXT-019/NEXT-022; plan marks7and8complete locally with limits. Signed out, restored viewport, declined credential saving, closed DevTools/owned tabs; both owned fixture generations stopped, final four ports closed and DB/uploads removed. No sprint covers date.
+
+**What I kept as-is:** Mounted state/parent keys, API clients, request ordering, focus/consent/stale/abort guards, no app mutation retry, backend session/transaction/outbox guarantees. No setup/features change warrants README edits.
+
+**What I changed or rejected, and why:** Deferred BullMQ/Redis for lack of measured need/operating budget; retained Mongo outbox/idempotency and conditional future design. Preserved unresolved destroyed-socket probe (2wire requests/conflict from1native click; transport cause unconfirmed) as NEXT-022. Deterministic postcommit503passes do not certify every transport failure. No appDB/env/flags/dependencies/providers/staging/commit/push/merge/deployment changes.
+
+**Something the AI got wrong that I had to catch:** Codex corrected a syntax error in a temporary cleanup probe and an incomplete native chooser path using observed AX value; no production behavior changed. Initial combined recovery runner nonzero despite3passing assertions was rechecked with instrumentation: Jest/runner exit0, original cause unknown. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** A passing postcommit503reconciliation check and a failing destroyed-socket probe describe different failure modes. I can close the implemented refactor while keeping the unresolved transport finding visible without claiming every connection failure is verified.
+
+
+## FI-09 Step8 — Socket-loss reconciliation correction — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, Git/source review, TypeScript/AST, Yarn/Node/Next Webpack, native Chrome, disposable Next/Nest/Mongo and official Chromium source via web search.
+
+**What I asked for:** Start Step8after I challenged the premature completion claim.
+
+**Pre-planning:** Verified existing uncommitted Step8work and backend919b4a9/Next ea8c789/main f79f81f. Read instructions/session/bug records and actual hook/adapter/contracts. Corrected current plan/roadmap/architecture/session to In progress before investigating; retained earlier passing evidence.
+
+**Planning:** Identify JavaScript fetch versus browser transport replay using fixture-only per-fetch IDs and baseline comparison. Exercise real socket loss, correct the demonstrated recovery gap with no mutation replay, then verify/clean up before closure.
+
+**Implementation process:** Baseline77c63deand current instrumented builds reproduced1fetch/2wire attempts on different TCP ports after pre-header response destruction. Chrome resend cause established; no second app submit. Actual truncated HTTP200body reconciles create/cancel. Recorded scope tradeoff before adding a narrow useCareAction guard: only attempted CREATE with a new owned same-kind/exact-target conflict enters existing reconciliation. Native exact-fault retest reaches CONFIRMED; actual reads verify1target, and ordinary different-slot conflict retains choices. Added10regressions (real Response streams/actual adapter, positive/negative matches, preflight failure and failed/ambiguous recovery):220Next tests/types/noUnused and corrected instrumented/uninstrumented builds pass. Prior959backend tests/checks/audits retained because production backend source/dependencies unchanged;1,179coverage total, not all rerun. Sources match build; tracer absent from production document. Updated plan/roadmap/owning architecture/logs/registers; Step8closed only after fix and verified cleanup. No sprint covers date.
+
+**What I kept as-is:** Existing UI/keys/consents/API/session/backend transactions/policy/feature gates/dependencies, normal conflicts and uncertain read-only/no-app-replay behavior. BullMQ defer and production/provider/container/grace/B-033limits remain.
+
+**What I changed or rejected, and why:** Corrected the false-conflict recovery gap instead of waiving the unfavorable result. Did not override browser networking or add queue/idempotency infrastructure. Temporary fetch-ID scripts/fault middleware are outside repo source. Both synthetic accounts signed out, credential saving declined, owned tab closed and all5ports/processes/DB/uploads cleaned. No staging/commit/push/deploy/appDB/env/live provider changes.
+
+**Something the AI got wrong that I had to catch:** I challenged the claim that Step8was complete while a required socket-disconnect finding remained unresolved. Codex had confused documented limitations with passed acceptance (B-038). It reopened status, established the cause against baseline, added the scoped fix and only then closed acceptance. The recovery gap itself predates the refactor; the premature completion claim was the agent's mistake.
+
+**One decision I can explain without AI:** One JavaScript fetch can appear twice on the wire when a browser retries a reused connection. The client must read current owned state before treating the resulting new exact-slot conflict as a request failure; it must never issue another mutation to check.

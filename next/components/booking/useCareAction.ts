@@ -11,7 +11,12 @@ import {
   execute,
   targetRecords,
 } from '../../libs/api/booking';
-import { commitment, needsForfeit, replaceable } from '../../libs/booking';
+import {
+  commitment,
+  needsForfeit,
+  replaceable,
+  sameTarget,
+} from '../../libs/booking';
 import { usePublicProfiles } from '../../libs/hooks/usePublicProfiles';
 
 export function useCareAction({
@@ -109,6 +114,7 @@ export function useCareAction({
     setBusy(true);
     setError('');
     setProblem(undefined);
+    let mutationAttempted = false;
     try {
       if (uncertain) {
         await reconcile(controller.signal);
@@ -140,6 +146,7 @@ export function useCareAction({
             await targetRecords(current.kind, current.target, controller.signal)
           ).map((row) => row._id),
         );
+      mutationAttempted = true;
       const result = await execute(current, controller.signal);
       if (!controller.signal.aborted) {
         setReceipt(result);
@@ -152,9 +159,24 @@ export function useCareAction({
         reason instanceof BookingError
           ? reason
           : new BookingError('The request could not be confirmed.');
+      // A browser can transparently resend a POST after a reused connection
+      // closes before response headers. The first attempt may have committed.
+      const newlyVisibleTarget =
+        mutationAttempted &&
+        current.operation === 'CREATE' &&
+        ['COMMITMENT_CONFLICT', 'DUPLICATE_ENTRY'].includes(
+          issue.problem?.reason || '',
+        ) &&
+        issue.problem?.existingCommitments.some(
+          (row) =>
+            row.kind === current.kind &&
+            sameTarget(row, current.target) &&
+            !baseline.current.has(row.id),
+        );
+      const possiblyCommitted = issue.uncertain || newlyVisibleTarget;
       setError(issue.message);
-      setProblem(issue.problem);
-      if (current.original && !issue.uncertain) {
+      setProblem(possiblyCommitted ? undefined : issue.problem);
+      if (current.original && !possiblyCommitted) {
         try {
           const row = await detail(
             current.original.kind,
@@ -167,7 +189,7 @@ export function useCareAction({
           /* keep the last verified state */
         }
       }
-      if (issue.uncertain) {
+      if (possiblyCommitted) {
         setUncertain(true);
         onUncertain();
         try {
@@ -219,4 +241,3 @@ export function useCareAction({
     chooseReplacement,
   };
 }
-export type CareActionState = ReturnType<typeof useCareAction>;

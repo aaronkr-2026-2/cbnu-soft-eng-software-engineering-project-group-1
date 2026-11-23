@@ -368,3 +368,228 @@ test('dialog presentation requires both consent and forfeit, prevents busy close
   assert.ok(button(tree, 'Check current state'));
   h.unmount();
 });
+
+// Use the real adapter and a real Response body stream. The earlier hook-only
+// cases supply BookingError directly and do not cover failure while reading JSON.
+function truncatedReply() {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"data":'));
+        controller.error(new TypeError('Connection closed during response body'));
+      },
+    }),
+    { status: 200 },
+  );
+}
+function transport(t, fetch) {
+  const session = require('../libs/auth-session.ts');
+  const saved = {
+    fetch: global.fetch,
+    token: session.getAccessToken,
+    endpoint: process.env.NEXT_PUBLIC_GRAPHQL_URL,
+  };
+  session.getAccessToken = async () => 'synthetic-test-token';
+  process.env.NEXT_PUBLIC_GRAPHQL_URL = 'http://fixture.invalid/graphql';
+  global.fetch = fetch;
+  t.after(() => {
+    global.fetch = saved.fetch;
+    session.getAccessToken = saved.token;
+    if (saved.endpoint === undefined) delete process.env.NEXT_PUBLIC_GRAPHQL_URL;
+    else process.env.NEXT_PUBLIC_GRAPHQL_URL = saved.endpoint;
+  });
+  return require('../libs/api/booking.ts');
+}
+
+test('a truncated successful booking response is reconciled by the real adapter without a second fetch mutation', async (t) => {
+  let committed = false;
+  const calls = [];
+  const api = transport(t, async (_url, options) => {
+    const { query } = JSON.parse(options.body);
+    if (/\bmyAppointments\s*\(/.test(query)) {
+      calls.push('read');
+      return Response.json({
+        data: {
+          myAppointments: {
+            entries: committed ? [row()] : [],
+            nextCursor: null,
+          },
+        },
+      });
+    }
+    assert.match(query, /\bbookAppointment\s*\(/);
+    calls.push('write');
+    committed = true;
+    return truncatedReply();
+  });
+  const { h, events } = setup(api);
+  t.after(() => h.unmount());
+  await (await h.flush()).submit();
+  const state = await h.flush();
+  assert.deepEqual(calls, ['read', 'write', 'read']);
+  assert.deepEqual(events, ['uncertain', 'complete']);
+  assert.equal(state.receipt.record._id, row()._id);
+  assert.equal(state.receipt.record.status, 'CONFIRMED');
+  assert.equal(state.uncertain, false);
+  assert.equal(state.busy, false);
+});
+
+test('a truncated cancellation response uses a terminal detail read and never replays cancellation', async (t) => {
+  let canceled = false;
+  const calls = [];
+  const api = transport(t, async (_url, options) => {
+    const { query } = JSON.parse(options.body);
+    if (/\bgetAppointment\s*\(/.test(query)) {
+      calls.push('detail');
+      return Response.json({
+        data: {
+          getAppointment: row('APPOINTMENT', {
+            status: canceled ? 'CANCELED' : 'CONFIRMED',
+          }),
+        },
+      });
+    }
+    assert.match(query, /\bcancelAppointment\s*\(/);
+    calls.push('cancel');
+    canceled = true;
+    return truncatedReply();
+  });
+  const { h, events } = setup(api, {
+    ...action,
+    operation: 'CANCEL',
+    original: original(),
+  });
+  t.after(() => h.unmount());
+  await (await h.flush()).submit();
+  const state = await h.flush();
+  assert.deepEqual(calls, ['detail', 'cancel', 'detail']);
+  assert.deepEqual(events, ['uncertain', 'complete']);
+  assert.equal(state.receipt.record.status, 'CANCELED');
+  assert.equal(state.uncertain, false);
+  assert.equal(state.busy, false);
+});
+
+for (const kind of ['APPOINTMENT', 'WAITLIST']) {
+  test(`a newly visible exact-target ${kind} conflict is checked by reads after a possible browser resend`, async () => {
+    let reads = 0,
+      writes = 0;
+    const problem = {
+      reason: 'COMMITMENT_CONFLICT',
+      existingCommitments: [original(kind)],
+      choices: ['KEEP', 'REPLACE'],
+    };
+    const { h, events } = setup(
+      {
+        targetRecords: async () => (++reads === 1 ? [] : [row(kind)]),
+        execute: async () => {
+          writes++;
+          throw new BookingError('Conflict', 'CONFLICT', problem);
+        },
+      },
+      { ...action, kind },
+    );
+    const state = await h.flush();
+    await state.submit();
+    const result = await h.flush();
+    assert.equal(writes, 1);
+    assert.equal(reads, 2);
+    assert.deepEqual(events, ['uncertain', 'complete']);
+    assert.equal(result.receipt.record._id, row(kind)._id);
+    assert.equal(result.problem, undefined);
+    h.unmount();
+  });
+}
+
+for (const scenario of ['pre-existing', 'different target', 'different kind']) {
+  test(`${scenario} conflicts retain normal conflict choices without claiming a completed request`, async () => {
+    let reads = 0;
+    const existing = original();
+    if (scenario === 'different target')
+      existing.startsAt = '2035-01-01T02:00:00.000Z';
+    if (scenario === 'different kind') existing.kind = 'WAITLIST';
+    const problem = {
+      reason: 'COMMITMENT_CONFLICT',
+      existingCommitments: [existing],
+      choices: ['KEEP', 'REPLACE'],
+    };
+    const { h, events } = setup({
+      targetRecords: async () => {
+        reads++;
+        return scenario === 'pre-existing' ? [row()] : [];
+      },
+      execute: async () => {
+        throw new BookingError('Conflict', 'CONFLICT', problem);
+      },
+    });
+    await (await h.flush()).submit();
+    const result = await h.flush();
+    assert.equal(reads, 1);
+    assert.equal(result.receipt, undefined);
+    assert.equal(result.uncertain, false);
+    assert.equal(result.problem, problem);
+    assert.deepEqual(events, []);
+    h.unmount();
+  });
+}
+
+test('conflict metadata on a failed baseline read cannot imply that an unattempted mutation completed', async () => {
+  let writes = 0;
+  const problem = {
+    reason: 'COMMITMENT_CONFLICT',
+    existingCommitments: [original()],
+    choices: ['KEEP', 'REPLACE'],
+  };
+  const { h, events } = setup({
+    targetRecords: async () => {
+      throw new BookingError('Read failed', 'CONFLICT', problem);
+    },
+    execute: async () => {
+      writes++;
+    },
+  });
+  await (await h.flush()).submit();
+  const result = await h.flush();
+  assert.equal(writes, 0);
+  assert.equal(result.receipt, undefined);
+  assert.equal(result.uncertain, false);
+  assert.deepEqual(events, []);
+  h.unmount();
+});
+
+for (const scenario of ['unavailable', 'ambiguous']) {
+  test(`a possibly committed conflict stays read-only when recovery is ${scenario}`, async () => {
+    let reads = 0,
+      writes = 0;
+    const problem = {
+      reason: 'COMMITMENT_CONFLICT',
+      existingCommitments: [original()],
+      choices: ['KEEP', 'REPLACE'],
+    };
+    const { h, events } = setup({
+      targetRecords: async () => {
+        reads++;
+        if (reads === 1) return [];
+        if (reads === 2 && scenario === 'unavailable') throw Error('Offline');
+        if (reads === 2) return [row(), row('APPOINTMENT', { _id: 'e'.repeat(24) })];
+        return [row()];
+      },
+      execute: async () => {
+        writes++;
+        throw new BookingError('Conflict', 'CONFLICT', problem);
+      },
+    });
+    await (await h.flush()).submit();
+    let result = await h.flush();
+    assert.equal(result.uncertain, true);
+    assert.equal(result.receipt, undefined);
+    assert.equal(result.problem, undefined);
+    assert.match(result.error, /Do not submit/);
+    await result.submit();
+    result = await h.flush();
+    assert.equal(writes, 1);
+    assert.equal(reads, 3);
+    assert.equal(result.receipt.record._id, row()._id);
+    assert.deepEqual(events, ['uncertain', 'complete']);
+    h.unmount();
+  });
+}
