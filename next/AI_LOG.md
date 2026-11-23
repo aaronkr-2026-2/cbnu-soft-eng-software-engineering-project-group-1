@@ -1058,3 +1058,150 @@ browser verification; existing Step4 acceptance limits remain. No staging/commit
 **Something the AI got wrong that I had to catch:** No AI error identified during this task.
 
 **One decision I can explain without AI:** The upgrade bootstrap and application target are different packages; I can use installed trusted assessment code and install the safe stable target while retaining quarantine.
+
+
+## Remove confirmed unused code — 2026-11-19
+
+**Tool(s) used:** Codex, shell, TypeScript, existing tests.
+
+**What I asked for:** Sanitize the codebase and retain used code.
+
+**Pre-planning:** Checked references and the owning worktree instructions before deleting candidates identified in the review.
+
+**Planning:** Remove confirmed unused code first; keep active repeated code for a separately verified refactor.
+
+**Implementation process:** Removed unused BOOK_APPOINTMENT, GET_APPOINTMENT, MY_APPOINTMENTS and their unused APPOINTMENT_FIELDS fragment; deleted apollo/user/mutation.ts. Active booking documents remain in apollo/user/booking.ts. TypeScript with noUnusedLocals/noUnusedParameters passed; all 167 existing tests passed. Symbol-aware export scan and source/test reference checks found no further removable exports outside framework entry points. No live integration/build checks were run.
+
+**What I kept as-is:** Public API behavior, dependencies, operational tools and framework entry points.
+
+**What I changed or rejected, and why:** Removed unused declarations rather than redesigning active behavior. No sprint covers November 19; closed sprint records remain unchanged.
+
+**Something the AI got wrong that I had to catch:** No AI error identified during this task.
+
+**One decision I can explain without AI:** A declaration with no ordinary caller can still be a framework entry point, so references must be checked before removal.
+
+
+## FI-09 Step 7a — Booking form state and presentation — 2026-11-22
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck, Yarn/Node tests, React server rendering, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Start Step7 of the package refactoring plan.
+
+**Pre-planning:** Verified clean Next77c63de/backend919b4a9, instructions/session/bug records and Step7. Traced BookPage/PatientGate/API/session/ActionDialog to backend booking contracts. Read installed Pages Router/useRouter guidance and inspected the MediBridge hook reference; no reference dependency or behavior was copied.
+
+**Planning:** Follow the one-feature-area boundary, starting with BookingForm. Keep shared draft and uncertainty state under the same mounted form; separate directory/selection, slot reads, replacement source and views without new keys, transport or retries.
+
+**Implementation process:** Three hooks/four stable views reduce BookingForm557→121lines; all7effect callbacks/deps/order match AST output. Added9hook-harness/React-SSR cases; types176tests/final isolated build pass. Actual native Chrome→Next→Nest→owned Mongo verified exact links, keyboard/Escape, booking, original display and atomic replacement,390pxlayout/dialog and read-timeout/draft-retaining retry. Actual adapters confirm persisted replacement. Extra submission-outage check inconclusive after native noWindowsAvailable;0target appointments, no lost-mutation acceptance claim. Processes/ports/Mongo files cleaned; browser sign-out/tab/emulation cleanup unavailable. Next architecture/session records updated; backend plan protected by Next no-write rule. No sprint covers date.
+
+**What I kept as-is:** Clients/documents, abort/stale-result guards, exact-link application, field clearing, timezone/date behavior, replacement-source reset, consent/preflight/mutation/reconciliation, identity boundary and refresh/close semantics, including selected-slot reset for a fresh read.
+
+**What I changed or rejected, and why:** Used feature-specific hooks and stable views; kept shared draft state together to retain effect ordering. No generic loading abstraction, remount key, dependency, styling or API change. Remaining Step7areas: PersonalInfo, TeamSchedules, ActionDialog. No backend/Vite/appDB/env/live provider/productionflag/staging/commit/push/merge/deployment changes.
+
+**Something the AI got wrong that I had to catch:** Native sign-in automation assumed Tab from email focused password; it focused Forgot password. Codex corrected with explicit fresh field clicks; no reset occurred (NEXT-014 follow-up). An initial documentation command used root-relative paths from the application cwd and failed before writing; rerun from the worktree root. The extra submission-outage attempt is explicitly inconclusive, not counted passed.
+
+**One decision I can explain without AI:** Moving views must leave the draft and uncertain-request state in the same mounted owner. An uncertain outcome must be reconciled by reads; splitting a component must never cause a second booking mutation.
+
+
+## FI-09 Step 7b — Personal information state and presentation — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck/noUnused checks, Yarn/Node tests, React SSR, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Continue to PersonalInfo, the next Step7 feature area.
+
+**Pre-planning:** Verified clean Next5703bc3/backend919b4a9, worktree/session/bug records and Step7. Inspected profile/session/upload/username/cropper flows, existing tests, installed Pages Router state guidance and MediBridge PersonalInfo. Preserved project-specific abort, focus, session and image guarantees instead of copying the reference's state/transport behavior.
+
+**Planning:** Separate MyPage shell, PersonalInfo presentation, profile save/edit coordination, image draft handling and stable field/password/image views. Keep original token key, save order and API clients; reuse the existing hook-test harness for concrete booking/profile regression coverage.
+
+**Implementation process:** PersonalInfo558→170lines; added usePersonalInfo/useProfileImage and views. Save/change, MyPage shell and6ordered effects match AST (memberImage parameter substitution). Types/noUnused/187tests(11new)/isolated production build pass. Actual adapters verify8synthetic scenarios: profile,image save/serving,503/no replay,username conflict,postcommit lost reply+explicit read,clinic fields,password invalidation. Native keyboard/edit/cancel/focus and fresh-tab save pass; actual API read confirms save,390pxupper layout/avatar inspected. Browser crop/lower-mobile/outage result remain unverified after native errors; chooser/tabs/DevTools closed, prior Step7a cleanup completed. Owned runner/Nest/Next/Mongo stopped,4ports closed/tempDB+uploads removed. Next architecture/session records updated; backend plan protected. No sprint covers date.
+
+**What I kept as-is:** Profile validation/payloads, username availability and post-busy focus, role/provider fields, password spacing and session-clear redirect, duplicate/crop submit guards, aborted/stale results, blob cleanup, delayed image upload, cached upload reference on failure, explicit retry, MyPage deletion dialog and token-keyed mount.
+
+**What I changed or rejected, and why:** Used feature-specific hooks and stable views; introduced no generic persistence layer, remount key, transport/retry or uncertain-save policy. Shared only the test harness now used by two real suites. No total-source/performance claim. No backend/Vite/appDB/env/dependency/live provider/productionflag/staging/commit/push/merge/deployment changes. TeamSchedules and ActionDialog remain.
+
+**Something the AI got wrong that I had to catch:** Automated SSR checks caught a new assertion expecting lowercase readonly instead of React's readOnly. Corrected the test without production changes. A temporary AST selector incorrectly used a function node as a source file; switched to Identifier.text and reran successfully (NEXT-020). Native select-all did not replace one fixture input reliably; a fresh-tab exact-text selection was used for the confirmed save. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** The uploaded-image reference and draft must survive a failed save, and a second click must not start another request while one is pending. Extraction should retain that mounted state and the original abort/focus sequence rather than recreating it inside view components.
+
+
+## FI-09 Step 7c — Team and schedule state and presentation — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typecheck/noUnused checks, Yarn/Node tests, React SSR, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Continue to TeamSchedules, the next Step7 feature area.
+
+**Pre-planning:** Verified clean Next2d88903/backend919b4a9, instructions/session/bug records and Step7. Traced WorkspacePage's keyed mount/lock/review boundary, schedule/team clients through careRequest, preview reads, validation and server ownership. Read installed Pages Router guidance; inspected the reference component inventory, which had no matching schedule component to adopt.
+
+**Planning:** Keep mounted draft ownership and WorkspaceReview unchanged. Separate applications, weekly hours, overrides and preview; share only the existing time selector with two callers. Preserve copied review payloads, acknowledgements, timezone and read cancellation without adding retries or an invented saved-hours endpoint.
+
+**Implementation process:** TeamSchedules469→110lines; added2hooks/4views/shared selector. Patch helpers/preview effect/deps/3review expressions match AST. Types/noUnused/198tests(11new)/final isolated build pass. Actual adapters verify10synthetic review/schedule/closure/default/role/lost-reply scenarios. Chrome verifies approval,keyboard/Escape,weekly+closure saves/effective preview,390pxcontrols and503preview outage retaining drafts/recovery. Final API reads confirm browser writes. Signed out/restored viewport/closed DevTools+tab; verified runner73911/Nest74006/Next/Mongo stopped,4ports closed/tempDB+uploads removed. Updated Next architecture/session records; backend plan protected, no sprint covers date.
+
+**What I kept as-is:** Parent tab key, shared draft/date ownership, doctor resets, per-editor acknowledgements, row bounds/validation, pending-only application actions, copied review payloads, actual clients/signals/timezone, preview stale guards, uncertain-result locks and absence of automatic mutation replay.
+
+**What I changed or rejected, and why:** Used feature-specific hooks/views and concrete shared selector; extended the existing test harness to TSX. No new API/dependency/style/transaction or saved-config abstraction. No total-source/performance claim. No backend/Vite/appDB/env/live provider/productionflag/staging/commit/push/merge/deployment changes. ActionDialog remains; prior browser gaps are not closed by this slice.
+
+**Something the AI got wrong that I had to catch:** AST comparison caught formatter-shifted dash whitespace and Codex restored original JSX. Temporary API probes used an unresolved module path, wrong operation filter and assumed lunch-crossing weekday hours must be rejected; corrected the probe against current code and the explicit weekend contract (NEXT-021), without production changes. Native end-time selection was not confirmed as changed, so browser review is recorded as the observed09:00–17:00draft. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** Schedule reviews must hold copied rows and the doctor/date captured when review opens. Confirmation must not silently use later draft edits, and losing a write response must never cause automatic resubmission.
+
+
+## FI-09 Step 7d — Care dialog state and presentation — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/typechecks, Yarn/Node tests, React SSR, Next Webpack, native Chrome and disposable Next/Nest/MongoDB fixture.
+
+**What I asked for:** Continue the next refactoring slice and finish the interrupted ActionDialog work.
+
+**Pre-planning:** Verified Next e7e84b4/backend919b4a9, instructions/session/bug records and Step7; traced dialog callers, API preflight/mutation/reconciliation and mounted ownership. Read installed Pages Router guidance before implementation.
+
+**Planning:** Extract feature-specific request/state coordination while retaining the complete Dialog JSX, public props, parent identity keys and original sequence.
+
+**Implementation process:** Extracted useCareAction; view422→251physical lines,222-line hook. AST checks preserve four handlers, profile call, abort cleanup and full JSX. Types/noUnused/210tests(12new)/isolated production build pass; final source matches build. Production hook with real API adapters verifies postcommit lost booking reply→single record/no replay, structured conflict/consent reset, atomic appointment→waitlist and lost withdrawal reply→terminal read/no replay. Native Chrome returned blank capture/no form controls after reload; browser acceptance remains unverified. Closed owned tab, stopped verified runner97065/Nest97099/Mongo; four ports closed/tempDB+uploads removed. Updated architecture/session/NEXT-019. No sprint covers date; backend plan remains protected.
+
+**What I kept as-is:** Public props/JSX, request ordering, consent/forfeit reset, stale/duplicate/abort guards, mounted uncertain state, read-only reconciliation, clients and parent keys.
+
+**What I changed or rejected, and why:** A focused hook isolates coordination with no generic request abstraction, new retry, dependency, API or style change. All four Step7 slices are implemented; browser gaps remain for final acceptance. No staging/commit/push/deploy or protected application changes.
+
+**Something the AI got wrong that I had to catch:** No AI implementation error identified during this task. A resumed record lookup used a Next-relative path from the backend worktree and failed read-only; corrected the cwd. Native blank capture and sandbox-blocked localhost access are environment limits; the integration probe passed with reviewed localhost access. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** A lost response can follow a committed write. Checking current records must preserve the original baseline and must never automatically repeat the mutation.
+
+
+## FI-09 Step 8 — Close frontend refactoring acceptance — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, TypeScript AST/types, Yarn/Node tests/Next Webpack, npm/Jest/oxlint, native Chrome, disposable Next/Nest/Mongo and official BullMQ web documentation.
+
+**What I asked for:** Do Step8 and mark Step7 completed.
+
+**Pre-planning:** Verified clean Next ea8c789/backend919b4a9, instructions/session/bug records, original plan and all four frontend commits. Read installed Pages Router state guidance before removing an unused type.
+
+**Planning:** Review baseline ownership/dependencies, remove only demonstrated unused code, run relevant checks, finish prior browser gaps and maintain each worktree's owning records. The explicit Step8/Step7request authorizes the backend plan/roadmap update.
+
+**Implementation process:** Removed unused CareActionState export. Types/noUnused210tests/fresh isolated production build pass; source matches build, no dependency diff from Next77c63de. Backend959tests/build/full types/lint pass (1,169total); both audits zero. Real hooks/adapters and Chrome verify profile crop/keyboard/zoom,503draft retention and explicit successful retry, real square image readback,390×844lower profile controls. Mobile conflict/replacement resets/requires both consents; keyboard confirm produces ACTIVE receipt. Fresh fixture postcommit503booking and cancel reconcile with1mutation each/1patient appointment. Updated architecture/AI/session/NEXT-019/NEXT-022; plan marks7and8complete locally with limits. Signed out, restored viewport, declined credential saving, closed DevTools/owned tabs; both owned fixture generations stopped, final four ports closed and DB/uploads removed. No sprint covers date.
+
+**What I kept as-is:** Mounted state/parent keys, API clients, request ordering, focus/consent/stale/abort guards, no app mutation retry, backend session/transaction/outbox guarantees. No setup/features change warrants README edits.
+
+**What I changed or rejected, and why:** Deferred BullMQ/Redis for lack of measured need/operating budget; retained Mongo outbox/idempotency and conditional future design. Preserved unresolved destroyed-socket probe (2wire requests/conflict from1native click; transport cause unconfirmed) as NEXT-022. Deterministic postcommit503passes do not certify every transport failure. No appDB/env/flags/dependencies/providers/staging/commit/push/merge/deployment changes.
+
+**Something the AI got wrong that I had to catch:** Codex corrected a syntax error in a temporary cleanup probe and an incomplete native chooser path using observed AX value; no production behavior changed. Initial combined recovery runner nonzero despite3passing assertions was rechecked with instrumentation: Jest/runner exit0, original cause unknown. No manual owner catch is claimed.
+
+**One decision I can explain without AI:** A passing postcommit503reconciliation check and a failing destroyed-socket probe describe different failure modes. I can close the implemented refactor while keeping the unresolved transport finding visible without claiming every connection failure is verified.
+
+
+## FI-09 Step8 — Socket-loss reconciliation correction — 2026-11-23
+
+**Tool(s) used:** Codex, shell/Python, Git/source review, TypeScript/AST, Yarn/Node/Next Webpack, native Chrome, disposable Next/Nest/Mongo and official Chromium source via web search.
+
+**What I asked for:** Start Step8after I challenged the premature completion claim.
+
+**Pre-planning:** Verified existing uncommitted Step8work and backend919b4a9/Next ea8c789/main f79f81f. Read instructions/session/bug records and actual hook/adapter/contracts. Corrected current plan/roadmap/architecture/session to In progress before investigating; retained earlier passing evidence.
+
+**Planning:** Identify JavaScript fetch versus browser transport replay using fixture-only per-fetch IDs and baseline comparison. Exercise real socket loss, correct the demonstrated recovery gap with no mutation replay, then verify/clean up before closure.
+
+**Implementation process:** Baseline77c63deand current instrumented builds reproduced1fetch/2wire attempts on different TCP ports after pre-header response destruction. Chrome resend cause established; no second app submit. Actual truncated HTTP200body reconciles create/cancel. Recorded scope tradeoff before adding a narrow useCareAction guard: only attempted CREATE with a new owned same-kind/exact-target conflict enters existing reconciliation. Native exact-fault retest reaches CONFIRMED; actual reads verify1target, and ordinary different-slot conflict retains choices. Added10regressions (real Response streams/actual adapter, positive/negative matches, preflight failure and failed/ambiguous recovery):220Next tests/types/noUnused and corrected instrumented/uninstrumented builds pass. Prior959backend tests/checks/audits retained because production backend source/dependencies unchanged;1,179coverage total, not all rerun. Sources match build; tracer absent from production document. Updated plan/roadmap/owning architecture/logs/registers; Step8closed only after fix and verified cleanup. No sprint covers date.
+
+**What I kept as-is:** Existing UI/keys/consents/API/session/backend transactions/policy/feature gates/dependencies, normal conflicts and uncertain read-only/no-app-replay behavior. BullMQ defer and production/provider/container/grace/B-033limits remain.
+
+**What I changed or rejected, and why:** Corrected the false-conflict recovery gap instead of waiving the unfavorable result. Did not override browser networking or add queue/idempotency infrastructure. Temporary fetch-ID scripts/fault middleware are outside repo source. Both synthetic accounts signed out, credential saving declined, owned tab closed and all5ports/processes/DB/uploads cleaned. No staging/commit/push/deploy/appDB/env/live provider changes.
+
+**Something the AI got wrong that I had to catch:** I challenged the claim that Step8was complete while a required socket-disconnect finding remained unresolved. Codex had confused documented limitations with passed acceptance (B-038). It reopened status, established the cause against baseline, added the scoped fix and only then closed acceptance. The recovery gap itself predates the refactor; the premature completion claim was the agent's mistake.
+
+**One decision I can explain without AI:** One JavaScript fetch can appear twice on the wire when a browser retries a reused connection. The client must read current owned state before treating the resulting new exact-slot conflict as a request failure; it must never issue another mutation to check.
