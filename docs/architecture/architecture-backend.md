@@ -1426,3 +1426,71 @@ audit and Compose health waiting. An explicit initial-migration mode stops the
 managed writer before invoking the existing dry-run/apply CLI; unresolved records
 block activation. Other writers must be stopped by the operator before initial
 cutover. No production database or running VPS was changed during local preparation.
+
+
+## FI-09 final acceptance and queue decision — November 23, 2026
+
+Steps1–8are complete locally after the resumed socket-disconnect investigation
+and narrow client recovery correction recorded below. The first Step8 sign-off
+was premature and was withdrawn before that investigation; see [the refactoring plan](../../backend/PACKAGE_REFACTORING_PLAN.md)
+for the baseline comparison, separate branch commits, exact commands and limits.
+Pino10.4.0, @nestjs/schedule12.0.4 and @nestjs/config12.1.1 are the only new direct
+runtime packages. The existing logger facade, four business workers, original
+Mongo transactions, leases/fencing, event IDs, feature gates and API boundaries
+remain. No schema/DTO/appointment REST or GraphQL entry files changed from baseline.
+
+Fresh backend build/full types/lint and959tests pass:191unit,236HTTP/GraphQL,
+521disposableDB,3combined Next/Nest recovery/session,8mocked deployment regressions.
+Next types/210tests/isolated production build pass; runtime backend and recursive
+Next audits report no findings. Production hooks/actual adapters and Chrome verify
+care replacement, profile crop/save outage recovery,390pxcontrols/keyboard, and
+postcommit503booking/cancellation reconciliation with one mutation each. Providers
+are stubbed and all storage is disposable. The first combined runner returned
+nonzero after passing assertions; final instrumented rerun has Jest/runner exit0.
+
+BullMQ/Redis adoption is **deferred**. No production queue measurements establish
+need and no Redis operating owner/budget is specified. Existing Mongo durable claims,
+transactional outbox and idempotent inbox delivery remain authoritative. A separate
+queue adds persistence, connections, monitoring and recovery obligations; consult
+[BullMQ production guidance](https://docs.bullmq.io/guide/going-to-production).
+Revisit with measured backlog age/throughput/latency and funded operations. Any
+future relay must publish committed deterministic outbox IDs, tolerate missing or
+duplicate publishes and retain durable consumer idempotency. Mongo commit and Redis
+enqueue are not one transaction. No queue migration was designed or implemented.
+
+The initial finding, resolved by the resumed sign-off below, was a destroyed-
+response browser probe producing2wire
+attempts from1native confirmation and a conflict, with one retained active booking;
+transport retry was suspected but unproven at that point (NEXT-022). Postcommit503and programmatic
+socket-drop recovery pass; every connection-loss mode is not certified. B-033's
+historical-year edge case is unchanged. Production/container/runtime24, provider
+integration and shutdown grace periods remain unverified. All owned acceptance
+processes/storage cleaned; no appDB/env/flags/deployment/Git mutation. README setup
+is unchanged; no active sprint covers the date.
+
+
+### Resumed Step8sign-off — November 23, 2026
+
+NEXT-022 is resolved by evidence and a scoped client correction. Baseline/current
+fixture-only fetch-ID traces show one JavaScript POST resent on two TCP connections
+by Chrome after a committed response was destroyed before headers. The same false-
+conflict UI existed before the refactor. Truncating a response after headers instead
+reconciles booking/cancel by reads. Chromium's
+[transaction implementation](https://chromium.googlesource.com/chromium/src.git/+/HEAD/net/http/http_network_transaction.cc)
+supports the observed transport behavior. No application automatic replay occurred.
+
+Next useCareAction now reads current state for a CREATE conflict identifying an
+owned same-kind/exact-target ID absent from the baseline, only after execute was
+attempted. Ordinary conflicts remain; failed/ambiguous checks stay read-only. Native
+pre-header socket-loss retest reaches CONFIRMED, and actual reads prove one target
+appointment. No backend policy/API/schema/transaction or retry change was needed.
+
+Fresh Next220tests/types/noUnused and corrected instrumented/uninstrumented builds
+pass. Backend source/dependencies are unchanged, so previous959backend tests/checks
+remain applicable (1,179total coverage; not all rerun). All five investigation ports,
+owned processes and DB/uploads cleaned. Evidence:
+`/private/tmp/fi09-step8-investigate-evidence.json`; final production build:
+`/private/tmp/fi09-step8-resumed-release/next`. Queue defer decision unchanged.
+Steps7–8and FI-09are now complete locally; earlier unresolved statements describe
+the initial attempt. Production/providers/Node24container/grace periods and B-033
+remain outside this acceptance. No staging/commit/push/deploy or live data changes.

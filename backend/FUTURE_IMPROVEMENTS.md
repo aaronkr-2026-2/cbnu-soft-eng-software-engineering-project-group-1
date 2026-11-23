@@ -37,7 +37,7 @@ initial recommendation; choose the next item explicitly before creating its plan
 | FI-06 | Doctor change requests                     | Let doctors request appointment cancellation or schedule changes for clinic approval                            | Larger         | **Backlog**   | Not created                                                 | —                 |
 | FI-07 | Square directory photos and upload cropper | Display doctor and clinic card photos at 1:1 and let members crop replacement photos before uploading           | Medium         | **Completed** | `next/IMAGE_CROPPER_PLAN.md` on branch `next`               | November 5, 2026  |
 | FI-08 | Email verification                         | Verify email ownership with an expiring code before creating a new email/password account                       | Medium         | **Completed** | [Email verification plan](EMAIL_VERIFICATION_PLAN.md)       | November 13, 2026 |
-| FI-09 | Package adoption and modular refactoring | Reduce custom infrastructure and split large backend/frontend functions while preserving existing behavior | Larger | **In progress** | [Refactoring plan](PACKAGE_REFACTORING_PLAN.md) | — |
+| FI-09 | Package adoption and modular refactoring | Reduce custom infrastructure and split large backend/frontend functions while preserving existing behavior | Larger | **Completed locally** | [Refactoring plan](PACKAGE_REFACTORING_PLAN.md) | November 23, 2026 |
 
 ## Scope notes for future plans
 
@@ -175,7 +175,7 @@ Completed locally November 13, 2026. Disposable data/processes were removed;
 application database setup and coordinated production deployment remain unperformed.
 This item is separate from FI-03 password recovery and FI-02 reminders.
 
-### FI-09 — Package adoption and modular refactoring — In progress
+### FI-09 — Package adoption and modular refactoring — Completed locally
 
 The [dedicated plan](PACKAGE_REFACTORING_PLAN.md) defines eight steps: baseline,
 logging, scheduling, configuration, timezone evaluation, backend function splits,
@@ -261,6 +261,32 @@ cutoff rollback and failed-handoff lease recovery. All four Step6 slices are com
 stop here for review/manual commit. Steps7–8 remain pending.
 Detailed evidence, limits and commit boundaries are in the plan; no deadline or
 source-line reduction is claimed.
+
+
+Step7 completed locally November23. Step8 was reopened after its premature
+completion claim; resumed acceptance below resolves NEXT-022 before final closure. The four Next slices are committed through
+`ea8c789`; final review removed one unused type export. Fresh backend build/full
+types/lint,959backend and210Next tests (1,169total), Next types/isolated build and
+both dependency audits pass. Real-stack Chrome closes profile crop/save-outage/
+lower-mobile gaps and verifies replacement consents, keyboard/mobile dialogs and
+postcommit503booking/cancellation read reconciliation without application replay.
+BullMQ/Redis adoption is deferred: no measured queue need or funded operations;
+retain the Mongo transactional outbox/idempotency and require a separate design
+if adoption is later justified. The plan records the socket-disconnect probe's
+2wire attempts/conflict (transport cause unconfirmed), B-033, and unverified
+production/providers/container behavior. No deployment or branch integration is
+implied. Earlier pending statements above describe historical slice checkpoints.
+
+
+Resumed Step8completed November23after correcting the premature sign-off. Fetch-ID
+traces prove Chrome transparently resent one POST when its reused connection lost
+the response before headers; baseline77c63deand current reproduced it. A narrow
+Next fix reconciles a newly visible owned exact-target CREATE conflict by reads;
+actual socket-reset retest now shows CONFIRMED with exactly1persisted target.
+Actual partial-body socket losses also reconcile booking/cancel; ordinary conflicts
+remain intact.220Next tests/types and both corrected builds pass; unchanged backend
+959-test evidence retained (1,179total). NEXT-022 is resolved. BullMQ stays deferred;
+production limits and B-033 remain. See the plan's resumed acceptance for full proof.
 
 ## Modular delivery workflow
 
