@@ -546,11 +546,11 @@ export class WaitlistService {
   ) {
     const row = await this.model()
       .findOne({
-        patientId,
-        doctorId: target.doctorId,
-        clinicId: target.clinicId,
-        specialty: target.specialty,
-        startsAt: target.startsAt,
+        patientId: { $eq: patientId },
+        doctorId: { $eq: target.doctorId },
+        clinicId: { $eq: target.clinicId },
+        specialty: { $eq: target.specialty },
+        startsAt: { $eq: target.startsAt },
         status: { $in: ACTIVE_WAITLIST_STATUSES },
       })
       .select(fields)
