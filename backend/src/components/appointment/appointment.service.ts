@@ -352,7 +352,7 @@ export class AppointmentService {
       allocationGeneration,
     );
     await this.requireFreeSlot(
-      input.doctorId,
+      doctorId,
       startsAt,
       target.endsAt,
       models.appointments,
@@ -552,7 +552,7 @@ export class AppointmentService {
   }
 
   private async requireFreeSlot(
-    doctorId: string,
+    doctorId: Types.ObjectId,
     startsAt: Date,
     endsAt: Date,
     appointments: Model<AppointmentEntity>,
